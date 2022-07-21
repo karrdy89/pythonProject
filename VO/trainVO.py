@@ -22,3 +22,18 @@ class DataInfoVO(BaseModel):
 
     class Config:
         extra = Extra.forbid
+
+
+class DeployVO(BaseModel):
+    model_name: str
+
+    class Config:
+        extra = Extra.forbid
+
+
+class PredictVO(BaseModel):
+    model_name: str
+    feature: list
+
+    class Config:
+        extra = Extra.forbid
