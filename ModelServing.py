@@ -40,7 +40,7 @@ class ModelServing:
             return result
 
     def get_model_endpoint(self, model_name: str):
-        return "http://localhost:8501/v1/models/test/"
+        return "http://localhost:8501/v1/models/test"
 
     def init_client(self):
         docker_host = os.getenv("DOCKER_HOST", default="unix:///run/user/1000/docker.sock")
