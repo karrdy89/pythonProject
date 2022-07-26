@@ -18,8 +18,8 @@ from ModelServing import ModelServing
 
 import VO.trainVO as VO
 
-#REQUIRMENT
-#ray fastapi uvicorn[standard] ray[serve]
+# REQUIRMENT
+# ray fastapi uvicorn[standard] ray[serve]
 
 
 app = FastAPI()
@@ -72,10 +72,11 @@ async def take_time():
 
 
 async def run_uvicorn():
+    #change path when deploy
     config = uvicorn.Config("main:app", host="0.0.0.0", port=8080
-                ,ssl_keyfile="/home/ky/cert/key.pem", ssl_certfile="/home/ky/cert/cert.pem"
-                ,ssl_keyfile_password="1234"
-            )
+                            , ssl_keyfile="/home/ky/cert/key.pem", ssl_certfile="/home/ky/cert/cert.pem"
+                            , ssl_keyfile_password="1234"
+                            )
     server = uvicorn.Server(config)
     await server.serve()
 
@@ -97,5 +98,3 @@ def print_current_datetime():
 if __name__ == "__main__":
     ray.init(dashboard_host="0.0.0.0", dashboard_port=8265)
     ray.get(uvicorn_wrapper.remote())
-
-

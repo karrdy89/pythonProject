@@ -13,6 +13,7 @@ class ModelServing:
         self.init_client()
 
     def run_container(self, name: str):
+        # change path when deploy
         self._client.containers.run(image='tensorflow/serving:2.6.5', detach=True, name=name,
                               ports={'8501/tcp': '8501/tcp'}, volumes=["/home/ky/PycharmProjects/pythonProject/saved_models/test:/models/test"],
                                     environment=["MODEL_NAME=test"])
@@ -40,9 +41,11 @@ class ModelServing:
             return result
 
     def get_model_endpoint(self, model_name: str):
+        # change path when deploy
         return "http://localhost:8501/v1/models/test"
 
     def init_client(self):
+        # change path when deploy
         docker_host = os.getenv("DOCKER_HOST", default="unix:///run/user/1000/docker.sock")
         self._client = docker.DockerClient(base_url=docker_host)
         # client = docker.from_env()
