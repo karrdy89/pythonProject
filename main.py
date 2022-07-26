@@ -42,15 +42,14 @@ async def get_models():
 @app.get("/{model}/state")
 async def get_model_state(model: str):
     server = ModelServing()
-    return await server.get_model_state(model)
+    result = await server.get_model_state(model)
+    result = json.loads(result)
+    return result
 
 
 @app.post("/deploy")
 async def deploy(request_body: VO.DeployVO):
-    # request_body = request_body.dict()
-    # model_name = request_body.get("model_name")
     server = ModelServing()
-    print(server)
     server.run_container(request_body.model_name)
     return datetime.datetime.now()
 

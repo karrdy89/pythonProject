@@ -14,9 +14,12 @@ class ModelServing:
 
     def run_container(self, name: str):
         # change path when deploy
+        saved_model_path = os.path.dirname(os.path.abspath(__file__)) + "/saved_models/"
         self._client.containers.run(image='tensorflow/serving:2.6.5', detach=True, name=name,
-                              ports={'8501/tcp': '8501/tcp'}, volumes=["/home/ky/PycharmProjects/pythonProject/saved_models/test:/models/test"],
-                                    environment=["MODEL_NAME=test"])
+                                    ports={'8501/tcp': '8501/tcp'},
+                                    volumes=[saved_model_path + name + ":/models/" + name],
+                                    environment=["MODEL_NAME="+name]
+                                    )
         return 0
 
     def get_container_list(self):
@@ -37,12 +40,12 @@ class ModelServing:
         async with Http() as http:
             await asyncio.sleep(5)
             result = await http.get(url)
-            print(result)
+            result = result.decode('utf8').replace("'", '"')
             return result
 
-    def get_model_endpoint(self, model_name: str):
-        # change path when deploy
-        return "http://localhost:8501/v1/models/test"
+    @staticmethod
+    def get_model_endpoint(model_name: str):
+        return "http://localhost:8501/v1/models/"+model_name
 
     def init_client(self):
         # change path when deploy
