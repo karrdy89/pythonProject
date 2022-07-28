@@ -71,10 +71,13 @@ async def take_time():
 
 
 async def run_uvicorn():
-    #change path when deploy
-    config = uvicorn.Config("main:app", host="0.0.0.0", port=8080
-                            , ssl_keyfile="/home/ky/cert/key.pem", ssl_certfile="/home/ky/cert/cert.pem"
-                            , ssl_keyfile_password="1234"
+    # config = uvicorn.Config("main:app", host="0.0.0.0", port=8080,
+    #                         ssl_keyfile="/home/ky/cert/key.pem", ssl_certfile="/home/ky/cert/cert.pem",
+    #                         ssl_keyfile_password="1234"
+    #                         )
+    config = uvicorn.Config("main:app", host="0.0.0.0", port=8080,  # deploy only
+                            ssl_keyfile="/cert/key.pem", ssl_certfile="/cert/cert.pem",
+                            ssl_keyfile_password="1234"
                             )
     server = uvicorn.Server(config)
     await server.serve()
