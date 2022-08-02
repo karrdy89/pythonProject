@@ -2,10 +2,12 @@ import os
 import asyncio
 
 import docker
+import ray
 
 from http_util import Http
 
 
+@ray.remote
 class ModelServing:
     def __init__(self):
         self._deploy_state = None
@@ -37,7 +39,6 @@ class ModelServing:
     async def get_model_state(self, model_name: str):
         url = self.get_model_endpoint(model_name)
         async with Http() as http:
-            await asyncio.sleep(5)
             result = await http.get(url)
             result = result.decode('utf8').replace("'", '"')
             return result
@@ -49,3 +50,4 @@ class ModelServing:
     def init_client(self):
         docker_host = os.getenv("DOCKER_HOST", default="unix:///run/user/1000/docker.sock")
         self._client = docker.DockerClient(base_url=docker_host)
+        self._client = docker.from_env()

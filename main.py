@@ -15,7 +15,6 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
 
 from serving import ModelServing
-
 import VO.value_object as VO
 
 SSL_CERT_PATH = "/home/ky/cert"
@@ -42,3 +41,4 @@ config = uvicorn.Config("routers:app",
 
 API_service = UvicornServer.options(name="API_service").remote(config=config)
 API_service.run_server.remote()
+model_serving = ModelServing.options(name="model_serving").remote()

@@ -15,6 +15,7 @@ from serving import ModelServing
 
 app = FastAPI()
 app.add_middleware(HTTPSRedirectMiddleware)
+server_test = ray.get_actor("model_serving")
 
 
 async def _reverse_proxy(request: Request):
@@ -58,8 +59,11 @@ async def test():
 
 @app.get("/models")
 async def get_models():
-    server = ModelServing()
-    return json.dumps(server.get_container_names())
+    # server = ModelServing()
+    # server_test = ray.get_actor("model_serving")
+    result = await server_test.get_container_names.remote()
+    # return json.dumps(server.get_container_names())
+    return json.dumps(result)
 
 
 @app.get("/{model}/state")
