@@ -13,11 +13,9 @@ class ModelServing:
         self.init_client()
 
     def run_container(self, name: str):
-        # saved_model_path = os.path.dirname(os.path.abspath(__file__)) + "/saved_models/"
-        saved_model_path = "/docker/test/saved_models/" # deploy only
+        saved_model_path = os.path.dirname(os.path.abspath(__file__)) + "/saved_models/"
         self._client.containers.run(image='tensorflow/serving:2.6.5', detach=True, name="TFS01",
                                     ports={'8501/tcp': '8501/tcp'},
-                                    extra_hosts={"host.docker.internal": "host-gateway"},   # deploy only
                                     volumes=[saved_model_path + name + ":/models/" + name],
                                     environment=["MODEL_NAME="+name]
                                     )
@@ -46,10 +44,8 @@ class ModelServing:
 
     @staticmethod
     def get_model_endpoint(model_name: str):
-        # return "http://localhost:8501/v1/models/"+model_name
-        return "http://host.docker.internal:8501/v1/models/" + model_name
+        return "http://localhost:8501/v1/models/"+model_name
 
     def init_client(self):
-        # docker_host = os.getenv("DOCKER_HOST", default="unix:///run/user/1000/docker.sock")
-        # self._client = docker.DockerClient(base_url=docker_host)
-        self._client  = docker.from_env()   # deploy only
+        docker_host = os.getenv("DOCKER_HOST", default="unix:///run/user/1000/docker.sock")
+        self._client = docker.DockerClient(base_url=docker_host)

@@ -1,6 +1,6 @@
 pydantic~=1.9.1
 ray~=1.13.0
-uvicorn[standard]
+uvicorn[standard]~=0.16.0
 fastapi~=0.79.0
 starlette~=0.19.1
 tensorflow~=2.9.1
@@ -8,3 +8,4 @@ numpy~=1.23.1
 uvloop~=0.16.0
 docker~=5.0.3
 aiohttp~=3.8.1
+httpx~=0.23.0
