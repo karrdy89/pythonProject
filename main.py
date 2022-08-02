@@ -14,9 +14,9 @@ from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
 
-from ModelServing import ModelServing
+from serving import ModelServing
 
-import VO.trainVO as VO
+import VO.value_object as VO
 
 SSL_CERT_PATH = "/home/ky/cert"
 

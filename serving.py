@@ -3,7 +3,7 @@ import asyncio
 
 import docker
 
-from HttpService import Http
+from http_util import Http
 
 
 class ModelServing:

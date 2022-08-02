@@ -10,8 +10,8 @@ from starlette.requests import Request
 from starlette.responses import StreamingResponse
 from starlette.background import BackgroundTask
 
-import VO.trainVO as VO
-from ModelServing import ModelServing
+import VO.value_object as VO
+from serving import ModelServing
 
 app = FastAPI()
 app.add_middleware(HTTPSRedirectMiddleware)
