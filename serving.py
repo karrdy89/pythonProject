@@ -1,8 +1,10 @@
 import os
 import asyncio
+from dataclasses import dataclass
 
 import docker
 import ray
+import grpc
 
 from http_util import Http
 
@@ -16,7 +18,7 @@ DEPLOY_PATH = ""
 class ModelServing:
     def __init__(self):
         self._lock = asyncio.Lock()
-        self._deploy_state = None
+        self._deploy_state = []
         self._client = None
         self._http_port = []
         self._http_port_use = []
@@ -26,9 +28,23 @@ class ModelServing:
 
 
     def deploy(self, model_id:str, model_version:str, container_num:int) -> int:
+        is_deploy = False
+        is_progress = False
         async with self._lock:
-            print("some")
-        #get model_id is in deploy state -> block or not -> lock
+            for model_server in self._deploy_state:
+                if model_server.model_id == model_id:
+                    is_deploy = True
+                    is_progress = (ModelServer.state == "progress")
+                    break
+        if is_progress:
+            return 999 #"same model is in deploy progress"
+
+        if is_deploy:
+            print("do add version progress: grpc")
+        else:
+            print("do run container progress: docker")
+
+        #get model_id is in deploy state -> block or not -> lock : blocking case : run same model container in same time
         #get model_id in deploy or not
         #if deploy add version -> check if version already serving -> remove all add container to container num
         #if not run container to container num
@@ -38,6 +54,7 @@ class ModelServing:
         #can stop certain version in container
         #when deploy, copy model file to deploy folder -> run or grpc
         #when remove, delete versions, if version less then one remove container
+        #async cycle package
         self.run_container(model_id=model_id, container_name=model_id, )
         return 0
 
@@ -84,7 +101,7 @@ class ModelServing:
             self._grpc_port.append(GRPC_PORT_START + i)
             self._http_port.append(HTTP_PORT_START + i)
 
-    def get_port_http(self, container: ):
+    def get_port_http(self, container: str):
         self._http_port_use.append(self._http_port.pop())
 
     def get_port_grpc(self, container: str):
@@ -92,3 +109,15 @@ class ModelServing:
 
     def release_port_http(self):
         self._http_port
+
+    def reset_deploy_config(self):
+        return 0
+
+
+@dataclass
+class ModelServer:
+    model_id: str
+    state: str
+    containers: list
+    versions: list
+
