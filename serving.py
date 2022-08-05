@@ -1,10 +1,15 @@
+import json
 import os
 import asyncio
 from dataclasses import dataclass
+from shutil import copytree
 
 import docker
 import ray
 import grpc
+from tensorflow_serving.apis import model_service_pb2_grpc
+from tensorflow_serving.apis import model_management_pb2
+from tensorflow_serving.config import model_server_config_pb2
 
 from http_util import Http
 
@@ -27,14 +32,14 @@ class ModelServing:
         self.init_client()
 
 
-    def deploy(self, model_id:str, model_version:str, container_num:int) -> int:
+    async def deploy(self, model_id:str, model_version:str, container_num:int) -> int:
         is_deploy = False
         is_progress = False
         async with self._lock:
             for model_server in self._deploy_state:
                 if model_server.model_id == model_id:
                     is_deploy = True
-                    is_progress = (ModelServer.state == "progress")
+                    is_progress = (ModelDeployState.state == "progress")
                     break
         if is_progress:
             return 999 #"same model is in deploy progress"
@@ -110,12 +115,43 @@ class ModelServing:
     def release_port_http(self):
         self._http_port
 
-    def reset_deploy_config(self):
+    # def reset_version_config(self, host: str, name: str, base_path: str,
+    #                          model_platform: str, model_version_policy: dict):
+    def reset_version_config(self):
+        host = "localhost:8500"
+        name = "test"
+        base_path = "/models/test"
+        model_platform = "tensorflow"
+        model_versions = 1
+        channel = grpc.insecure_channel(host)
+        stub = model_service_pb2_grpc.ModelServiceStub(channel)
+        request = model_management_pb2.ReloadConfigRequest()
+        model_server_config = model_server_config_pb2.ModelServerConfig()
+
+        config_list = model_server_config_pb2.ModelConfigList()
+        config = config_list.config.add()
+        config.name = name
+        config.base_path = base_path
+        config.model_platform = model_platform
+        config.model_version_policy.specific.versions.append(1)
+
+        model_server_config.model_config_list.CopyFrom(config_list)
+        request.config.CopyFrom(model_server_config)
+        try:
+            response = stub.HandleReloadConfigRequest(request, 20)
+        except response.status.error_message:
+            print(response.status.error_message)
+        if response.status.error_code == 0:
+            print("Reload sucessfully")
+        else:
+            print("Reload failed!")
+            print(response.status.error_code)
+            print(response.status.error_message)
         return 0
 
 
 @dataclass
-class ModelServer:
+class ModelDeployState:
     model_id: str
     state: str
     containers: list

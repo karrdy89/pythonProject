@@ -56,6 +56,11 @@ async def test():
     await take_time()
     return datetime.datetime.now()
 
+@app.get("/reset")
+async def reset():
+    server_test.reset_version_config.remote()
+    return 0
+
 
 @app.get("/models")
 async def get_models():
@@ -88,7 +93,7 @@ async def deploy(request_body: VO.PredictVO):
     feature = request_body.feature
     server = ModelServing()
     result = await server.get_model_state(model_name)
-    return result
+    return
 
 
 @ray.remote
