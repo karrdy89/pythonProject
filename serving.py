@@ -90,9 +90,9 @@ class ModelServing:
         # when remove, delete versions, if version less then one remove container
         # cp
         # add folder to deploy(if not exist
-        # async cycle package <-
+        # async cycle package
         # predict
-        # add / delete container
+        # add / delete container <-
         # delete version
         # delete model
         # onload
