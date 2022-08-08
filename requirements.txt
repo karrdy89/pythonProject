@@ -9,3 +9,4 @@ uvloop~=0.16.0
 docker~=5.0.3
 aiohttp~=3.8.1
 httpx~=0.23.0
+tensorboard~=2.9.1

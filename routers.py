@@ -41,6 +41,7 @@ async def _reverse_proxy(request: Request):
             background=BackgroundTask(rp_resp.aclose),
         )
 
+
 app.add_route("/dashboard/{port}/{path:path}", _reverse_proxy, ["GET", "POST"])
 
 
@@ -55,6 +56,7 @@ async def f():
 async def test():
     await take_time()
     return datetime.datetime.now()
+
 
 @app.get("/reset")
 async def reset():
@@ -81,8 +83,11 @@ async def get_model_state(model: str):
 
 @app.post("/deploy")
 async def deploy(request_body: VO.DeployVO):
-    server = ModelServing()
-    server.run_container(request_body.model_name)
+    server = ray.get_actor("model_serving")
+    remote_job_obj = server.deploy.remote(model_id=request_body.model_id,
+                                          model_version=request_body.model_version,
+                                          container_num=request_body.container_num)
+    result = await remote_job_obj
     return datetime.datetime.now()
 
 

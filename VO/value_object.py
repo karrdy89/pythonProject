@@ -25,7 +25,9 @@ class DataInfoVO(BaseModel):
 
 
 class DeployVO(BaseModel):
-    model_name: str
+    model_id: str
+    model_version: int
+    container_num: int
 
     class Config:
         extra = Extra.forbid
