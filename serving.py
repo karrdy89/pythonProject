@@ -1,3 +1,4 @@
+import asyncstdlib.itertools
 import json
 import os
 import asyncio
@@ -91,6 +92,9 @@ class ModelServing:
         # add folder to deploy(if not exist
         # async cycle package <-
         # predict
+        # add / delete container
+        # delete version
+        # delete model
         # onload
 
     async def add_version(self, model_id: str, model_version: str):
@@ -117,7 +121,7 @@ class ModelServing:
                                                    model_version_policy=model_server.versions)
                 if result != 0:
                     print("reset config error : " + _.name)
-                    return 4 # copy ok
+                    return 4  # copy ok
             return 0
         else:
             print("model not deployed yet")
@@ -132,8 +136,18 @@ class ModelServing:
         return container
 
     async def predict(self, model_id: str, model_version: str, data: json):
-
-        return 0
+        model_server = self.get_model_server(model_id=model_id)
+        if model_server:
+            print("model is not in deploy state")
+            return -1
+        if model_server.cycle_iterator:
+            print("cycle_iterator is not set")
+            return -1
+        url = next(model_server.cycle_iterator)
+        url = url + str(self.version_encode(model_version)) + ":predict"
+        async with Http() as http:
+            result = await http.post(url, data)
+            return result
 
     def get_container_list(self):
         return self._client.containers.list()
@@ -246,6 +260,21 @@ class ModelServing:
         else:
             return 0
 
+    def set_cycle(self, model_server):
+        urls = []
+        async with self._lock:
+            for container in model_server.containers:
+                url = "http://" + container.http_url[0] + ':' + str(container.http_url[1]) + \
+                      "/v1/models/" + model_server.model_id + "/"
+                urls.append(url)
+            model_server.cycle_iterator = cycle(urls)
+
+    def get_model_server(self, model_id):
+        for model_server in self._deploy_states:
+            if model_server.model_id == model_id:
+                return model_server
+        return None
+
     def version_encode(self, version: str) -> int:
         sv = version.split('.')
         if len(sv[-1]) > 9:
@@ -276,6 +305,7 @@ class ServingContainer:
 class ModelDeployState:
     model_id: str
     state: int
+    cycle_iterator: object = None
     versions: list[str] = field(default_factory=list)
     containers: list[ServingContainer] = field(default_factory=list)
 
