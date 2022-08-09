@@ -1,11 +1,10 @@
-import asyncstdlib.itertools
 import json
 import os
 import asyncio
 import shutil
 import uuid
 from dataclasses import dataclass, field
-from shutil import copytree
+from shutil import copytree, rmtree
 
 import docker
 import ray
@@ -14,13 +13,15 @@ from tensorflow_serving.apis import model_service_pb2_grpc
 from tensorflow_serving.apis import model_management_pb2
 from tensorflow_serving.config import model_server_config_pb2
 from asyncstdlib.itertools import cycle
+from docker.errors import ContainerError, ImageNotFound, APIError
+from docker.models.containers import Container
 # from aioshutil import copytree
 
 from http_util import Http
 
 HTTP_PORT_START = 8500
 GRPC_PORT_START = 8000
-MAX_CONTAINER = 20
+MAX_CONTAINER = 50
 DEPLOY_PATH = ""
 
 
@@ -29,7 +30,7 @@ class ModelServing:
     def __init__(self):
         self._lock = asyncio.Lock()
         self._deploy_requests = []
-        self._deploy_states = []
+        self._deploy_states = {}
         self._client = None
         self._http_port = []
         self._http_port_use = []
@@ -37,116 +38,141 @@ class ModelServing:
         self._grpc_port_use = []
         self._ip_container_server = None
         self._deploy_path = None
+        self._current_container_num = 0
+        self._project_path = os.path.dirname(os.path.abspath(__file__))
         self.init_client()
 
-    async def deploy(self, model_id: str, model_version: str, container_num: int) -> int:
-        if container_num > MAX_CONTAINER:
+    async def deploy(self, model_id: str, model_version: str, container_num: int) -> json:
+        if (self._current_container_num + container_num) > MAX_CONTAINER:
             print("max container number exceeded")
-            return 4
+            result = json.dumps({"code": 4, "msg": "max container number exceeded"})
+            return result
 
+        is_in_progress = False
         async with self._lock:
-            if model_id in self._deploy_requests:
-                print("deploy duplicated")
-                return 999
-            else:
-                self._deploy_requests.append(model_id)
+            if (model_id, model_version) in self._deploy_requests:
+                is_in_progress = True
 
-        model_server = None
-        for _ in self._deploy_states:
-            if _.model_id == model_id:
-                model_server = _
-                break
-        if model_server.state == StatusCode.ALREADY_EXIST:
-            print("model already deployed. call add model interface")
+        if is_in_progress:
+            print("same deploy request is in progress")
+            result = json.dumps({"code": 5, "msg": "same deploy request is in progress"})
+            return result
         else:
-            result = self.copy_model(model_id, model_version)
-            if result != 0:
-                return -1
-            model_deploy_state = ModelDeployState(model_id=model_id, state=StatusCode.ALREADY_EXIST)
-            model_deploy_state.versions.append(model_version)
-            for _ in range(container_num):
-                http_port = self.get_port_http()
-                grpc_port = self.get_port_grpc()
-                container_name = model_id + "-" + uuid.uuid4().hex
-                container = await self.run_container(model_id=model_id, container_name=container_name,
-                                                     http_port=http_port, grpc_port=grpc_port)
-                serving_container = ServingContainer(name=container_name, container=container,
-                                                     http_url=(self._ip_container_server, http_port),
-                                                     grpc_url=(self._ip_container_server, grpc_port))
-                model_deploy_state.containers.append(serving_container)
-            self._deploy_states.append(model_deploy_state)
-
-        self._deploy_requests.remove(model_id)
-        return 0
-        # get model_id is in deploy state -> block or not -> lock : blocking case : run same model container in same time
-        # get model_id in deploy or not
-        # if deploy add version -> check if version already serving -> remove all add container to container num
-        # if not run container to container num
-        # deploy state = [{model1:state}, {model2:state}]
-        # one model_id can get multiple container model = [{cont1:state}, {cont2:state}]
-        # one container can get multiple version cont = [v1, v2]
-        # can stop certain version in container
-        # when deploy, copy model file to deploy folder -> run or grpc
-        # when remove, delete versions, if version less then one remove container
-        # cp
-        # add folder to deploy(if not exist
+            async with self._lock:
+                self._deploy_requests.append((model_id, model_version))
+            model_deploy_state = None
+            encoded_version = self.version_encode(model_version)
+            model_key = model_id + ":" + model_version
+            if model_key in self._deploy_states:
+                model_deploy_state = self._deploy_states.get(model_key)
+            if model_deploy_state.state == StatusCode.ALREADY_EXIST:
+                print("model already deployed.")
+                result = json.dumps({"code": 6, "msg": "model already deployed"})
+                return result
+            else:
+                async with self._lock:
+                    self._current_container_num += container_num
+                result = self.copy_to_deploy(model_id, encoded_version)
+                if result == -1:
+                    print("an error occur when copying model file")
+                    result = json.dumps({"code": 7, "msg": "n error occur when copying model file"})
+                    async with self._lock:
+                        self._current_container_num -= container_num
+                    return result
+                model_deploy_state = ModelDeployState(model=(model_id, encoded_version), state=StatusCode.ALREADY_EXIST)
+                is_deploy_failed = False
+                for _ in range(container_num):
+                    http_port = self.get_port_http()
+                    grpc_port = self.get_port_grpc()
+                    container_name = model_id + "-" + uuid.uuid4().hex
+                    container = await self.run_container(model_id=model_id, container_name=container_name,
+                                                         http_port=http_port, grpc_port=grpc_port,
+                                                         deploy_path=self._deploy_path+model_key+"/")
+                    if container is None:
+                        is_deploy_failed = True
+                        break
+                    serving_container = ServingContainer(name=container_name, container=container,
+                                                         http_url=(self._ip_container_server, http_port),
+                                                         grpc_url=(self._ip_container_server, grpc_port))
+                    model_deploy_state.containers.append(serving_container)
+                if is_deploy_failed:
+                    for serving_container in model_deploy_state.containers:
+                        serving_container.container.remove(force=True)
+                    async with self._lock:
+                        self._current_container_num -= container_num
+                    print("failed to create container")
+                    result = json.dumps({"code": 8, "msg": "failed to create container"})
+                    return result
+                else:
+                    self.set_cycle(model_id=model_id, version=model_version)
+                    async with self._lock:
+                        self._deploy_states[model_key] = model_deploy_state
+                        self._deploy_requests.remove((model_id, model_version))
+                    print("success")
+                    result = json.dumps({"code": 0, "msg": "success"})
+                    return result
+        # version configuration - 1. grpc, 2. folder name -> /deploy/model:12/model/12 -> /deploy/model:22/model/22
         # async cycle package
         # predict
         # add / delete container <-
-        # delete version
         # delete model
-        # onload
+        # onload (read db)
 
-    async def add_version(self, model_id: str, model_version: str):
+    async def add_container(self, model_id: str, version: str, container_num: int) -> json:
+        # check deploy state
+        # add container num
+        # run container -> if fail -> remember contaner idx
+        # add servingcontainer to deploymodelstate
+        # reset cycle
         model_server = None
-        for _ in self._deploy_states:
-            if _.model_id == model_id:
-                model_server = _
-                break
-        if model_server.state == StatusCode.ALREADY_EXIST:
-            print("do add version progress: grpc")
-            version_list = model_server.version
-            for version in version_list:
-                if version == model_version:
-                    print("already deploy")
-                    return 1
-            print("add new version")
-            result = self.copy_model(model_id, model_version)
-            if result != 0:
-                return -1
-            model_server.versions.append(model_version)
-            for _ in model_server.containers:
-                result = self.reset_version_config(host=self._ip_container_server, name=_.name,
-                                                   base_path="/models/" + model_id, model_platform="tensorflow",
-                                                   model_version_policy=model_server.versions)
-                if result != 0:
-                    print("reset config error : " + _.name)
-                    return 4  # copy ok
-            return 0
-        else:
-            print("model not deployed yet")
-            return -1
+        model_key = model_id + ":" + version
+        if model_key in self._deploy_states:
+            model_server = self._deploy_states.get(model_key)
 
-    async def run_container(self, model_id: str, container_name: str, http_port: int, grpc_port: int):
-        container = self._client.containers.run(image='tensorflow/serving:2.6.5', detach=True, name=container_name,
-                                                ports={'8501/tcp': http_port, '8500/tcp': grpc_port},
-                                                volumes=[self._deploy_path + model_id + ":/models/" + model_id],
-                                                environment=["MODEL_NAME=" + model_id]
-                                                )
-        return container
+        return None
+
+    async def remove_container(self, model_id: str, version: str, container_num: int) -> json:
+        # del container num
+        # if 0 -> un_deploy
+        return None
+
+    async def un_deploy(self, model_id: str, version: str) -> json:
+        #
+        return None
+
+    async def run_container(self, model_id: str, container_name: str, http_port: int, grpc_port: int, deploy_path: str):
+        try:
+            container = self._client.containers.run(image='tensorflow/serving:2.6.5', detach=True, name=container_name,
+                                                    ports={'8501/tcp': http_port, '8500/tcp': grpc_port},
+                                                    volumes=[deploy_path + model_id + ":/models/" + model_id],
+                                                    environment=["MODEL_NAME=" + model_id]
+                                                    )
+            return container
+        except ContainerError:
+            print("the container exits with a non-zero exit code and detach is False")
+            return None
+        except ImageNotFound:
+            print("the specified image does not exist")
+            return None
+        except APIError:
+            print("the server returns an error")
+            return None
 
     async def predict(self, model_id: str, model_version: str, data: json):
-        model_server = self.get_model_server(model_id=model_id)
-        if model_server:
+        model_deploy_state = self._deploy_states.get(model_id+":"+model_version)
+        if model_deploy_state is None:
             print("model is not in deploy state")
             return -1
-        if model_server.cycle_iterator:
+        if model_deploy_state.cycle_iterator is None:
             print("cycle_iterator is not set")
             return -1
-        url = next(model_server.cycle_iterator)
-        url = url + str(self.version_encode(model_version)) + ":predict"
+        url = next(model_deploy_state.cycle_iterator)
         async with Http() as http:
+            async with self._lock:
+                model_deploy_state.ref_count += 1
             result = await http.post(url, data)
+            async with self._lock:
+                model_deploy_state.ref_count -= 1
             return result
 
     def get_container_list(self):
@@ -169,12 +195,9 @@ class ModelServing:
             result = result.decode('utf8').replace("'", '"')
             return result
 
-    def get_model_endpoint(self, model_name: str):
-        return "http://" + self._ip_container_server + ":8501/v1/models/" + model_name  # delete
-
     def init_client(self):
         self._ip_container_server = "localhost"  # config
-        self._deploy_path = os.path.dirname(os.path.abspath(__file__)) + "/saved_models/"  # config
+        self._deploy_path = os.path.dirname(os.path.abspath(__file__)) + "/deploy/"  # config
         docker_host = os.getenv("DOCKER_HOST", default="unix:///run/user/1000/docker.sock")  # config
         self._client = docker.DockerClient(base_url=docker_host)  # delete
         self.on_load()  # delete
@@ -205,10 +228,6 @@ class ModelServing:
 
     def reset_version_config(self, host: str, name: str, base_path: str,
                              model_platform: str, model_version_policy: list):
-        # host = "localhost:8500"
-        # name = "test"
-        # base_path = "/models/test"
-        # model_platform = "tensorflow"
         channel = grpc.insecure_channel(host)
         stub = model_service_pb2_grpc.ModelServiceStub(channel)
         request = model_management_pb2.ReloadConfigRequest()
@@ -244,34 +263,78 @@ class ModelServing:
                 print(response.status.error_message)
                 return -1
 
-    def copy_model(self, model_id: str, model_version: str) -> int:
+    async def add_version(self, model_id: str, model_version: str):
+        model_server = None
+        for _ in self._deploy_states:
+            if _.model_id == model_id:
+                model_server = _
+                break
+        if model_server.state == StatusCode.ALREADY_EXIST:
+            print("do add version progress: grpc")
+            version_list = model_server.version
+            for version in version_list:
+                if version == model_version:
+                    print("already deploy")
+                    return 1
+            print("add new version")
+            result = self.copy_model(model_id, model_version)
+            if result != 0:
+                return -1
+            model_server.versions.append(model_version)
+            for container in model_server.containers:
+                result = self.reset_version_config(host=container.grpc_url[0] + ":" + str(container.grpc_url[1]),
+                                                   name=container.name,
+                                                   base_path="/models/" + model_id, model_platform="tensorflow",
+                                                   model_version_policy=model_server.versions)
+                if result != 0:
+                    print("reset config error : " + container.name)
+            return 0
+        else:
+            print("model not deployed yet")
+            return -1
+
+    def copy_to_deploy(self, model_id: str, model_version: int) -> int:
+        model_path = self._project_path + "/saved_models/" + model_id + "/" + model_version
+        decoded_version = self.version_decode(model_version)
+        deploy_key = model_id + ":" + decoded_version
+        deploy_path = self._project_path + "/deploy/" + deploy_key + "/" + model_id + "/" + model_version
         try:
-            project_path = os.path.dirname(os.path.abspath(__file__))
-            model_path = project_path + "/saved_models/" + model_id + "/" + model_version
-            deploy_path = project_path + "/deploy/" + model_id + "/" + model_version
             copytree(model_path, deploy_path)
         except FileExistsError:
             print("version already exist in deploy dir")
-            return 4
+            return -1
         except shutil.Error as err:
             src, dist, msg = err
-            print("error on src:" + src + " target: " + dist + " | error: " + err)
+            print("error on src:" + src + " target: " + dist + " | error: " + msg)
             return -1
         else:
             return 0
 
-    def set_cycle(self, model_server):
-        urls = []
-        async with self._lock:
-            for container in model_server.containers:
-                url = "http://" + container.http_url[0] + ':' + str(container.http_url[1]) + \
-                      "/v1/models/" + model_server.model_id + "/"
-                urls.append(url)
-            model_server.cycle_iterator = cycle(urls)
+    def delete_model(self, model_id: str, model_version: str) -> int:
+        deploy_path = self._project_path + "/deploy/" + model_id + "/" + model_version
+        try:
+            rmtree(deploy_path, ignore_errors=False)
+        except shutil.Error as err:
+            src, dist, msg = err
+            print("error on src:" + src + " target: " + dist + " | error: " + msg)
+            return -1
+        else:
+            return 0
 
-    def get_model_server(self, model_id):
+    def set_cycle(self, model_id: str, version: str):
+        urls = []
+        model_key = model_id + ":" + version
+        model_deploy_state = self._deploy_states.get(model_key)
+        async with self._lock:
+            for container in model_deploy_state.containers:
+                url = "http://" + container.http_url[0] + ':' + str(container.http_url[1]) + \
+                      "/v1/models/" + model_deploy_state.model_id + ":predict"
+                urls.append(url)
+            model_deploy_state.cycle_iterator = cycle(urls)
+
+    def get_model_server(self, model_id: str, version: int):
         for model_server in self._deploy_states:
-            if model_server.model_id == model_id:
+            if model_server.model_id == (model_id, version):
                 return model_server
         return None
 
@@ -296,17 +359,17 @@ class ModelServing:
 @dataclass
 class ServingContainer:
     name: str
-    container: object
+    container: Container
     http_url: tuple[str, int] = field(default_factory=tuple)
     grpc_url: tuple[str, int] = field(default_factory=tuple)
 
 
 @dataclass
 class ModelDeployState:
-    model_id: str
+    model: tuple[str, int]
     state: int
+    ref_count: int = 0
     cycle_iterator: object = None
-    versions: list[str] = field(default_factory=list)
     containers: list[ServingContainer] = field(default_factory=list)
 
 
