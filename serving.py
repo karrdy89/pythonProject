@@ -123,6 +123,7 @@ class ModelServing:
                     result = json.dumps({"code": 0, "msg": "success"})
                     return result
         # onload (read db) <-
+        # logger
 
     async def add_container(self, model_id: str, version: str, container_num: int) -> json:
         model_key = model_id+":"+version
@@ -216,6 +217,8 @@ class ModelServing:
                 container.container.remove(force=True)
             print("deploy ended: " + model_key)
             result = json.dumps({"code": 200, "msg": "deploy ended: " + model_key})
+            async with self._lock:
+                self._current_container_num -= len(containers)
             return result
         else:
             print("model is currently in use and cannot be closed")
