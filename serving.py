@@ -3,8 +3,10 @@ import os
 import asyncio
 import shutil
 import uuid
+import functools
 from dataclasses import dataclass, field
 from shutil import copytree, rmtree
+from concurrent.futures import ThreadPoolExecutor
 
 import docker
 import ray
@@ -29,6 +31,7 @@ DEPLOY_PATH = ""
 class ModelServing:
     def __init__(self):
         self._lock = asyncio.Lock()
+        self._executor = ThreadPoolExecutor()
         self._deploy_requests = []
         self._deploy_states = {}
         self._client = None
@@ -85,6 +88,14 @@ class ModelServing:
                     http_port = self.get_port_http()
                     grpc_port = self.get_port_grpc()
                     container_name = model_id + "-" + uuid.uuid4().hex
+                    # loop = asyncio.get_event_loop()
+                    # container = await loop.run_in_executor(self._executor,
+                    #                                        functools.partial(self.run_container,
+                    #                                                          model_id=model_id,
+                    #                                                          container_name=container_name,
+                    #                                                          http_port=http_port,
+                    #                                                          grpc_port=grpc_port,
+                    #                                                          deploy_path=self._deploy_path + model_key + "/"))
                     container = await self.run_container(model_id=model_id, container_name=container_name,
                                                          http_port=http_port, grpc_port=grpc_port,
                                                          deploy_path=self._deploy_path+model_key+"/")
@@ -111,34 +122,105 @@ class ModelServing:
                     print("success")
                     result = json.dumps({"code": 0, "msg": "success"})
                     return result
-        # version configuration - 1. grpc, 2. folder name -> /deploy/model:12/model/12 -> /deploy/model:22/model/22
-        # async cycle package
-        # predict
-        # add / delete container <-
-        # delete model
-        # onload (read db)
+        # onload (read db) <-
 
     async def add_container(self, model_id: str, version: str, container_num: int) -> json:
-        # check deploy state
-        # add container num
-        # run container -> if fail -> remember contaner idx
-        # add servingcontainer to deploymodelstate
-        # reset cycle
-        model_server = None
-        model_key = model_id + ":" + version
-        if model_key in self._deploy_states:
-            model_server = self._deploy_states.get(model_key)
+        model_key = model_id+":"+version
+        model_deploy_state = self._deploy_states.get(model_key)
+        if model_deploy_state is None:
+            print("the model is not deployed")
+            result = json.dumps({"code": 8, "msg": "the model is not deployed"})
+            return result
 
-        return None
+        async with self._lock:
+            self._current_container_num += container_num
+
+        deploy_count = 0
+        for _ in range(container_num):
+            http_port = self.get_port_http()
+            grpc_port = self.get_port_grpc()
+            container_name = model_id + "-" + uuid.uuid4().hex
+            # loop = asyncio.get_event_loop()
+            # container = await loop.run_in_executor(self._executor,
+            #                                        functools.partial(self.run_container,
+            #                                                          model_id=model_id,
+            #                                                          container_name=container_name,
+            #                                                          http_port=http_port,
+            #                                                          grpc_port=grpc_port,
+            #                                                          deploy_path=self._deploy_path + model_key + "/"))
+            container = await self.run_container(model_id=model_id, container_name=container_name,
+                                                 http_port=http_port, grpc_port=grpc_port,
+                                                 deploy_path=self._deploy_path+model_key+"/")
+            if container is None:
+                break
+            deploy_count += 1
+            serving_container = ServingContainer(name=container_name, container=container,
+                                                 http_url=(self._ip_container_server, http_port),
+                                                 grpc_url=(self._ip_container_server, grpc_port))
+            model_deploy_state.containers.append(serving_container)
+        self.set_cycle(model_id=model_id, version=version)
+        if deploy_count == container_num:
+            print("add container success")
+            result = json.dumps({"code": 200, "msg": "add container success"})
+            return result
+        else:
+            async with self._lock:
+                self._current_container_num -= (container_num - deploy_count)
+            print("add container failed " + str(deploy_count) + "/" + str(container_num) + "is deployed")
+            result = json.dumps({"code": 1, "msg": "add container failed " + str(deploy_count) + "/" + str(container_num) + "is deployed"})
+            return result
 
     async def remove_container(self, model_id: str, version: str, container_num: int) -> json:
-        # del container num
-        # if 0 -> un_deploy
-        return None
+        model_key = model_id+":"+version
+        model_deploy_state = self._deploy_states.get(model_key)
+        if model_deploy_state is None:
+            print("the model is not deployed")
+            result = json.dumps({"code": 8, "msg": "the model is not deployed"})
+            return result
 
-    async def un_deploy(self, model_id: str, version: str) -> json:
-        #
-        return None
+        containers = model_deploy_state.containers
+        is_delete_success = True
+        for _ in range(container_num):
+            if len(containers) <= 1:
+                result = await self.end_deploy(model_id=model_id, version=version)
+                return result
+            else:
+                container = containers.pop()
+                self.set_cycle(model_id=model_id, version=version)
+                async with self._lock:
+                    self._current_container_num -= container_num
+                try:
+                    container.container.stop()
+                    container.container.remove()
+                except APIError:
+                    print("an error occur when remove container")
+                    is_delete_success = False
+        if is_delete_success:
+            result = json.dumps({"code": 9, "msg": "an error occur when remove container"})
+            return result
+        else:
+            result = json.dumps({"code": 200, "msg": "delete container success"})
+            return result
+
+    async def end_deploy(self, model_id: str, version: str) -> json:
+        model_key = model_id+":"+version
+        model_deploy_state = self._deploy_states.get(model_key)
+        if model_deploy_state is None:
+            print("the model is not deployed")
+            result = json.dumps({"code": 8, "msg": "the model is not deployed"})
+            return result
+
+        if model_deploy_state.ref_count <= 0:
+            containers = model_deploy_state.containers
+            for container in containers:
+                container.container.remove(force=True)
+            print("deploy ended: " + model_key)
+            result = json.dumps({"code": 200, "msg": "deploy ended: " + model_key})
+            return result
+        else:
+            print("model is currently in use and cannot be closed")
+            result = json.dumps({"code": 10, "msg": "model is currently in use and cannot be closed"})
+            return result
 
     async def run_container(self, model_id: str, container_name: str, http_port: int, grpc_port: int, deploy_path: str):
         try:
@@ -159,7 +241,7 @@ class ModelServing:
             return None
 
     async def predict(self, model_id: str, model_version: str, data: json):
-        model_deploy_state = self._deploy_states.get(model_id+":"+model_version)
+        model_deploy_state = self._deploy_states.get(model_id + ":" + model_version)
         if model_deploy_state is None:
             print("model is not in deploy state")
             return -1
