@@ -66,19 +66,8 @@ async def reset():
 
 @app.get("/models")
 async def get_models():
-    # server = ModelServing()
-    # server_test = ray.get_actor("model_serving")
     result = await server_test.get_container_names.remote()
-    # return json.dumps(server.get_container_names())
     return json.dumps(result)
-
-
-@app.get("/{model}/state")
-async def get_model_state(model: str):
-    server = ModelServing()
-    result = await server.get_model_state(model)
-    result = json.loads(result)
-    return result
 
 
 @app.post("/deploy")
@@ -88,25 +77,29 @@ async def deploy(request_body: VO.DeployVO):
                                           model_version=request_body.model_version,
                                           container_num=request_body.container_num)
     result = await remote_job_obj
-    return datetime.datetime.now()
+    return result
+
+
+@app.get("/deploy/state")
+async def get_deploy_state():
+    return None
+
+
+@app.post("/deploy/add_container")
+async def add_container(request_body: VO.AddContainerVo):
+    return None
+
+
+@app.post("/deploy/delete_container")
+async def delete_container(request_body: VO.DeleteContainerVO):
+    return None
+
+
+@app.post("/deploy/end_deploy")
+async def end_deploy(request_body: VO.EndDeploy):
+    return None
 
 
 @app.post("/predict")
 async def deploy(request_body: VO.PredictVO):
-    result = 0
-    model_name = request_body.model_name
-    feature = request_body.feature
-    server = ModelServing()
-    result = await server.get_model_state(model_name)
-    return
-
-
-@ray.remote
-def some_task():
-    return 1
-
-
-async def take_time():
-    for i in range(5):
-        await asyncio.sleep(1)
-        print(i)
+    return None

@@ -15,4 +15,4 @@ model=tf.keras.Sequential([
 model.compile(optimizer="sgd", loss="mse")
 model.fit(xs, ys, epochs=1000)
 
-model.save(ROOT_DIR+'/saved_models/test/1')
+model.save(ROOT_DIR+'/saved_models/test/101')

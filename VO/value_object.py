@@ -26,7 +26,7 @@ class DataInfoVO(BaseModel):
 
 class DeployVO(BaseModel):
     model_id: str
-    model_version: int
+    model_version: str
     container_num: int
 
     class Config:

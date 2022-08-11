@@ -13,8 +13,16 @@ class Http:
 
     async def get(self, url):
         async with self._session.get(url) as resp:
-            return await resp.read()
+            if resp.status == 200:
+                return await resp.read()
+            else:
+                print("get error. request code: " + str(resp.status))
+                return None
 
     async def post(self, url, data: json = None):
         async with self._session.post(url=url, data=data) as resp:
-            return await resp.read()
+            if resp.status == 200:
+                return await resp.read()
+            else:
+                print("post error. request code: " + str(resp.status))
+                return None
