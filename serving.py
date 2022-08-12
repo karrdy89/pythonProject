@@ -160,7 +160,7 @@ class ModelServing:
 
         # kill pending(set container state to kill and add ref count to container) -> kill in GC thread(run thread when init class) <-
         #   > container : state, ref_count, url?
-        #   > can get container state in predict method : cycle with pair(url, name?)? mds(model,version,cycle,containerlist)
+        #   > can get container state in predict method : cycle with pair(url, name? = use this time, idx??=possible)? mds(model,version,cycle,containerlist)
         #   > can change container state in predict method -> less update in better so find mds's container. predict know mds already so, find container in container list
         #   > model_deploy_state : state, ref_count(sum of container ref_count)
         #   > GC Target : all containers - where to be placed
