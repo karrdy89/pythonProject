@@ -15,7 +15,7 @@ from serving import ModelServing
 
 app = FastAPI()
 app.add_middleware(HTTPSRedirectMiddleware)
-server_test = ray.get_actor("model_serving")
+server = ray.get_actor("model_serving")
 
 
 async def _reverse_proxy(request: Request):
@@ -45,36 +45,12 @@ async def _reverse_proxy(request: Request):
 app.add_route("/dashboard/{port}/{path:path}", _reverse_proxy, ["GET", "POST"])
 
 
-@app.get("/ttt")
-async def f():
-    # app.add_route("/{path:path}", _reverse_proxy(url="aa"), ["GET", "POST"])
-    await some_task.remote()
-    return "Hello from the root!"
-
-
-@app.get("/test")
-async def test():
-    await take_time()
-    return datetime.datetime.now()
-
-
-@app.get("/reset")
-async def reset():
-    server_test.reset_version_config.remote()
-    return 0
-
-
-@app.get("/models")
-async def get_models():
-    result = await server_test.get_container_names.remote()
-    return json.dumps(result)
-
-
 @app.post("/deploy")
-async def deploy(request_body: VO.DeployVO):
-    server = ray.get_actor("model_serving")
+async def deploy(request_body: VO.Deploy):
+    print("accept deploy request")
+    # server = ray.get_actor("model_serving")
     remote_job_obj = server.deploy.remote(model_id=request_body.model_id,
-                                          model_version=request_body.model_version,
+                                          version=request_body.version,
                                           container_num=request_body.container_num)
     result = await remote_job_obj
     return result
@@ -82,24 +58,38 @@ async def deploy(request_body: VO.DeployVO):
 
 @app.get("/deploy/state")
 async def get_deploy_state():
-    return None
+    # server = ray.get_actor("model_serving")
+    remote_job_obj = server.get_deploy_state.remote()
+    result = await remote_job_obj
+    return result
 
 
 @app.post("/deploy/add_container")
-async def add_container(request_body: VO.AddContainerVo):
-    return None
+async def add_container(request_body: VO.AddContainer):
+    remote_job_obj = server.add_container.remote(model_id=request_body.model_id, version=request_body.version,
+                                                 container_num=request_body.container_num)
+    result = await remote_job_obj
+    return result
 
 
-@app.post("/deploy/delete_container")
-async def delete_container(request_body: VO.DeleteContainerVO):
-    return None
+@app.post("/deploy/remove_container")
+async def remove_container(request_body: VO.RemoveContainer):
+    remote_job_obj = server.remove_container.remote(model_id=request_body.model_id, version=request_body.version,
+                                                    container_num=request_body.container_num)
+    result = await remote_job_obj
+    return result
 
 
 @app.post("/deploy/end_deploy")
 async def end_deploy(request_body: VO.EndDeploy):
-    return None
+    remote_job_obj = server.end_deploy.remote(model_id=request_body.model_id, version=request_body.version)
+    result = await remote_job_obj
+    return result
 
 
 @app.post("/predict")
-async def deploy(request_body: VO.PredictVO):
-    return None
+async def deploy(request_body: VO.Predict):
+    remote_job_obj = server.predict.remote(model_id=request_body.model_id, version=request_body.version,
+                                           data=request_body.feature)
+    result = await remote_job_obj
+    return result

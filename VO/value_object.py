@@ -1,7 +1,6 @@
 from pydantic import BaseModel, Extra
 
-
-class TableInfoVO(BaseModel):
+class TableInfo(BaseModel):
     table_arr: list[str] = []
 
     class Config:
@@ -17,25 +16,53 @@ class DataInfoContents(BaseModel):
         extra = Extra.forbid
 
 
-class DataInfoVO(BaseModel):
+class DataInfo(BaseModel):
     table_arr: list[DataInfoContents]
 
     class Config:
         extra = Extra.forbid
 
 
-class DeployVO(BaseModel):
+class Deploy(BaseModel):
     model_id: str
-    model_version: str
+    version: str
     container_num: int
 
     class Config:
         extra = Extra.forbid
 
 
-class PredictVO(BaseModel):
-    model_name: str
-    feature: list
+class Predict(BaseModel):
+    model_id: str
+    version: str
+    feature: dict
 
     class Config:
         extra = Extra.forbid
+
+
+class AddContainer(BaseModel):
+    model_id: str
+    version: str
+    container_num: int
+
+    class Config:
+        extra = Extra.forbid
+
+
+class RemoveContainer(BaseModel):
+    model_id: str
+    version: str
+    container_num: int
+
+    class Config:
+        extra = Extra.forbid
+
+
+class EndDeploy(BaseModel):
+    model_id: str
+    version: str
+
+    class Config:
+        extra = Extra.forbid
+
