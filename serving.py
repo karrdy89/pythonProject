@@ -334,7 +334,7 @@ class ModelServing:
                     print("http request error")
                     result = json.dumps({"result": []}).encode('utf8')
                     print("trying to fail back")    #on network error
-                    await self.fail_back(model_id, version, url)
+                    await self.fail_back(model_id, version, url)    #state change + reset cycle
                 async with self._lock:
                     model_deploy_state.ref_count -= 1
                 return result  # if need to change from byte to json
