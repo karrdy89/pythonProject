@@ -18,13 +18,14 @@ from tensorflow_serving.apis import model_management_pb2
 from tensorflow_serving.config import model_server_config_pb2
 from docker.errors import ContainerError, ImageNotFound, APIError
 from docker.models.containers import Container
-# from aioshutil import copytree
+from apscheduler.schedulers.background import BackgroundScheduler
 
 from http_util import Http
 
 HTTP_PORT_START = 8500
 GRPC_PORT_START = 8000
 MAX_CONTAINER = 20
+CHECK_INTERVAL = 10
 DEPLOY_PATH = ""
 
 
@@ -44,6 +45,7 @@ class ModelServing:
         self._deploy_path = None
         self._current_container_num = 0
         self._project_path = os.path.dirname(os.path.abspath(__file__))
+        self._manager_handle = None
         self.init_client()
 
     async def deploy(self, model_id: str, version: str, container_num: int) -> json:
@@ -122,10 +124,14 @@ class ModelServing:
             deploy_count = 0
             for i in range(len(list_container)):
                 if list_container[i] is not None:
+                    print(list_http_url[i], list_container[i])
                     serving_container = ServingContainer(name=list_container_name[i], container=list_container[i],
-                                                         http_url=list_http_url[i], grpc_url=list_grpc_url[i])
-                    model_deploy_state.containers.append(serving_container)
+                                                         http_url=list_http_url[i], grpc_url=list_grpc_url[i],
+                                                         state="available")
+                    model_deploy_state.containers[list_container_name[i]] = serving_container
+                    # model_deploy_state.containers.append(serving_container)
                     deploy_count += 1
+            print(model_deploy_state.containers)
             async with self._lock:
                 self._current_container_num -= (container_num - deploy_count)
             self._deploy_states[model_key] = model_deploy_state
@@ -159,18 +165,20 @@ class ModelServing:
             #     return result
 
         # kill pending(set container state to kill and add ref count to container) -> kill in GC thread(run thread when init class) <-
-        #   > container : state, ref_count, url?
-        #   > can get container state in predict method : cycle with pair(url, name? = use this time, idx??=possible)? mds(model,version,cycle,containerlist)
+        #   > container : state, ref_count, url, port, key
+        #   > can get container state in predict method : cycle with pair(url, name? = use this time or idx??=possible, or state?(y) - cycle, add, delete, deploy)? mds(model,version,cycle,containerlist)
+        #   > start and stop api save thread handle
         #   > can change container state in predict method -> less update in better so find mds's container. predict know mds already so, find container in container list
         #   > model_deploy_state : state, ref_count(sum of container ref_count)
         #   > GC Target : all containers - where to be placed
-        #   > GC job : check state, delete, update
+        #   > GC job : check state, delete, update <- check gc in remote working
         # errors in fail back process
-        # debug(can remove safely)
+        # debug(can remove safely, is cycle work fine)
         # onload (read db)
         # logger
 
     async def get_deploy_state(self) -> json:
+        # add conatiner and state to result
         print("get deploy state")
         deploy_states = []
         for key in self._deploy_states:
@@ -186,6 +194,9 @@ class ModelServing:
                            "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode('utf8')
 
     async def add_container(self, model_id: str, version: str, container_num: int) -> json:
+        #check if exceed, intergrate with deploy
+        #make is model exist api
+        #change for to gather
         model_key = model_id + "_" + version
         model_deploy_state = self._deploy_states.get(model_key)
         if model_deploy_state is None:
@@ -228,6 +239,8 @@ class ModelServing:
             return result
 
     async def remove_container(self, model_id: str, version: str, container_num: int) -> json:
+        #make is model exist api
+        #change to use just non use flag
         model_key = model_id + "_" + version
         model_deploy_state = self._deploy_states.get(model_key)
         if model_deploy_state is None:
@@ -267,6 +280,8 @@ class ModelServing:
             return result
 
     async def end_deploy(self, model_id: str, version: str) -> json:
+        #make is model exist api
+        #change to use just non use flag
         encoded_version = self.version_encode(version)
         model_key = model_id + "_" + version
         model_deploy_state = self._deploy_states.get(model_key)
@@ -298,26 +313,31 @@ class ModelServing:
 
     async def predict(self, model_id: str, version: str, data: dict):
         model_deploy_state = self._deploy_states.get(model_id + "_" + version)
-        if model_deploy_state is None:
-            print("model is not in deploy state")
-            return -1
-        if model_deploy_state.cycle_iterator is None:
-            print("cycle_iterator is not set")
-            return -1
-        url = next(model_deploy_state.cycle_iterator)
-        async with Http() as http:
-            async with self._lock:
-                model_deploy_state.ref_count += 1
-            result = await http.post_json(url, data)
-            print(result)
-            if result is None:
-                print("http request error")
-                result = json.dumps({"result": []}).encode('utf8')
-                print("trying to fail back")
-                await self.fail_back(model_id, version, url)
-            async with self._lock:
-                model_deploy_state.ref_count -= 1
-            return result  # if need to change from byte to json
+        if (model_deploy_state is None) or (model_deploy_state.cycle_iterator is None):
+            print("the model not deployed")
+            result = json.dumps({"code": 10, "msg": "the model not deployed",
+                                 "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode('utf8')
+            return result
+
+        deploy_info = next(model_deploy_state.cycle_iterator)
+        url = deploy_info[0]
+        state = deploy_info[1]
+        container_name = deploy_info[2]
+        container = model_deploy_state.containers[container_name]
+        if state == "available":
+            async with Http() as http:
+                async with self._lock:
+                    container.ref_count += 1
+                result = await http.post_json(url, data)
+                print(result)
+                if result is None:
+                    print("http request error")
+                    result = json.dumps({"result": []}).encode('utf8')
+                    print("trying to fail back")    #on network error
+                    await self.fail_back(model_id, version, url)
+                async with self._lock:
+                    model_deploy_state.ref_count -= 1
+                return result  # if need to change from byte to json
 
     def run_container(self, model_id: str, container_name: str, http_port: int, grpc_port: int, deploy_path: str):
         try:
@@ -366,6 +386,9 @@ class ModelServing:
         # self._client = docker.DockerClient(base_url=docker_host)  # delete
         self.on_load()  # delete
         self._client = docker.from_env()
+        self._manager_handle = BackgroundScheduler()
+        self._manager_handle.add_job(self.container_manage, "interval", seconds=CHECK_INTERVAL, id="container_manager")
+        self._manager_handle.start()
 
     def on_load(self):
         for i in range(MAX_CONTAINER * 2):
@@ -457,6 +480,9 @@ class ModelServing:
             print("model not deployed yet")
             return -1
 
+    def get_deploy_state(self, model_id: str, version: str):
+        return self._deploy_states[model_id + ":" + version]
+
     def copy_to_deploy(self, model_id: str, version: int) -> int:
         model_path = self._project_path + "/saved_models/" + model_id + "/" + str(version)
         decoded_version = self.version_decode(version)
@@ -486,15 +512,21 @@ class ModelServing:
             return 0
 
     async def set_cycle(self, model_id: str, version: str):
-        urls = []
+        cycle_list = []
         model_key = model_id + "_" + version
         model_deploy_state = self._deploy_states.get(model_key)
+        containers = model_deploy_state.containers
         async with self._lock:
-            for container in model_deploy_state.containers:
+            for key in containers:
+                container = containers[key]
                 url = "http://" + container.http_url[0] + ':' + str(container.http_url[1]) + \
                       "/v1/models/" + model_id + ":predict"
-                urls.append(url)
-            model_deploy_state.cycle_iterator = cycle(urls)
+                cycle_list.append([url, container.state, container.name])
+            print(cycle_list)
+            model_deploy_state.cycle_iterator = cycle(cycle_list)
+
+    def container_manage(self):
+        print(self._deploy_states)
 
     def get_model_server(self, model_id: str, version: int):
         for model_server in self._deploy_states:
@@ -532,6 +564,8 @@ class ModelServing:
 class ServingContainer:
     name: str
     container: Container
+    state: str
+    ref_count: int = 0
     http_url: tuple[str, int] = field(default_factory=tuple)
     grpc_url: tuple[str, int] = field(default_factory=tuple)
 
@@ -540,9 +574,10 @@ class ServingContainer:
 class ModelDeployState:
     model: tuple[str, int]
     state: int
-    ref_count: int = 0
+    # ref_count: int = 0
     cycle_iterator: object = None
-    containers: list[ServingContainer] = field(default_factory=list)
+    containers: dict = field(default_factory=dict)
+    # containers: list[ServingContainer] = field(default_factory=list)
 
 
 class StatusCode(object):

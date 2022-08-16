@@ -25,7 +25,7 @@ class Http:
     async def post_json(self, url, data: dict = None):
         async with self._session.post(url=url, json=data) as resp:
             if resp.status == 200:
-                return await resp.read()
+                return await resp.text()
             else:
                 print("post error. request code: " + str(resp.status))
                 return None
@@ -33,7 +33,7 @@ class Http:
     async def post(self, url, payload, header: dict):
         async with self._session.post(url=url, data=payload, header=header) as resp:
             if resp.status == 200:
-                return await resp.read()
+                return await resp.text()
             else:
                 print("post error. request code: " + str(resp.status))
                 return None
