@@ -23,17 +23,27 @@ class Http:
                 return None
 
     async def post_json(self, url, data: dict = None):
-        async with self._session.post(url=url, json=data) as resp:
-            if resp.status == 200:
-                return await resp.text()
-            else:
-                print("post error. request code: " + str(resp.status))
-                return None
+        try:
+            async with self._session.post(url=url, json=data, timeout=60) as resp:
+                if resp.status == 200:
+                    return await resp.text()
+                else:
+                    print("post error. request code: " + str(resp.status))
+                    return None
+        except aiohttp.ClientConnectionError as e:
+            print("connection error")
+            print(e)
+            return -1
 
     async def post(self, url, payload, header: dict):
-        async with self._session.post(url=url, data=payload, header=header) as resp:
-            if resp.status == 200:
-                return await resp.text()
-            else:
-                print("post error. request code: " + str(resp.status))
-                return None
+        try:
+            async with self._session.post(url=url, data=payload, header=header, timeout=60) as resp:
+                if resp.status == 200:
+                    return await resp.text()
+                else:
+                    print("post error. request code: " + str(resp.status))
+                    return None
+        except aiohttp.ClientConnectionError as e:
+            print("connection error")
+            print(e)
+            return -1
