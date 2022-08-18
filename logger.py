@@ -1,9 +1,10 @@
 import ray
 import logging
 import os
-from logging.handlers import TimedRotatingFileHandler
+from logging.handlers import RotatingFileHandler
 
 
+@ray.remote
 class Logger:
     def __init__(self):
         self.logger = logging.getLogger()
@@ -11,25 +12,28 @@ class Logger:
         self._on_load()
 
     def _on_load(self):
-        formatter = logging.Formatter("%(asctime)s:%(levelname)s:%(message)s", "%Y-%m-%d %H:%M:%S")
-        error_handler = TimedRotatingFileHandler(self.log_base_path+"error.log", when="h", interval=1, backupCount=720)
+        formatter = logging.Formatter("[%(levelname)s] : %(asctime)s : %(message)s", "%Y-%m-%d %H:%M:%S")
+        error_handler = RotatingFileHandler(self.log_base_path+"error.log", mode='a', maxBytes=104857600,
+                                            backupCount=100)
         error_handler.setFormatter(formatter)
         error_handler.setLevel(logging.ERROR)
-        info_handler = TimedRotatingFileHandler(self.log_base_path+"info.log", when="h", interval=1, backupCount=720)
+        info_handler = RotatingFileHandler(self.log_base_path+"info.log", mode='a', maxBytes=104857600, backupCount=100)
         info_handler.setFormatter(formatter)
         info_handler.setLevel(logging.INFO)
-        debug_handler = TimedRotatingFileHandler(self.log_base_path+"debug.log", when="h", interval=1, backupCount=720)
-        debug_handler.setFormatter(formatter)
-        debug_handler.setLevel(logging.DEBUG)
         console_handler = logging.StreamHandler()
         console_handler.setFormatter(formatter)
         console_handler.setLevel(logging.INFO)
         self.logger.addHandler(error_handler)
         self.logger.addHandler(info_handler)
-        self.logger.addHandler(debug_handler)
         self.logger.addHandler(console_handler)
         self.logger.setLevel(logging.DEBUG)
 
-    def log(self, level: int, msg: str):
+    def log(self, level: int, worker: str, msg: str):
+        msg = "(" + worker + ") " + msg
         if level == logging.INFO:
             self.logger.info(msg)
+        elif level == logging.ERROR:
+            self.logger.error(msg)
+        elif level == logging.DEBUG:
+            self.logger.debug(msg)
+

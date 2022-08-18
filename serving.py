@@ -5,6 +5,7 @@ import shutil
 import uuid
 import functools
 import datetime
+import logging
 from dataclasses import dataclass, field
 from shutil import copytree, rmtree
 from concurrent.futures import ThreadPoolExecutor
@@ -16,7 +17,7 @@ import grpc
 from tensorflow_serving.apis import model_service_pb2_grpc
 from tensorflow_serving.apis import model_management_pb2
 from tensorflow_serving.config import model_server_config_pb2
-from docker.errors import ContainerError, ImageNotFound, APIError
+from docker.errors import ContainerError, ImageNotFound, APIError, DockerException
 from docker.models.containers import Container
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
@@ -34,9 +35,11 @@ class ModelServing:
     def __init__(self):
         self._lock = asyncio.Lock()
         self._executor = ThreadPoolExecutor()
-        self._deploy_requests: list[tuple[str, str]] = []   # tuple of model_id and version
+        self._logger = ray.get_actor("logging_service")
+        self._worker = type(self).__name__
+        self._deploy_requests: list[tuple[str, str]] = []  # tuple of model_id and version
         self._deploy_states: dict[str, ModelDeployState] = {}
-        self._gc_list: list[tuple[int, str]] = []   # tuple of manage type and key
+        self._gc_list: list[tuple[int, str]] = []  # tuple of manage type and key
         self._client = None
         self._http_port: list[int] = []
         self._http_port_use: list[int] = []
@@ -47,18 +50,18 @@ class ModelServing:
         self._current_container_num: int = 0
         self._project_path = os.path.dirname(os.path.abspath(__file__))
         self._manager_handle = None
-        self.init_client()
 
     async def deploy(self, model_id: str, version: str, container_num: int) -> json:
-        print("deploy start")
+        self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="deploy start : " + model_id
+                                                                             + ":" + version)
         if (model_id, version) in self._deploy_requests:
-            print("same deploy request is in progress")
-            print(datetime.datetime.now())
+            self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="same deploy request is in progress : "
+                                                                                 + model_id + ":" + version)
             result = json.dumps({"code": 5, "msg": "same deploy request is in progress",
                                  "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
             return result
-        self._deploy_requests.append((model_id, version))
 
+        self._deploy_requests.append((model_id, version))
         encoded_version = self.version_encode(version)
         model_key = model_id + "_" + version
         model_deploy_state = self._deploy_states.get(model_key)
@@ -74,7 +77,6 @@ class ModelServing:
                     result = await self.remove_container(model_id, version, abs(diff))
                     return result
                 else:
-                    print("nothing to change")
                     result = json.dumps({"code": 4, "msg": "nothing to change",
                                          "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode(
                         'utf8')
@@ -82,13 +84,14 @@ class ModelServing:
 
         if container_num <= 0:
             self._deploy_requests.remove((model_id, version))
-            print("nothing to change")
             result = json.dumps({"code": 4, "msg": "nothing to change",
                                  "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode(
                 'utf8')
             return result
+
         if (self._current_container_num + container_num) > MAX_CONTAINER:
-            print("max container number exceeded")
+            self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="max container number exceeded : "
+                                                                                 + model_id + ":" + version)
             result = json.dumps({"code": 4, "msg": "max container number exceeded",
                                  "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode(
                 'utf8')
@@ -96,8 +99,9 @@ class ModelServing:
 
         cp_result = self.copy_to_deploy(model_id, encoded_version)
         if cp_result == -1:
-            print("an error occur when copying model file")
-            result = json.dumps({"code": 7, "msg": "n error occur when copying model file",
+            self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                    msg="an error occur when copying model file :" + model_id + ":" + version)
+            result = json.dumps({"code": 7, "msg": "an error occur when copying model file",
                                  "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode(
                 'utf8')
             async with self._lock:
@@ -108,21 +112,8 @@ class ModelServing:
         result = await self.deploy_containers(model_id, version, container_num, model_deploy_state)
         return result
 
-        # kill pending(set container state to kill and add ref count to container) -> kill in GC thread(run thread when init class) <-
-        #   > container : state, ref_count, url, port, key
-        #   > can get container state in predict method : cycle with pair(url, name? = use this time or idx??=possible, or state?(y) - cycle, add, delete, deploy)? mds(model,version,cycle,containerlist)
-        #   > start and stop api save thread handle
-        #   > can change container state in predict method -> less update in better so find mds's container. predict know mds already so, find container in container list
-        #   > model_deploy_state : state, ref_count(sum of container ref_count)
-        #   > GC Target : all containers - where to be placed
-        #   > GC job : check state, delete, update <- check gc in remote working
-        # errors in fail back process
-        # debug(can remove safely, is cycle work fine)
-        # onload (read db)
-        # logger
-
     async def get_deploy_state(self) -> json:
-        print("get deploy state")
+        self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="get deploy state")
         deploy_states = []
         for key in self._deploy_states:
             sep_key = key.split("_")
@@ -132,22 +123,22 @@ class ModelServing:
             container_num = len(model_deploy_state.containers)
             deploy_state = {"model_id": model_id, "version": version, "container_num": container_num}
             deploy_states.append(deploy_state)
-        await asyncio.sleep(3)
         return json.dumps({"deploy_states": deploy_states,
                            "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode('utf8')
 
     async def add_container(self, model_id: str, version: str, container_num: int) -> json:
         if (self._current_container_num + container_num) > MAX_CONTAINER:
-            print("max container number exceeded")
+            self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="max container number exceeded : "
+                                                                                 + model_id + ":" + version)
             result = json.dumps({"code": 4, "msg": "max container number exceeded",
-                                 "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode(
-                'utf8')
+                                 "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode('utf8')
             return result
 
         model_key = model_id + "_" + version
         model_deploy_state = self._deploy_states.get(model_key)
         if model_deploy_state is None:
-            print("the model is not deployed")
+            self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="the model is not deployed : "
+                                                                                 + model_id + ":" + version)
             result = json.dumps({"code": 8, "msg": "the model is not deployed",
                                  "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode('utf8')
             return result
@@ -156,12 +147,11 @@ class ModelServing:
         return result
 
     async def remove_container(self, model_id: str, version: str, container_num: int) -> json:
-        # make is model exist api
-        # change to use just non use flag, add del list
         model_key = model_id + "_" + version
         model_deploy_state = self._deploy_states.get(model_key)
         if model_deploy_state is None:
-            print("the model is not deployed")
+            self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="the model is not deployed : "
+                                                                                 + model_id + ":" + version)
             result = json.dumps({"code": 8, "msg": "the model is not deployed",
                                  "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode('utf8')
             return result
@@ -179,11 +169,13 @@ class ModelServing:
                 gc_list.append((ManageType.CONTAINER, key))
             else:
                 break
-        
+
         result = await self._set_cycle(model_id, version)
         if result == 0:
             self._gc_list = self._gc_list + gc_list
-            print("shutdown pending on " + str(container_num) + " containers")
+            self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                    msg="shutdown pending on " + str(container_num) + " containers : " + model_id + ":"
+                                        + version)
             result = json.dumps({"code": 200, "msg": "shutdown pending on " + str(container_num) + " containers",
                                  "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode('utf8')
             return result
@@ -193,15 +185,17 @@ class ModelServing:
         model_key = model_id + "_" + version
         model_deploy_state = self._deploy_states.get(model_key)
         if model_deploy_state is None:
-            print("the model is not deployed")
-            result = json.dumps({"code": 8, "msg": "the model is not deployed",
+            self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="model not deployed : "
+                                                                                 + model_id + ":" + version)
+            result = json.dumps({"code": 8, "msg": "model not deployed",
                                  "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode('utf8')
             return result
 
         model_deploy_state.state = StateCode.SHUTDOWN
         self._gc_list.append((ManageType.MODEL, model_key))
-        self.delete_model(model_id, encoded_version)
-        print("end_deploy accepted")
+        self.delete_deployed_model(model_id, encoded_version)
+        self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="end deploy : "
+                                                                             + model_id + ":" + version)
         result = json.dumps({"code": 200, "msg": "end_deploy accepted",
                              "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode('utf8')
         return result
@@ -209,13 +203,15 @@ class ModelServing:
     async def predict(self, model_id: str, version: str, data: dict):
         model_deploy_state = self._deploy_states.get(model_id + "_" + version)
         if (model_deploy_state is None) or (model_deploy_state.cycle_iterator is None):
-            print("the model not deployed")
+            self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="model not deployed : "
+                                                                                 + model_id + ":" + version)
             result = json.dumps({"code": 10, "msg": "the model not deployed",
                                  "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode('utf8')
             return result
 
         if model_deploy_state.state == StateCode.SHUTDOWN:
-            print("the model not deployed")
+            self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="model not deployed : "
+                                                                                 + model_id + ":" + version)
             result = json.dumps({"code": 10, "msg": "the model not deployed",
                                  "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode('utf8')
             return result
@@ -224,7 +220,6 @@ class ModelServing:
         url = deploy_info[0]
         state = deploy_info[1]
         container_name = deploy_info[2]
-        print(url)
         container = model_deploy_state.containers[container_name]
         if state == StateCode.AVAILABLE:
             async with Http() as http:
@@ -232,16 +227,17 @@ class ModelServing:
                     container.ref_count += 1
                 result = await http.post_json(url, data)
                 if result is None:
-                    print("http request error")
+                    self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg="http request error : "
+                                                                                          + model_id + ":" + version)
                     result = json.dumps({"code": 10, "msg": "http request error"}).encode('utf8')
                 elif result == -1:
-                    print("connection error trying to fail back")
+                    self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg="connection error : "
+                                                                                          + model_id + ":" + version)
                     result = json.dumps({"code": 11, "msg": "connection error trying to fail back"}).encode('utf8')
                     await self.fail_back(model_id, version, container_name)
                     result = await self.predict(model_id, version, data)
                 async with self._lock:
                     container.ref_count -= 1
-                print(result)
                 return result
         else:
             result = await self.predict(model_id, version, data)
@@ -250,7 +246,6 @@ class ModelServing:
     async def deploy_containers(self, model_id: str, version: str, container_num: int, model_deploy_state):
         async with self._lock:
             self._current_container_num += container_num
-
         model_key = model_id + "_" + version
         futures = []
         list_container_name = []
@@ -282,19 +277,17 @@ class ModelServing:
                                                      state=StateCode.AVAILABLE)
                 model_deploy_state.containers[list_container_name[i]] = serving_container
                 deploy_count += 1
-        print(model_deploy_state.containers)
-
         async with self._lock:
             self._current_container_num -= (container_num - deploy_count)
         self._deploy_states[model_key] = model_deploy_state
         self._deploy_requests.remove((model_id, version))
         await self._set_cycle(model_id=model_id, version=version)
-        print("deploy finished. " + str(deploy_count) + "/" + str(container_num) + " is deployed")
-        print(datetime.datetime.now())
+        self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                msg="deploy finished. " + str(deploy_count) + "/" + str(container_num)
+                                    + " is deployed: " + model_id + ":" + version)
         result = json.dumps({"code": 0,
                              "msg": "deploy finished. " + str(deploy_count) + "/" + str(container_num) + "deployed",
                              "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode('utf8')
-
         return result
 
     def run_container(self, model_id: str, container_name: str, http_port: int, grpc_port: int, deploy_path: str):
@@ -306,17 +299,21 @@ class ModelServing:
                                                     )
             return container
         except ContainerError:
-            print("the container exits with a non-zero exit code and detach is False")
+            self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                    msg="the container exits with a non-zero exit code and detach is False")
             return None
         except ImageNotFound:
-            print("the specified image does not exist")
+            self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                    msg="tensorflow serving image does not exist")
             return None
-        except APIError as error:
-            print("the server returns an error")
-            print(error.__str__())
+        except APIError as e:
+            self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                    msg="the docker server returns an error : " + e.__str__())
             return None
 
     async def fail_back(self, model_id: str, version: str, container_name: str):
+        self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                msg="trying to fail back container : " + model_id + ":" + version)
         model_deploy_state = self._deploy_states.get(model_id + "_" + version)
         if model_deploy_state is not None:
             container = model_deploy_state.containers.get(container_name)
@@ -333,21 +330,37 @@ class ModelServing:
             result = result.decode('utf8').replace("'", '"')
             return result
 
-    def init_client(self):
+    def init_client(self) -> int:
+        """
+        Initialize serving process
+        :return: success 0 / fail -1
+        """
+        # set param from config file
+        self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="init process : set config...")
         self._ip_container_server = "localhost"  # config
         self._deploy_path = os.path.dirname(os.path.abspath(__file__)) + "/deploy/"  # config
-        # docker_host = os.getenv("DOCKER_HOST", default="unix:///run/user/1000/docker.sock")  # config
-        # self._client = docker.DockerClient(base_url=docker_host)  # delete
-        self.on_load()  # delete
-        self._client = docker.from_env()
-        self._manager_handle = AsyncIOScheduler()
-        self._manager_handle.add_job(self.gc_container, "interval", seconds=CHECK_INTERVAL, id="gc_container")
-        self._manager_handle.start()
 
-    def on_load(self):
+        # make port list
+        self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="init process : set port...")
         for i in range(MAX_CONTAINER * 2):
             self._grpc_port.append(GRPC_PORT_START + i)
             self._http_port.append(HTTP_PORT_START + i)
+
+        # set docker client
+        self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="init process : init docker client...")
+        try:
+            self._client = docker.from_env()
+        except DockerException as e:
+            self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                    msg="can't make connection to docker client" + e.__str__())
+            return -1
+
+        # set GC
+        self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="init process : init GC...")
+        self._manager_handle = AsyncIOScheduler()
+        self._manager_handle.add_job(self.gc_container, "interval", seconds=CHECK_INTERVAL, id="gc_container")
+        self._manager_handle.start()
+        return 0
 
     def get_port_http(self):
         port = self._http_port.pop()
@@ -388,50 +401,46 @@ class ModelServing:
             response = stub.HandleReloadConfigRequest(request, 20)
         except grpc.RpcError as rpc_error:
             if rpc_error.code() == grpc.StateCode.CANCELLED:
-                print("grpc cancelled")
+                self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                        msg="grpc cancelled : " + name)
             elif rpc_error.code() == grpc.StateCode.UNAVAILABLE:
-                print("grpc unavailable")
+                self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                        msg="grpc unavailable : " + name)
             else:
-                print("unknown error")
+                self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                        msg="grpc unknown error : " + name)
             return -1
         else:
             if response.status.error_code == 0:
-                print("Reload sucessfully")
+                self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                        msg="reset version config success : " + name)
                 return 0
             else:
-                print("Reload failed!")
-                print(response.status.error_code)
-                print(response.status.error_message)
+                self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                        msg="reset version failed : " + response.status.error_message)
                 return -1
 
     async def add_version(self, model_id: str, version: str):
-        model_server = None
-        for _ in self._deploy_states:
-            if _.model_id == model_id:
-                model_server = _
-                break
-        if model_server.state == StateCode.ALREADY_EXIST:
-            print("do add version progress: grpc")
-            version_list = model_server.version
-            for v in version_list:
-                if v == version:
-                    print("already deploy")
-                    return 1
-            print("add new version")
-            result = self.copy_to_deploy(model_id, version)
-            if result != 0:
+        model_deploy_state = self._deploy_states.get(model_id + "_" + version)
+        if model_deploy_state is None:
+            return -1
+
+        if model_deploy_state.state == StateCode.AVAILABLE:
+            result = self.copy_to_deploy(model_id, self.version_encode(version))
+            if result == -1:
                 return -1
-            model_server.versions.append(version)
-            for container in model_server.containers:
-                result = self.reset_version_config(host=container.grpc_url[0] + ":" + str(container.grpc_url[1]),
-                                                   name=container.name,
+            for container_name, serving_container in model_deploy_state.containers.items():
+                result = self.reset_version_config(host=serving_container.grpc_url[0] +":" + str(serving_container.grpc_url[1]),
+                                                   name=serving_container.name,
                                                    base_path="/models/" + model_id, model_platform="tensorflow",
-                                                   model_version_policy=model_server.versions)
+                                                   model_version_policy=[self.version_encode(version)])
                 if result != 0:
-                    print("reset config error : " + container.name)
+                    self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                            msg="an error occur when reset config :" + model_id)
             return 0
         else:
-            print("model not deployed yet")
+            self._logger.log.remote(level=logging.WARN, worker=self._worker,
+                                    msg="the model is not usable currently : " + model_id)
             return -1
 
     def copy_to_deploy(self, model_id: str, version: int) -> int:
@@ -442,24 +451,29 @@ class ModelServing:
         try:
             copytree(model_path, deploy_path)
         except FileExistsError:
-            print("version already exist in deploy dir")
+            self._logger.log.remote(level=logging.WARN, worker=self._worker,
+                                    msg="model file already exist in deploy dir" + model_id + ":" + decoded_version)
             return 1
         except shutil.Error as err:
             src, dist, msg = err
-            print("error on src:" + src + " target: " + dist + " | error: " + msg)
+            self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                    msg="an error occur when copy model file. "
+                                        "src:" + src + " target: " + dist + " | error: " + msg)
             return -1
         else:
             return 0
 
-    def delete_model(self, model_id: str, version: int) -> int:
+    def delete_deployed_model(self, model_id: str, version: int) -> int:
         decoded_version = self.version_decode(version)
         deploy_key = model_id + "_" + decoded_version
-        deploy_path = self._project_path + "/deploy/" + deploy_key + "/" + model_id + "/" + str(version)
+        deploy_path = self._project_path + "/deploy/" + deploy_key
         try:
             rmtree(deploy_path, ignore_errors=False)
         except shutil.Error as err:
             src, dist, msg = err
-            print("error on src:" + src + " target: " + dist + " | error: " + msg)
+            self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                    msg="an error occur when delete deployed model file. "
+                                        "src:" + src + " target: " + dist + " | error: " + msg)
             return -1
         else:
             return 0
@@ -475,11 +489,11 @@ class ModelServing:
                 url = "http://" + container.http_url[0] + ':' + str(container.http_url[1]) + \
                       "/v1/models/" + model_id + ":predict"
                 cycle_list.append([url, container.state, container.name])
-            print(cycle_list)
             model_deploy_state.cycle_iterator = cycle(cycle_list)
         return 0
 
     async def gc_container(self):
+        self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="GC activate")
         for type_key in self._gc_list.copy():
             manage_type = type_key[0]
             key = type_key[1]
@@ -495,8 +509,9 @@ class ModelServing:
                         container = serving_container.container
                         try:
                             container.remove(force=True)
-                        except APIError:
-                            print("an error occur when remove container")
+                        except APIError as e:
+                            self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                                    msg="an error occur when remove container : " + e.__str__())
                             continue
                         http_port = serving_container.http_url[1]
                         grpc_port = serving_container.grpc_url[1]
@@ -507,7 +522,8 @@ class ModelServing:
                     self._gc_list.remove(type_key)
                     async with self._lock:
                         self._current_container_num -= remove_count
-                    print("model deploy end")
+                    self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                            msg="model deploy ended: " + key)
             elif manage_type == ManageType.CONTAINER:
                 for mds_key in self._deploy_states:
                     model_deploy_state = self._deploy_states[mds_key]
@@ -521,8 +537,9 @@ class ModelServing:
                             if container.ref_count <= 0:
                                 try:
                                     container.container.remove(force=True)
-                                except APIError:
-                                    print("an error occur when remove container")
+                                except APIError as e:
+                                    self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                                            msg="an error occur when remove container : " + e.__str__())
                                     continue
                                 async with self._lock:
                                     self._current_container_num -= 1
@@ -533,7 +550,8 @@ class ModelServing:
                                 del containers[key]
                                 await self._set_cycle(model_id, version)
                                 self._gc_list.remove(type_key)
-                                print("container deleted")
+                                self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                                        msg="container deleted : " + key)
                         else:
                             await self.end_deploy(model_id, version)
                             self._gc_list.remove(type_key)
@@ -544,7 +562,7 @@ class ModelServing:
     def version_encode(self, version: str) -> int:
         sv = version.split('.')
         if len(sv[-1]) > 9:
-            print("can't exceed decimal point over 9")
+            self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg="can't exceed decimal point over 9")
             return -1
         else:
             encoded = sv[0] + sv[-1] + str(len(sv[-1]))
@@ -581,10 +599,8 @@ class ServingContainer:
 class ModelDeployState:
     model: tuple[str, int]
     state: int
-    # ref_count: int = 0
     cycle_iterator = None
     containers: dict = field(default_factory=dict)
-    # containers: list[ServingContainer] = field(default_factory=list)
 
 
 class StateCode(object):

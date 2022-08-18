@@ -15,9 +15,9 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
 
 from serving import ModelServing
-import VO.value_object as VO
+from logger import Logger
 
-SSL_CERT_PATH = "/home/ky/cert"
+SSL_CERT_PATH = "/home/ky/cert" # from config
 
 ray.init(dashboard_host="0.0.0.0", dashboard_port=8265)
 
@@ -42,3 +42,7 @@ config = uvicorn.Config("routers:app",
 API_service = UvicornServer.options(name="API_service").remote(config=config)
 API_service.run_server.remote()
 model_serving = ModelServing.options(name="model_serving").remote()
+logging_service = Logger.options(name="logging_service", max_concurrency=500).remote()
+init_processes = ray.get([model_serving.init_client.remote()])
+# kill all actor
+# sys exit
