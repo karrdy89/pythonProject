@@ -1,6 +1,8 @@
 import asyncio
 import datetime
 import json
+import sys
+import logging
 
 import ray
 import time
@@ -39,10 +41,15 @@ config = uvicorn.Config("routers:app",
                         ssl_keyfile_password="1234"
                         )
 
-API_service = UvicornServer.options(name="API_service").remote(config=config)
-API_service.run_server.remote()
+api_service = UvicornServer.options(name="API_service").remote(config=config)
+api_service.run_server.remote()
 model_serving = ModelServing.options(name="model_serving").remote()
 logging_service = Logger.options(name="logging_service", max_concurrency=500).remote()
-init_processes = ray.get([model_serving.init_client.remote()])
-# kill all actor
-# sys exit
+init_processes = ray.get([model_serving.init_client.remote()])  # initiate all service
+if -1 in init_processes:
+    logging_service.log.remote(level=logging.ERROR, worker=__name__, msg="initiate server failed. shut down server")
+    ray.kill(api_service)
+    ray.kill(model_serving)
+    ray.kill(logging_service)
+    sys.exit()
+# error handling on init process if not all green -> kill all actor and shutdown server (must be logged)
