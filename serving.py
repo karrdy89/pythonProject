@@ -330,7 +330,7 @@ class ModelServing:
             result = result.decode('utf8').replace("'", '"')
             return result
 
-    def init_client(self) -> int:
+    def init(self) -> int:
         """
         Initialize serving process
         :return: success 0 / fail -1

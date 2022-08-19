@@ -41,15 +41,17 @@ config = uvicorn.Config("routers:app",
                         ssl_keyfile_password="1234"
                         )
 
+# create service actor
 api_service = UvicornServer.options(name="API_service").remote(config=config)
 api_service.run_server.remote()
 model_serving = ModelServing.options(name="model_serving").remote()
 logging_service = Logger.options(name="logging_service", max_concurrency=500).remote()
-init_processes = ray.get([model_serving.init_client.remote()])  # initiate all service
+
+# initiate all service
+init_processes = ray.get([model_serving.init.remote()])
 if -1 in init_processes:
-    logging_service.log.remote(level=logging.ERROR, worker=__name__, msg="initiate server failed. shut down server")
+    logging_service.log.remote(level=logging.ERROR, worker=__name__, msg="failed to initiate server. shut down")
     ray.kill(api_service)
     ray.kill(model_serving)
     ray.kill(logging_service)
     sys.exit()
-# error handling on init process if not all green -> kill all actor and shutdown server (must be logged)
