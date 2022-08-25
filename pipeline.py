@@ -38,16 +38,31 @@ import os
 import sys
 import importlib
 
-p_yaml = None
-with open(os.path.dirname(os.path.abspath(__file__)) + "/pipelines.yaml", 'r') as stream:
-    try:
-        p_yaml = yaml.safe_load(stream)
-        print(p_yaml)
-    except yaml.YAMLError as exc:
-        print(exc)
+#
+# data_loader = getattr(importlib.import_module("data_loader.test"), "Test")
+# module = getattr(importlib.import_module("models.test"), "Test")
+# ins = module()
+# m = ins.pipe()
+# m.summary()
+# not class use function and decorator(input output defined)
 
-data_loader = getattr(importlib.import_module("data_loader.test"), "Test")
-module = getattr(importlib.import_module("models.test"), "Test")
-ins = module()
-m = ins.pipe()
-m.summary()
+
+class Pipeline:
+    def __init__(self):
+        self._pipeline_definition_path = os.path.dirname(os.path.abspath(__file__)) + "/pipelines.yaml"
+        self.progress = {}
+
+    def _get_piepline_definition(self) -> dict:
+        with open(self._pipeline_definition_path, 'r') as stream:
+            try:
+                return yaml.safe_load(stream)
+            except yaml.YAMLError as exc:
+                print(exc)
+                return {"error": exc}
+
+    def set_pipeline(self, name: str):
+        pipeline_list = self._get_piepline_definition()
+        print(pipeline_list)
+
+a = Pipeline()
+a.set_pipeline('test')
