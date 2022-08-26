@@ -23,8 +23,10 @@ class Artifact:
     """
     TYPE_NAME = 'pipeline.Artifact'
 
-    def __init__(self, name: Optional[str] = None, metadata: Optional[dict] = None):
+    def __init__(self, name: Optional[str] = None, 
+                 data: Optional[object | str] = None, metadata: Optional[dict] = None):
         self.name = name or ''
+        self.data = data or None
         self.metadata = metadata or {}
 
 
@@ -34,8 +36,9 @@ class Model(Artifact):
     """
     TYPE_NAME = 'pipeline.Model'
 
-    def __init__(self, name: Optional[str] = None, metadata: Optional[dict] = None) -> None:
-        super().__init__(name=name, metadata=metadata)
+    def __init__(self, name: Optional[str] = None, 
+                 data: Optional[object | str] = None, metadata: Optional[dict] = None):
+        super().__init__(name=name, data=data, metadata=metadata)
 
     @property
     def framework(self) -> str:
@@ -50,6 +53,20 @@ class Model(Artifact):
 
     def _set_framework(self, framework: str) -> None:
         self.metadata["framework"] = framework
+        
+    @property
+    def model(self) -> object:
+        return self._get_model()
+
+    def _get_model(self) -> object:
+        return self.model
+
+    @model.setter
+    def model(self, model: object) -> None:
+        self._set_model(model)
+
+    def _set_model(self, model: object) -> None:
+        self.model = model
 
 
 class Dataset(Artifact):
@@ -58,8 +75,9 @@ class Dataset(Artifact):
     """
     TYPE_NAME = 'pipeline.Model'
 
-    def __init__(self, name: Optional[str] = None, metadata: Optional[dict] = None) -> None:
-        super().__init__(name=name, metadata=metadata)
+    def __init__(self, name: Optional[str] = None, 
+                 data: Optional[object | str] = None, metadata: Optional[dict] = None):
+        super().__init__(name=name, data=data, metadata=metadata)
 
     @property
     def framework(self) -> str:
@@ -74,6 +92,20 @@ class Dataset(Artifact):
 
     def _set_framework(self, framework: str) -> None:
         self.metadata["framework"] = framework
+        
+    @property
+    def data(self) -> object:
+        return self._get_data()
+
+    def _get_data(self) -> object:
+        return self.data
+
+    @data.setter
+    def data(self, data: object) -> None:
+        self._set_data(data)
+
+    def _set_data(self, data: object) -> None:
+        self.data = data
 
 
 class Url(Artifact):
@@ -82,22 +114,23 @@ class Url(Artifact):
     """
     TYPE_NAME = 'pipeline.Url'
 
-    def __init__(self, name: Optional[str] = None, metadata: Optional[dict] = None) -> None:
-        super().__init__(name=name, metadata=metadata)
+    def __init__(self, name: Optional[str] = None, 
+                 data: Optional[object | str] = None, metadata: Optional[dict] = None):
+        super().__init__(name=name, data=data, metadata=metadata)
 
     @property
     def url(self) -> str:
         return self._get_url()
 
     def _get_url(self) -> str:
-        return self.metadata.get('url', '')
+        return self.data
 
     @url.setter
     def url(self, url: str) -> None:
         self._set_url(url)
 
     def _set_url(self, url: str) -> None:
-        self.metadata["url"] = url
+        self.data = url
 
 
 class Path(Artifact):
@@ -106,19 +139,20 @@ class Path(Artifact):
     """
     TYPE_NAME = 'pipeline.Path'
 
-    def __init__(self, name: Optional[str] = None, metadata: Optional[dict] = None) -> None:
-        super().__init__(name=name, metadata=metadata)
+    def __init__(self, name: Optional[str] = None, 
+                 data: Optional[object | str] = None, metadata: Optional[dict] = None):
+        super().__init__(name=name, data=data, metadata=metadata)
 
     @property
     def path(self) -> str:
         return self._get_path()
 
     def _get_path(self) -> str:
-        return self.metadata.get('path', '')
+        return self.data
 
     @path.setter
     def path(self, path: str) -> None:
         self._set_path(path)
 
     def _set_path(self, path: str) -> None:
-        self.metadata["path"] = path
+        self.data = path
