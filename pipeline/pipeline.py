@@ -64,8 +64,17 @@ class Pipeline:
                 return {"error": exc}
 
     def set_pipeline(self, name: str):
-        pipeline_list = self._get_piepline_definition()
-        print(pipeline_list)
+        pipeline_list = self._get_piepline_definition().get("pipelines", '')
+        # make components, combine sequence if input, output type is same
+        sequence = []
+        for pipeline in pipeline_list:
+            if pipeline.get("name") == name:
+                sequence = pipeline.get("sequence")
+                break
+        print(sequence)
+
+
+
 
 a = Pipeline()
 a.set_pipeline('test')
