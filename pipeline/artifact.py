@@ -82,23 +82,22 @@ class Url(Artifact):
     """
     TYPE_NAME = 'pipeline.Url'
 
-    def __init__(self, name: Optional[str] = None, metadata: Optional[dict] = None, url: Optional[str] = None) -> None:
+    def __init__(self, name: Optional[str] = None, metadata: Optional[dict] = None) -> None:
         super().__init__(name=name, metadata=metadata)
-        self._url = url
 
     @property
     def url(self) -> str:
         return self._get_url()
 
     def _get_url(self) -> str:
-        return self._url
+        return self.metadata.get('url', '')
 
     @url.setter
     def url(self, url: str) -> None:
         self._set_url(url)
 
     def _set_url(self, url: str) -> None:
-        self._url = url
+        self.metadata["url"] = url
 
 
 class Path(Artifact):
@@ -107,20 +106,19 @@ class Path(Artifact):
     """
     TYPE_NAME = 'pipeline.Path'
 
-    def __init__(self, name: Optional[str] = None, metadata: Optional[dict] = None, path: Optional[str] = None) -> None:
+    def __init__(self, name: Optional[str] = None, metadata: Optional[dict] = None) -> None:
         super().__init__(name=name, metadata=metadata)
-        self._path = path
 
     @property
     def path(self) -> str:
         return self._get_path()
 
     def _get_path(self) -> str:
-        return self._path
+        return self.metadata.get('path', '')
 
     @path.setter
     def path(self, path: str) -> None:
         self._set_path(path)
 
     def _set_path(self, path: str) -> None:
-        self._path = path
+        self.metadata["path"] = path
