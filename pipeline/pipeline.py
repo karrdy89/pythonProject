@@ -48,6 +48,8 @@ import yaml
 import os
 import sys
 import importlib
+import inspect
+
 
 
 class Pipeline:
@@ -66,15 +68,25 @@ class Pipeline:
     def set_pipeline(self, name: str):
         pipeline_list = self._get_piepline_definition().get("pipelines", '')
         # make components, combine sequence if input, output type is same
-        sequence = []
+        sequences = []
         for pipeline in pipeline_list:
             if pipeline.get("name") == name:
-                sequence = pipeline.get("sequence")
+                sequences = pipeline.get("sequence")
                 break
-        print(sequence)
+
+        modules = map(__import__, sequences)
+        print(modules)
+        task = []
+        for sequence in sequences:
+            print(inspect.getmembers(sequence, inspect.isfunction))
+            # simply define function name -> why not
+            # find way to detect decorator -> is it possible?
+
 
 
 
 
 a = Pipeline()
 a.set_pipeline('test')
+
+
