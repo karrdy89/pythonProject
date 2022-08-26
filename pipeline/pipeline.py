@@ -38,14 +38,18 @@ import os
 import sys
 import importlib
 
-#
-# data_loader = getattr(importlib.import_module("data_loader.test"), "Test")
-# module = getattr(importlib.import_module("models.test"), "Test")
-# ins = module()
-# m = ins.pipe()
-# m.summary()
-# not class use function and decorator(input output defined)
 
+
+
+# create input output type class -> plus define metadata (it needs to know model of tensorflow, dataset type)
+# base artifact, Dataset Type, Model Type, URL type, Path type, DataFrame Type
+# -> how to implement mata? -> 1. make more type includes meta(simple), 2. put meta in output result(better way)
+# create component factorizing class(easy to check input and output), make pipeline class connect as order with callback
+# train -> log metric, set early stopping, save to defined location
+# define pipeline
+# ordering and connect input and output in matching
+# if matching run pipe and update
+# if done update database(after save model, log
 
 class Pipeline:
     def __init__(self):
