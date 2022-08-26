@@ -33,14 +33,6 @@
 # define input and output
 
 
-import yaml
-import os
-import sys
-import importlib
-
-
-
-
 # create input output type class -> plus define metadata (it needs to know model of tensorflow, dataset type)
 # base artifact, Dataset Type, Model Type, URL type, Path type, DataFrame Type
 # -> how to implement mata? -> 1. make more type includes meta(simple), 2. put meta in output result(better way)
@@ -50,6 +42,13 @@ import importlib
 # ordering and connect input and output in matching
 # if matching run pipe and update
 # if done update database(after save model, log
+
+
+import yaml
+import os
+import sys
+import importlib
+
 
 class Pipeline:
     def __init__(self):

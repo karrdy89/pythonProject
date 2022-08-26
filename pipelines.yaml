@@ -1,5 +1,10 @@
-pipeline:
+pipelines:
   - name: test
-    data_loader: data_loader.test.Test
-    preprocessor: preprocess.test.Test
-    model: models.test.Test
+    sequence:
+      - data_loader.test
+      - models.test
+      - train.test
+
+
+
+
