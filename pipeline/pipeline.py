@@ -55,6 +55,7 @@ class Pipeline:
     def __init__(self):
         self._pipeline_definition_path = os.path.dirname(os.path.abspath(__file__)) + "/pipelines.yaml"
         self.progress = {}
+        self._components = {}
 
     def _get_piepline_definition(self) -> dict:
         with open(self._pipeline_definition_path, 'r') as stream:
@@ -73,17 +74,24 @@ class Pipeline:
                 sequences = pipeline.get("sequence")
                 break
 
-        components = {}
         for i, seq in enumerate(sequences):
             seq_split = seq.rsplit('.', 1)
             module = importlib.import_module(seq_split[0])
             component = getattr(module, seq_split[1])
-            components[i] = component
+            self._components[i] = component
         # combine sequence and check in/out type -> raise error on each comp so, just attach
         # bc first comp has no input(data path is always in the data_loader code(hard coded))
-        # maybe recursion
+        # maybe recursion <-
         # train here if you want to monitering state or add callback to global state(model_name + state) <-
 
+    def run_pipeline(self):
+        for i in range(len(self._components)):
+            pass
+        comp = self._components.get(0)
+        result = comp()
+        # check comp.input with before.output
+        # if comp.input need mata, inject meta
+        # save before state return data, output type. need both?
 
 
 
