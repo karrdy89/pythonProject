@@ -9,11 +9,14 @@ def train_test_model(dataset: Input[Dataset], train_info: Input[TrainInfo]):
     model = tf.keras.Sequential([
         tf.keras.layers.Dense(1, input_shape=[1])
     ])
+    ds = dataset.data
     model.compile(optimizer="sgd", loss="mse")
-    for feat, targ in dataset.data.take(5):
+    for feat, targ in ds.take(5):
         print('Features: {}, Target: {}'.format(feat, targ))
 
-    # model.fit(dataset.data, epochs=10)
+    ds = ds.batch(1)
+
+    model.fit(ds, epochs=10)
 
 
     #save model
