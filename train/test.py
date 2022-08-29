@@ -5,6 +5,11 @@ from pipeline.util import split_ratio
 @PipelineComponent
 def train_test_model(dataset: Input[Dataset], train_info: Input[TrainInfo]):
     import tensorflow as tf
+    from tensorflow import keras
+
+    class TestCallback(keras.callbacks.Callback):
+        def on_train_begin(self, logs=None):
+            print(11)
 
     train_info = train_info
     ds = dataset.data
@@ -23,9 +28,7 @@ def train_test_model(dataset: Input[Dataset], train_info: Input[TrainInfo]):
         tf.keras.layers.Dense(1, input_shape=[1])
     ])
     model.compile(optimizer="sgd", loss="mse")
-    model.fit(train_ds, validation_data=validation_ds, epochs=train_info.epoch, verbose=1)
-
-
+    model.fit(train_ds, validation_data=validation_ds, epochs=train_info.epoch, verbose=1, callbacks=[TestCallback()])
 
     #save model
     #save log
