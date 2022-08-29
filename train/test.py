@@ -15,7 +15,7 @@ def train_test_model(dataset: Input[Dataset], train_info: Input[TrainInfo]):
         tf.keras.layers.Dense(1, input_shape=[1])
     ])
     model.compile(optimizer="sgd", loss="mse")
-    model.fit(ds, epochs=10)
+    model.fit(ds, epochs=train_info.epoch)
 
 
     #save model

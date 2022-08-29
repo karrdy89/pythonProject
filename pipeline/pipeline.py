@@ -91,3 +91,11 @@ class ComponentResult:
         self.output = None
 
 
+p = Pipeline()
+p.set_pipeline('test')
+t = TrainInfo()
+t.epoch = 100
+t.data_split = "80:10:10"
+t.early_stop = 'N'
+t.batch_size = '1'
+p.run_pipeline(t)
