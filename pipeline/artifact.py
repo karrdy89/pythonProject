@@ -93,6 +93,20 @@ class Dataset(Artifact):
     def _set_framework(self, framework: str) -> None:
         self.metadata["framework"] = framework
 
+    @property
+    def length(self) -> int:
+        return self._get_length()
+
+    def _get_length(self) -> int:
+        return self.metadata.get('length', 0)
+
+    @length.setter
+    def length(self, length: int) -> None:
+        self._set_length(length)
+
+    def _set_length(self, length: int) -> None:
+        self.metadata["length"] = length
+
 
 class Url(Artifact):
     """

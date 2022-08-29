@@ -94,6 +94,7 @@ class ComponentResult:
 p = Pipeline()
 p.set_pipeline('test')
 t = TrainInfo()
+t.name = "test"
 t.epoch = 100
 t.data_split = "80:10:10"
 t.early_stop = 'N'

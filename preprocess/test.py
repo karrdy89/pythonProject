@@ -9,5 +9,6 @@ def process_test_data(input_data: Input[Dataset]) -> Output[Dataset]:
     dataset = tf.data.Dataset.from_tensor_slices((input_data.values, target.values))
     out = Dataset()
     out.framework = 'tf'
+    out.length = len(input_data.index)
     out.data = dataset
     return out
