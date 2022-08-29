@@ -142,3 +142,70 @@ class Path(Artifact):
 
     def _set_path(self, path: str) -> None:
         self.data = path
+
+
+class TrainInfo(Artifact):
+    """
+    An artifact representing a path of data
+    """
+    TYPE_NAME = 'pipeline.train_info'
+
+    def __init__(self, name: Optional[str] = None,
+                 data: Optional[object | str] = None, metadata: Optional[dict] = None):
+        super().__init__(name=name, data=data, metadata=metadata)
+
+    @property
+    def epoch(self) -> int:
+        return self._get_epoch()
+
+    def _get_epoch(self) -> int:
+        return self.metadata.get("epoch", 0)
+
+    @epoch.setter
+    def epoch(self, epoch: int) -> None:
+        self._set_epoch(epoch)
+
+    def _set_epoch(self, epoch: int) -> None:
+        self.metadata["epoch"] = epoch
+
+    @property
+    def batch_size(self) -> int:
+        return self._get_batch_size()
+
+    def _get_batch_size(self) -> int:
+        return self.metadata.get("batch_size", 0)
+
+    @batch_size.setter
+    def batch_size(self, batch_size: int) -> None:
+        self._set_batch_size(batch_size)
+
+    def _set_batch_size(self, batch_size: int) -> None:
+        self.metadata["batch_size"] = batch_size
+
+    @property
+    def data_split(self) -> str:
+        return self._get_data_split()
+
+    def _get_data_split(self) -> str:
+        return self.metadata.get("data_split", '')
+
+    @data_split.setter
+    def data_split(self, data_split: str) -> None:
+        self._set_data_split(data_split)
+
+    def _set_data_split(self, data_split: str) -> None:
+        self.metadata["data_split"] = data_split
+
+    @property
+    def early_stop(self) -> str:
+        return self._get_early_stop()
+
+    def _get_early_stop(self) -> str:
+        return self.metadata.get("early_stop", '')
+
+    @early_stop.setter
+    def early_stop(self, early_stop: str) -> None:
+        self._set_early_stop(early_stop)
+
+    def _set_early_stop(self, early_stop: str) -> None:
+        self.metadata["early_stop"] = early_stop

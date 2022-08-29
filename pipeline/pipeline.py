@@ -49,6 +49,7 @@ import os
 import sys
 import importlib
 import inspect
+from pipeline import TrainInfo
 
 
 class Pipeline:
@@ -56,6 +57,8 @@ class Pipeline:
         self._pipeline_definition_path = os.path.dirname(os.path.abspath(__file__)) + "/pipelines.yaml"
         self.progress = {}
         self._components = {}
+        self._component_result = ComponentResult()
+        self._pipeline_idx = 0
 
     def _get_piepline_definition(self) -> dict:
         with open(self._pipeline_definition_path, 'r') as stream:
@@ -79,23 +82,40 @@ class Pipeline:
             module = importlib.import_module(seq_split[0])
             component = getattr(module, seq_split[1])
             self._components[i] = component
-        # combine sequence and check in/out type -> raise error on each comp so, just attach
-        # bc first comp has no input(data path is always in the data_loader code(hard coded))
-        # maybe recursion <-
-        # train here if you want to monitering state or add callback to global state(model_name + state) <-
 
-    def run_pipeline(self):
-        for i in range(len(self._components)):
-            pass
-        comp = self._components.get(0)
-        result = comp()
-        # check comp.input with before.output
-        # if comp.input need mata, inject meta
-        # save before state return data, output type. need both?
+    def run_pipeline(self, train_info=None):
+        if not self._components:
+            return 0
+        if self._pipeline_idx > len(self._components):
+            self._pipeline_idx = 0
+            return 0
+        component = self._components.get(self._pipeline_idx)
+        input = component.input
+        output = component.output
+        if not input:
+            if not output:
+                component()
+            else:
+                self._component_result.output = component()
+        else:
+            if not output:
+                if type(TrainInfo()) in output:
+                    component(self._component_result.output, train_info)    # order checking needed
+            else:
+                self._component_result.output = component(self._component_result.output)
+        self._pipeline_idx += 1
+
+
+class ComponentResult:
+    def __init__(self):
+        self.output = None
+
+
 
 
 
 a = Pipeline()
 a.set_pipeline('test')
+a.run_pipeline()
 
 
