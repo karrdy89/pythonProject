@@ -36,3 +36,5 @@ def train_test_model(dataset: Input[Dataset], train_info: Input[TrainInfo]):
     #update to grobal state
     #need train metadata -> name and train option
     # train here if you want to monitering state or add callback to global state(model_name + state)
+    # implement nbo
+    # test run
