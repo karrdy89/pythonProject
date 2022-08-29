@@ -10,7 +10,11 @@ def train_test_model(dataset: Input[Dataset], train_info: Input[TrainInfo]):
         tf.keras.layers.Dense(1, input_shape=[1])
     ])
     model.compile(optimizer="sgd", loss="mse")
-    model.fit(dataset, epochs=10)
+    for feat, targ in dataset.data.take(5):
+        print('Features: {}, Target: {}'.format(feat, targ))
+
+    # model.fit(dataset.data, epochs=10)
+
 
     #save model
     #save log

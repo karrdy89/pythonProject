@@ -70,7 +70,6 @@ class Pipeline:
 
     def set_pipeline(self, name: str):
         pipeline_list = self._get_piepline_definition().get("pipelines", '')
-        # make components, combine sequence if input, output type is same
         sequences = []
         for pipeline in pipeline_list:
             if pipeline.get("name") == name:
@@ -83,27 +82,31 @@ class Pipeline:
             component = getattr(module, seq_split[1])
             self._components[i] = component
 
-    def run_pipeline(self, train_info=None):
+    def run_pipeline(self, train_info):
         if not self._components:
             return 0
-        if self._pipeline_idx > len(self._components):
+        if self._pipeline_idx >= len(self._components):
             self._pipeline_idx = 0
             return 0
         component = self._components.get(self._pipeline_idx)
-        input = component.input
-        output = component.output
-        if not input:
-            if not output:
+        inputs = component.input
+        outputs = component.output
+        if not inputs:
+            if not outputs:
                 component()
             else:
                 self._component_result.output = component()
         else:
-            if not output:
-                if type(TrainInfo()) in output:
+            if not outputs:
+                if type(TrainInfo()) in inputs:
+                    print(type(train_info))
                     component(self._component_result.output, train_info)    # order checking needed
+                else:
+                    component(self._component_result.output)
             else:
-                self._component_result.output = component(self._component_result.output)
+                self._component_result.output = component(self._component_result.output)    # order checking needed
         self._pipeline_idx += 1
+        self.run_pipeline(train_info)
 
 
 class ComponentResult:
@@ -116,6 +119,6 @@ class ComponentResult:
 
 a = Pipeline()
 a.set_pipeline('test')
-a.run_pipeline()
+a.run_pipeline(TrainInfo())
 
 

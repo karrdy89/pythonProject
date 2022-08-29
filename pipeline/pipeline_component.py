@@ -1,5 +1,6 @@
 import sys
 from pipeline import Artifact
+from typing import get_type_hints
 
 
 class PipelineComponent(object):
@@ -9,6 +10,7 @@ class PipelineComponent(object):
         self.output = []
         self.input = []
         self._set_output_type()
+        self._set_input_types()
 
     def _set_output_type(self) -> None:
         try:
@@ -19,25 +21,14 @@ class PipelineComponent(object):
             self.output.append(type(output_type))
 
     def _set_input_types(self) -> None:
-        base_artifact = type(Artifact()).__name__
-        for k, v in self._locals.items():
-            base_class = None
-            for base in v.__class__.__bases__:
-                base_class = base.__name__
-            if base_class == base_artifact:
-                self.input.append(type(v))
+        base_artifact = type(Artifact())
+        types = get_type_hints(self.func)
+        if "return" in types:
+            types.pop('return')
+        for k, v in types.items():
+            if base_artifact == v.__bases__[0]:
+                self.input.append(v)
 
     def __call__(self, *args, **kwargs):
-        def tracer(frame, event, arg):
-            if event == "return":
-                self._locals = frame.f_locals.copy()
-                self._set_input_types()
-        sys.setprofile(tracer)
-        try:
-            res = self.func(*args, **kwargs)
-        finally:
-            sys.setprofile(None)
-        return res
+        return self.func(*args, **kwargs)
 
-    def clear_locals(self):
-        self._locals = {}
