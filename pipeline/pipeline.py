@@ -51,7 +51,6 @@ import importlib
 import inspect
 
 
-
 class Pipeline:
     def __init__(self):
         self._pipeline_definition_path = os.path.dirname(os.path.abspath(__file__)) + "/pipelines.yaml"
@@ -74,14 +73,16 @@ class Pipeline:
                 sequences = pipeline.get("sequence")
                 break
 
-        modules = map(__import__, sequences)
-        print(modules)
-        task = []
-        for sequence in sequences:
-            print(inspect.getmembers(sequence, inspect.isfunction))
-            # simply define function name -> why not
-            # find way to detect decorator -> is it possible?
-
+        components = {}
+        for i, seq in enumerate(sequences):
+            seq_split = seq.rsplit('.', 1)
+            module = importlib.import_module(seq_split[0])
+            component = getattr(module, seq_split[1])
+            components[i] = component
+        # combine sequence and check in/out type -> raise error on each comp so, just attach
+        # bc first comp has no input(data path is always in the data_loader code(hard coded))
+        # maybe recursion
+        # train here if you want to monitering state or add callback to global state(model_name + state) <-
 
 
 

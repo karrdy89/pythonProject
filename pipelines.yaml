@@ -1,9 +1,9 @@
 pipelines:
   - name: test
     sequence:
-      - data_loader.test
-      - models.test
-      - train.test
+      - data_loader.test.get_test_data
+      - preprocess.test.process_test_data
+      - train.test.train_test_model
 
 
 

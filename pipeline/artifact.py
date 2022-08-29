@@ -92,20 +92,6 @@ class Dataset(Artifact):
 
     def _set_framework(self, framework: str) -> None:
         self.metadata["framework"] = framework
-        
-    @property
-    def data(self) -> object:
-        return self._get_data()
-
-    def _get_data(self) -> object:
-        return self.data
-
-    @data.setter
-    def data(self, data: object) -> None:
-        self._set_data(data)
-
-    def _set_data(self, data: object) -> None:
-        self.data = data
 
 
 class Url(Artifact):
