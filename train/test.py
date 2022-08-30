@@ -1,15 +1,11 @@
 from pipeline import Input, Dataset, TrainInfo, PipelineComponent
 from pipeline.util import split_ratio
-from pipeline.callbacks import basic_callbacks
+from pipeline.callbacks import base_callbacks, evaluation_callback
 
 
 @PipelineComponent
 def train_test_model(dataset: Input[Dataset], train_info: Input[TrainInfo]):
     import tensorflow as tf
-    from tensorflow import keras
-
-
-    bs_cb = basic_callbacks(train_info, "loss")
 
     train_info = train_info
     ds = dataset.data
@@ -29,13 +25,12 @@ def train_test_model(dataset: Input[Dataset], train_info: Input[TrainInfo]):
         tf.keras.layers.Dense(1, input_shape=[1])
     ])
     model.compile(optimizer="sgd", loss="mse")
-    history = model.fit(train_ds, validation_data=validation_ds, epochs=train_info.epoch, verbose=1, callbacks=bs_cb)
-    print(history.history.keys())   # send metric from history  util
-    result = model.evaluate(test_ds)
-    print(model.metrics_names, result)  # send metric from eval util
-    # model.save(train_info.save_path)
+    train_callback = base_callbacks(train_info, "loss")
+    test_callback = evaluation_callback(train_info)
+    model.fit(train_ds, validation_data=validation_ds, epochs=train_info.epoch, verbose=1, callbacks=train_callback)
+    model.evaluate(test_ds, callbacks=test_callback)
 
-    # seperate callback util <-
+    # model.save(train_info.save_path)
     # create pipeline and update handle to global state
     # update to global state
     # if pipeline end with 0 -> update pipeline result to database -> if updated kill pipeline process (await for result)

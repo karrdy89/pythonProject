@@ -7,6 +7,7 @@ class PipelineResult:
 class TrainResult:
     def __init__(self):
         self._train_progress: dict[str, str] = {}
+        self._test_progress: dict[str, str] = {}
         self._train_result: dict = {}
         self._test_result: dict = {}
 
@@ -15,6 +16,12 @@ class TrainResult:
         self._train_progress["progress"] = progress
 
     def get_train_progress(self) -> dict:
+        return self._train_progress
+
+    def set_test_progress(self, progress: str) -> None:
+        self._train_progress["progress"] = progress
+
+    def get_test_progress(self) -> dict:
         return self._train_progress
 
     def set_train_result(self, train_result: dict) -> None:
