@@ -5,10 +5,9 @@ from typing import get_type_hints
 
 class PipelineComponent(object):
     def __init__(self, func):
-        self._locals = {}
         self.func = func
-        self.output = []
-        self.input = [] # key val, for assemble input with argument(order check)
+        self.output: list = []
+        self.input: dict = {} # key val, for assemble input with argument(order check)
         self._set_output_type()
         self._set_input_types()
 
@@ -28,7 +27,8 @@ class PipelineComponent(object):
             types.pop('return')
         for k, v in types.items():
             if base_artifact == v.__bases__[0]:
-                self.input.append(v)
+                self.input[k] = v
+                # self.input.append(v)
 
     def __call__(self, *args, **kwargs):
         return self.func(*args, **kwargs)

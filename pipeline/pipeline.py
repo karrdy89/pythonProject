@@ -78,6 +78,8 @@ class Pipeline:
                 self._component_result = component() # surround with try catch on every run component -> if fail update and kill
         else:
             if not outputs:
+                # check input dict, check type with value, if value equal component_result type -> add dict to input key and comp_result, if value equal type train_info set train info
+
                 if type(TrainInfo()) in inputs:
                     component(self._component_result, train_info)    # order checking needed -> handle with multiple input, output (a = {'arg1':1, 'arg3':2}, foo(**a)),
                                                                     # output with named tuple ?
