@@ -50,5 +50,5 @@ def basic_callbacks(train_info: TrainInfo, monitor: str) -> list:
         es_cb = keras.callbacks.EarlyStopping(monitor=monitor, min_delta=0, patience=10, verbose=1, mode="auto",
                                               baseline=None, restore_best_weight=True)
         callback_list.append(es_cb)
-    callback_list.append(StateCallback())
+    callback_list.append(StateCallback(train_info.name))
     return callback_list

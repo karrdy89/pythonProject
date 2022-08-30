@@ -46,7 +46,7 @@ config = uvicorn.Config("routers:app",
 logging_service = Logger.options(name="logging_service", max_concurrency=500).remote()
 api_service = UvicornServer.options(name="API_service").remote(config=config)
 model_serving = ModelServing.options(name="model_serving").remote()
-shared_state = SharedState.option(name="shared_state").remote()
+shared_state = SharedState.options(name="shared_state").remote()
 
 # initiate all service
 init_processes = ray.get([model_serving.init.remote()])

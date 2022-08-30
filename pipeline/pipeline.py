@@ -93,7 +93,7 @@ class ComponentResult:
 
 from shared_state import SharedState
 
-shared_state = SharedState.option(name="shared_state").remote()
+shared_state = SharedState.options(name="shared_state").remote()
 p = Pipeline()
 p.set_pipeline('test')
 t = TrainInfo()
