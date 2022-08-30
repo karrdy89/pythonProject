@@ -1,4 +1,3 @@
-import sys
 from pipeline import Artifact
 from typing import get_type_hints
 
@@ -7,7 +6,7 @@ class PipelineComponent(object):
     def __init__(self, func):
         self.func = func
         self.output: list = []
-        self.input: dict = {} # key val, for assemble input with argument(order check)
+        self.input: dict = {}
         self._set_output_type()
         self._set_input_types()
 
@@ -27,7 +26,6 @@ class PipelineComponent(object):
         for k, v in types.items():
             if base_artifact == v.__bases__[0]:
                 self.input[k] = v
-                # self.input.append(v)
 
     def __call__(self, *args, **kwargs):
         return self.func(*args, **kwargs)
