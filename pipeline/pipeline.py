@@ -59,10 +59,13 @@ class Pipeline:
                 sequences = pipeline.get("sequence")
                 break
 
+        sequence_names = []
         for i, seq in enumerate(sequences):
-            seq_split = seq.rsplit('.', 1)
-            module = importlib.import_module(seq_split[0])
-            component = getattr(module, seq_split[1])
+            sequence_names.append(seq.get("name"))
+            task = seq.get("task")
+            task_split = task.rsplit('.', 1)
+            module = importlib.import_module(task_split[0])
+            component = getattr(module, task_split[1])
             self._components[i] = component
 
     def run_pipeline(self, train_info):
