@@ -18,6 +18,7 @@ from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
 
 from serving import ModelServing
 from logger import Logger
+from shared_state import SharedState
 
 SSL_CERT_PATH = "/home/ky/cert" # from config
 
@@ -44,14 +45,16 @@ config = uvicorn.Config("routers:app",
 # create service actor
 logging_service = Logger.options(name="logging_service", max_concurrency=500).remote()
 api_service = UvicornServer.options(name="API_service").remote(config=config)
-api_service.run_server.remote()
 model_serving = ModelServing.options(name="model_serving").remote()
+shared_state = SharedState.option(name="shared_state").remote()
 
 # initiate all service
 init_processes = ray.get([model_serving.init.remote()])
+api_service.run_server.remote()
 if -1 in init_processes:
     logging_service.log.remote(level=logging.ERROR, worker=__name__, msg="failed to initiate server. shut down")
     ray.kill(api_service)
     ray.kill(model_serving)
     ray.kill(logging_service)
+    ray.kill(shared_state)
     sys.exit()

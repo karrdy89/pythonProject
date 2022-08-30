@@ -7,48 +7,6 @@ def train_test_model(dataset: Input[Dataset], train_info: Input[TrainInfo]):
     import tensorflow as tf
     from tensorflow import keras
 
-    class StateCallback(keras.callbacks.Callback):
-        def on_epoch_begin(self, epoch, logs=None):
-            print(self.params["epochs"])
-            self.epoch_step = 0
-            progress = (self.epoch_step / self.params["steps"])*100
-            progress = str(progress) + "%"
-            print(progress)
-            # update cur epochs
-            # update cur steps
-
-        def on_epoch_end(self, epoch, logs=None):
-            keys = list(logs.keys())
-            print("End epoch {} of training; got log keys: {}".format(epoch, keys))
-            print(logs)
-            # update metrics
-
-        def on_batch_end(self, batch, logs=None):
-            # keys = list(logs.keys())
-            # print("...Training: end of batch {}; got log keys: {}".format(batch, keys))
-            # print(logs)
-            self.epoch_step += 1
-            progress = (self.epoch_step / self.params["steps"])*100
-            progress = str(progress) + "%"
-            print(progress)
-    # total epoch num, batch num
-    # update : epoch : n/k , progress : j% -> update progress and update epoch to datashare process
-
-    def tensorboard_callback(logdir: str):
-        return keras.callbacks.TensorBoard(log_dir=logdir)
-
-    # take train_info and return callback list
-    def basic_callbacks(train_inf: TrainInfo, monitor: str) -> list:
-        callback_list = []
-        tb_cb = tensorboard_callback(train_inf.log_path)
-        callback_list.append(tb_cb)
-        if train_inf.early_stop == 'Y':
-            es_cb = keras.callbacks.EarlyStopping(monitor=monitor, min_delta=0, patience=10, verbose=1, mode="auto",
-                                                  baseline=None, restore_best_weight=True)
-            callback_list.append(es_cb)
-        callback_list.append(StateCallback())
-        return callback_list
-
 
     bs_cb = basic_callbacks(train_info, "loss")
 

@@ -45,6 +45,7 @@ class SharedState:
             return {}
 
     def set_train_result(self, name: str, train_result: TrainResult) -> None:
+        print(train_result)
         self._train_result[name] = train_result
 
     def get_train_result(self, name: str) -> dict:

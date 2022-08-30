@@ -91,6 +91,9 @@ class ComponentResult:
         self.output = None
 
 
+from shared_state import SharedState
+
+shared_state = SharedState.option(name="shared_state").remote()
 p = Pipeline()
 p.set_pipeline('test')
 t = TrainInfo()
