@@ -82,6 +82,7 @@ def train_test_model(dataset: Input[Dataset], train_info: Input[TrainInfo]):
     print(model.metrics_names, result)  # send metric from eval util
     # model.save(train_info.save_path)
 
+    # seperate callback util <-
     # create pipeline and update handle to global state
     # update to global state
     # if pipeline end with 0 -> update pipeline result to database -> if updated kill pipeline process
