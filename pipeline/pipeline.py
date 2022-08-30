@@ -24,16 +24,21 @@
 import yaml
 import os
 import importlib
+import logging
+
+import ray
+
 from pipeline import TrainInfo
 
 
 class Pipeline:
     def __init__(self):
-        self._pipeline_definition_path = os.path.dirname(os.path.abspath(__file__)) + "/pipelines.yaml"
-        self.progress = {}
-        self._components = {}
-        self._component_result = ComponentResult()
-        self._pipeline_idx = 0
+        self._pipeline_definition_path: str = os.path.dirname(os.path.abspath(__file__)) + "/pipelines.yaml"
+        self._logger: ray.actor = ray.get_actor("logging_service")
+        self.progress: dict = {}
+        self._components: dict = {}
+        self._component_result = None
+        self._pipeline_idx: int = 0
 
     def _get_piepline_definition(self) -> dict:
         with open(self._pipeline_definition_path, 'r') as stream:
@@ -43,7 +48,7 @@ class Pipeline:
                 print(exc)
                 return {"error": exc}
 
-    def set_pipeline(self, name: str):
+    def set_pipeline(self, name: str) -> None:
         pipeline_list = self._get_piepline_definition().get("pipelines", '')
         sequences = []
         for pipeline in pipeline_list:
@@ -59,10 +64,10 @@ class Pipeline:
 
     def run_pipeline(self, train_info):
         if not self._components:
-            return 0
+            return
         if self._pipeline_idx >= len(self._components):
             self._pipeline_idx = 0
-            return 0
+            return
         component = self._components.get(self._pipeline_idx)
         inputs = component.input
         outputs = component.output
@@ -70,33 +75,33 @@ class Pipeline:
             if not outputs:
                 component()
             else:
-                self._component_result.output = component()
+                self._component_result = component() # surround with try catch on every run component -> if fail update and kill
         else:
             if not outputs:
                 if type(TrainInfo()) in inputs:
-                    component(self._component_result.output, train_info)    # order checking needed
+                    component(self._component_result, train_info)    # order checking needed -> handle with multiple input, output (a = {'arg1':1, 'arg3':2}, foo(**a)),
+                                                                    # output with named tuple ?
                 else:
-                    component(self._component_result.output)
+                    component(self._component_result)
             else:
                 if type(TrainInfo()) in inputs:
-                    self._component_result.output = component(self._component_result.output, train_info)    # order checking needed
+                    self._component_result = component(self._component_result, train_info)    # order checking needed
                 else:
-                    self._component_result.output = component(self._component_result.output)
+                    self._component_result = component(self._component_result)
         self._pipeline_idx += 1
         self.run_pipeline(train_info)
 
     def on_pipeline_end(self):
+        # return pipeline done
         pass
 
 
-class ComponentResult:
-    def __init__(self):
-        self.output = None
-
 
 from shared_state import SharedState
+from logger import Logger
 
 shared_state = SharedState.options(name="shared_state").remote()
+logging_service = Logger.options(name="logging_service", max_concurrency=500).remote()
 p = Pipeline()
 p.set_pipeline('test')
 t = TrainInfo()

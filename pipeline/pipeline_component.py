@@ -8,7 +8,7 @@ class PipelineComponent(object):
         self._locals = {}
         self.func = func
         self.output = []
-        self.input = []
+        self.input = [] # key val, for assemble input with argument(order check)
         self._set_output_type()
         self._set_input_types()
 
@@ -23,6 +23,7 @@ class PipelineComponent(object):
     def _set_input_types(self) -> None:
         base_artifact = type(Artifact())
         types = get_type_hints(self.func)
+        print(types)
         if "return" in types:
             types.pop('return')
         for k, v in types.items():
