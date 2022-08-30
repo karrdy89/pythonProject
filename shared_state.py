@@ -49,7 +49,11 @@ class SharedState:
 
     def get_train_result(self, name: str) -> dict:
         if name in self._train_result:
-            pass
+            train_result = self._train_result[name]
+            return {"progress": train_result.get_train_progress(), "train_result": train_result.get_train_result(),
+                    "test_result": train_result.get_test_result()}
+        else:
+            return {}
 
     def delete_train_result(self, name: str) -> None:
         if name in self._train_result:
