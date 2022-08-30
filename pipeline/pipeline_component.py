@@ -22,7 +22,6 @@ class PipelineComponent(object):
     def _set_input_types(self) -> None:
         base_artifact = type(Artifact())
         types = get_type_hints(self.func)
-        print(types)
         if "return" in types:
             types.pop('return')
         for k, v in types.items():

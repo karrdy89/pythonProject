@@ -28,7 +28,7 @@ import logging
 
 import ray
 
-from pipeline import TrainInfo
+from pipeline import TrainInfo, PipelineComponent
 
 
 class Pipeline:
@@ -36,7 +36,7 @@ class Pipeline:
         self._pipeline_definition_path: str = os.path.dirname(os.path.abspath(__file__)) + "/pipelines.yaml"
         self._logger: ray.actor = ray.get_actor("logging_service")
         self.progress: dict = {}
-        self._components: dict = {}
+        self._components: dict[int, PipelineComponent] = {}
         self._component_result = None
         self._pipeline_idx: int = 0
 
@@ -77,19 +77,22 @@ class Pipeline:
             else:
                 self._component_result = component() # surround with try catch on every run component -> if fail update and kill
         else:
+            args = {}
             if not outputs:
-                # check input dict, check type with value, if value equal component_result type -> add dict to input key and comp_result, if value equal type train_info set train info
-
-                if type(TrainInfo()) in inputs:
-                    component(self._component_result, train_info)    # order checking needed -> handle with multiple input, output (a = {'arg1':1, 'arg3':2}, foo(**a)),
-                                                                    # output with named tuple ?
-                else:
-                    component(self._component_result)
+                for k, v in inputs.items():
+                    if v.__name__ == type(self._component_result).__name__:
+                        args[k] = self._component_result
+                    elif v.__name__ == type(TrainInfo()).__name__:
+                        args[k] = train_info
+                component(**args)
             else:
-                if type(TrainInfo()) in inputs:
-                    self._component_result = component(self._component_result, train_info)    # order checking needed
-                else:
-                    self._component_result = component(self._component_result)
+                for k, v in inputs.items():
+                    if v.__name__ == type(self._component_result).__name__:
+                        args[k] = self._component_result
+                    elif v.__name__ == type(TrainInfo()).__name__:
+                        args[k] = train_info
+                self._component_result = component(**args)
+
         self._pipeline_idx += 1
         self.run_pipeline(train_info)
 
