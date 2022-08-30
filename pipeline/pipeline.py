@@ -85,6 +85,9 @@ class Pipeline:
         self._pipeline_idx += 1
         self.run_pipeline(train_info)
 
+    def on_pipeline_end(self):
+        pass
+
 
 class ComponentResult:
     def __init__(self):
