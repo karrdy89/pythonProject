@@ -223,3 +223,31 @@ class TrainInfo(Artifact):
 
     def _set_early_stop(self, early_stop: str) -> None:
         self.metadata["early_stop"] = early_stop
+
+    @property
+    def save_path(self) -> str:
+        return self._get_save_path()
+
+    def _get_save_path(self) -> str:
+        return self.metadata.get("save_path", '')
+
+    @save_path.setter
+    def save_path(self, save_path: str) -> None:
+        self._set_save_path(save_path)
+
+    def _set_save_path(self, save_path: str) -> None:
+        self.metadata["save_path"] = save_path
+
+    @property
+    def log_path(self) -> str:
+        return self._get_log_path()
+
+    def _get_log_path(self) -> str:
+        return self.metadata.get("log_path", '')
+
+    @log_path.setter
+    def log_path(self, log_path: str) -> None:
+        self._set_log_path(log_path)
+
+    def _set_log_path(self, log_path: str) -> None:
+        self.metadata["log_path"] = log_path
