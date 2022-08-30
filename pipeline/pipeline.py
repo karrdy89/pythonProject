@@ -29,13 +29,16 @@ import logging
 import ray
 
 from pipeline import TrainInfo, PipelineComponent
+from shared_state import SharedState
+from logger import Logger
 
 
 class Pipeline:
     def __init__(self):
         self._pipeline_definition_path: str = os.path.dirname(os.path.abspath(__file__)) + "/pipelines.yaml"
         self._logger: ray.actor = ray.get_actor("logging_service")
-        self.progress: dict = {}
+        self._shared_state: ray.actor = ray.get_actor("shared_state")
+        self._progress: dict[str, list | str] = {}
         self._components: dict[int, PipelineComponent] = {}
         self._component_result = None
         self._pipeline_idx: int = 0
@@ -68,6 +71,7 @@ class Pipeline:
         if self._pipeline_idx >= len(self._components):
             self._pipeline_idx = 0
             return
+        # update pipeline progress
         component = self._components.get(self._pipeline_idx)
         inputs = component.input
         outputs = component.output
@@ -102,8 +106,6 @@ class Pipeline:
 
 
 
-from shared_state import SharedState
-from logger import Logger
 
 shared_state = SharedState.options(name="shared_state").remote()
 logging_service = Logger.options(name="logging_service", max_concurrency=500).remote()
