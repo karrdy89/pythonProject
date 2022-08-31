@@ -28,6 +28,7 @@ GRPC_PORT_START = 8000
 MAX_CONTAINER = 20
 CHECK_INTERVAL = 10
 DEPLOY_PATH = ""
+SERVING_CONTAINER = "tensorflow/serving:2.6.5"
 
 
 @ray.remote
@@ -292,7 +293,7 @@ class ModelServing:
 
     def run_container(self, model_id: str, container_name: str, http_port: int, grpc_port: int, deploy_path: str):
         try:
-            container = self._client.containers.run(image='tensorflow/serving:2.6.5', detach=True, name=container_name,
+            container = self._client.containers.run(image=SERVING_CONTAINER, detach=True, name=container_name,
                                                     ports={'8501/tcp': http_port, '8500/tcp': grpc_port},
                                                     volumes=[deploy_path + model_id + ":/models/" + model_id],
                                                     environment=["MODEL_NAME=" + model_id]
