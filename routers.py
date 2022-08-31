@@ -15,7 +15,7 @@ from serving import ModelServing
 
 app = FastAPI()
 app.add_middleware(HTTPSRedirectMiddleware)
-# server = ray.get_actor("model_serving")
+server = ray.get_actor("model_serving")
 
 
 async def _reverse_proxy(request: Request):
@@ -53,7 +53,6 @@ app.add_route("/dashboard/{port}/{path:path}", _reverse_proxy, ["GET", "POST"])
 @app.post("/deploy")
 async def deploy(request_body: VO.Deploy):
     print("accept deploy request")
-    # server = ray.get_actor("model_serving")
     remote_job_obj = server.deploy.remote(model_id=request_body.model_id,
                                           version=request_body.version,
                                           container_num=request_body.container_num)
@@ -63,7 +62,6 @@ async def deploy(request_body: VO.Deploy):
 
 @app.get("/deploy/state")
 async def get_deploy_state():
-    # server = ray.get_actor("model_serving")
     remote_job_obj = server.get_deploy_state.remote()
     result = await remote_job_obj
     return result
