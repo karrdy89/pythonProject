@@ -82,7 +82,7 @@ class Pipeline:
             if not outputs:
                 component()
             else:
-                self._component_result = component() # surround with try catch on every run component -> if fail update and kill
+                self._component_result = component() # surround with try catch on every run component -> if fail update state
         else:
             args = {}
             if not outputs:
