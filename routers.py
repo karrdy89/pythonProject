@@ -15,7 +15,7 @@ from serving import ModelServing
 
 app = FastAPI()
 app.add_middleware(HTTPSRedirectMiddleware)
-server = ray.get_actor("model_serving")
+# server = ray.get_actor("model_serving")
 
 
 async def _reverse_proxy(request: Request):
@@ -41,6 +41,11 @@ async def _reverse_proxy(request: Request):
             background=BackgroundTask(rp_resp.aclose),
         )
 
+# add proxy function
+def add_proxy(name:str, port:int) -> str:
+    route = "/"+name+"/{"+str(port)+"}/{path:path}"
+    app.add_route(route, _reverse_proxy, ["GET", "POST"])
+    return ''
 
 app.add_route("/dashboard/{port}/{path:path}", _reverse_proxy, ["GET", "POST"])
 

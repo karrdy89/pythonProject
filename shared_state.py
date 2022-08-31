@@ -22,7 +22,7 @@ class SharedState:
         if name in self._actors:
             del self._actors[name]
         else:
-            self._logger.log.remote(level=logging.WARN, worker=self._worker, msg=name+" actor not exist")
+            self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="actor not exist: " + name)
 
     def kill_actor(self, name: str) -> None:
         if name in self._actors:
@@ -30,7 +30,7 @@ class SharedState:
             ray.kill(act)
             self.delete_actor(name)
         else:
-            self._logger.log.remote(level=logging.WARN, worker=self._worker, msg=name+" actor not exist")
+            self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="actor not exist: " + name)
 
     def set_pipeline_result(self, name: str, pipe_result: PipelineResult) -> None:
         self._pipline_result[name] = pipe_result
@@ -39,7 +39,7 @@ class SharedState:
         if name in self._pipline_result:
             del self._pipline_result[name]
         else:
-            self._logger.log.remote(level=logging.WARN, worker=self._worker, msg=name+" pipeline not exist")
+            self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="pipeline not exist: " + name)
 
     def get_pipeline_result(self, name: str) -> dict:
         if name in self._pipline_result:
@@ -63,4 +63,4 @@ class SharedState:
         if name in self._train_result:
             del self._train_result[name]
         else:
-            self._logger.log.remote(level=logging.WARN, worker=self._worker, msg=name+" pipeline not exist")
+            self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="pipeline not exist: " + name)
