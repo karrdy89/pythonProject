@@ -272,7 +272,6 @@ class ModelServing:
         deploy_count = 0
         for i in range(len(list_container)):
             if list_container[i] is not None:
-                print(list_http_url[i], list_container[i])
                 serving_container = ServingContainer(name=list_container_name[i], container=list_container[i],
                                                      http_url=list_http_url[i], grpc_url=list_grpc_url[i],
                                                      state=StateCode.AVAILABLE)
