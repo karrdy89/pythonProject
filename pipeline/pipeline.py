@@ -25,6 +25,9 @@ import yaml
 import os
 import importlib
 import logging
+import json
+import traceback
+from typing import Optional
 
 import ray
 
@@ -35,10 +38,13 @@ from logger import Logger
 
 class Pipeline:
     def __init__(self):
+        self._worker: str = "PipelineInstance"
+        self._name: str = ''
+        self._sequence_names: list[str] = []
         self._pipeline_definition_path: str = os.path.dirname(os.path.abspath(__file__)) + "/pipelines.yaml"
         self._logger: ray.actor = ray.get_actor("logging_service")
         self._shared_state: ray.actor = ray.get_actor("shared_state")
-        self._progress: dict[str, list | str] = {}
+        self._pipeline_state: dict[str, str] = {}
         self._components: dict[int, PipelineComponent] = {}
         self._component_result = None
         self._pipeline_idx: int = 0
@@ -51,17 +57,20 @@ class Pipeline:
                 print(exc)
                 return {"error": exc}
 
-    def set_pipeline(self, name: str) -> None:
+    def set_pipeline(self, name: str) -> dict:
         pipeline_list = self._get_piepline_definition().get("pipelines", '')
+        if pipeline_list == '':
+            self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg="there is no pipeline: " + self._name)
+            return {"result": "there is no pipeline: " + name}
+        self._name = name
         sequences = []
         for pipeline in pipeline_list:
             if pipeline.get("name") == name:
                 sequences = pipeline.get("sequence")
                 break
-
-        sequence_names = []
         for i, seq in enumerate(sequences):
-            sequence_names.append(seq.get("name"))
+            self._sequence_names.append(seq.get("name"))
+            self._pipeline_state[seq.get("name")] = StateCode.WAITING
             task = seq.get("task")
             task_split = task.rsplit('.', 1)
             module = importlib.import_module(task_split[0])
@@ -74,40 +83,58 @@ class Pipeline:
         if self._pipeline_idx >= len(self._components):
             self._pipeline_idx = 0
             return
-        # update pipeline progress
+        current_task_name = self._sequence_names[self._pipeline_idx]
+        ray.get(self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                        msg="run pipeline step: " + current_task_name))
+        self._pipeline_state[current_task_name] = StateCode.RUNNING
+        self._shared_state.set_pipeline_result.remote(self._name, self._pipeline_state)
         component = self._components.get(self._pipeline_idx)
         inputs = component.input
         outputs = component.output
-        if not inputs:
-            if not outputs:
-                component()
+        try:
+            if not inputs:
+                if not outputs:
+                    component()
+                else:
+                    self._component_result = component()
             else:
-                self._component_result = component() # surround with try catch on every run component -> if fail update state
+                args = {}
+                if not outputs:
+                    for k, v in inputs.items():
+                        if v.__name__ == type(self._component_result).__name__:
+                            args[k] = self._component_result
+                        elif v.__name__ == type(TrainInfo()).__name__:
+                            args[k] = train_info
+                    component(**args)
+                else:
+                    for k, v in inputs.items():
+                        if v.__name__ == type(self._component_result).__name__:
+                            args[k] = self._component_result
+                        elif v.__name__ == type(TrainInfo()).__name__:
+                            args[k] = train_info
+                    self._component_result = component(**args)
+        except Exception as e:
+            self._pipeline_state[current_task_name] = StateCode.ERROR
+            exc_str = ''.join(traceback.format_exception(None, e, e.__traceback__))
+            self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                    msg=exc_str)
+            self._shared_state.set_pipeline_result.remote(self._name, self._pipeline_state)
         else:
-            args = {}
-            if not outputs:
-                for k, v in inputs.items():
-                    if v.__name__ == type(self._component_result).__name__:
-                        args[k] = self._component_result
-                    elif v.__name__ == type(TrainInfo()).__name__:
-                        args[k] = train_info
-                component(**args)
-            else:
-                for k, v in inputs.items():
-                    if v.__name__ == type(self._component_result).__name__:
-                        args[k] = self._component_result
-                    elif v.__name__ == type(TrainInfo()).__name__:
-                        args[k] = train_info
-                self._component_result = component(**args)
-
-        self._pipeline_idx += 1
-        self.run_pipeline(train_info)
+            self._pipeline_state[current_task_name] = StateCode.DONE
+            self._shared_state.set_pipeline_result.remote(self._name, self._pipeline_state)
+            self._pipeline_idx += 1
+            self.run_pipeline(train_info)
 
     def on_pipeline_end(self):
         # return pipeline done
         pass
 
 
+class StateCode:
+    RUNNING = "RUNNING"
+    ERROR = "ERROR"
+    WAITING = "WAITING"
+    DONE = "DONE"
 
 
 shared_state = SharedState.options(name="shared_state").remote()

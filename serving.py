@@ -603,10 +603,7 @@ class ModelDeployState:
     containers: dict = field(default_factory=dict)
 
 
-class StateCode(object):
-    def __init__(self, *args, **kwargs):
-        pass
-
+class StateCode:
     ALREADY_EXIST = 1
     IN_PROGRESS = 3
     AVAILABLE = 0
@@ -614,8 +611,5 @@ class StateCode(object):
 
 
 class ManageType:
-    def __init__(self, *args, **kwargs):
-        pass
-
     MODEL = 0
     CONTAINER = 1
