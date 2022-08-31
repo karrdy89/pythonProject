@@ -15,7 +15,8 @@ from serving import ModelServing
 
 app = FastAPI()
 app.add_middleware(HTTPSRedirectMiddleware)
-server = ray.get_actor("model_serving")
+# server = ray.get_actor("model_serving")
+server = None
 
 
 async def _reverse_proxy(request: Request):
