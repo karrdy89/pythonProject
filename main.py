@@ -48,8 +48,9 @@ logging_service = Logger.options(name="logging_service", max_concurrency=500).re
 model_serving = ModelServing.options(name="model_serving").remote()
 shared_state = SharedState.options(name="shared_state").remote()
 api_service = UvicornServer.options(name="API_service").remote(config=config)
-routers.server = model_serving
 
+routers.server = model_serving
+# routers.add_proxy("dashboard", 8265)
 # initiate all service
 init_processes = ray.get([model_serving.init.remote()])
 api_service.run_server.remote()

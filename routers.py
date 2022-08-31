@@ -1,6 +1,7 @@
 import datetime
 import asyncio
 import json
+import os
 
 import ray
 import httpx
@@ -44,11 +45,30 @@ async def _reverse_proxy(request: Request):
 
 # add proxy function
 def add_proxy(name:str, port:int) -> str:
-    route = "/"+name+"/{"+str(port)+"}/{path:path}"
-    app.add_route(route, _reverse_proxy, ["GET", "POST"])
+    # route = "/"+name+"/{"+str(port)+"}/{path:path}"
+    # app.add_route(route, _reverse_proxy, ["GET", "POST"])
+    from tensorboard_service import TensorBoardTool
+    tb = TensorBoardTool(os.path.dirname(os.path.abspath(__file__))+"/train_logs")
+    tb.run()
+    app.add_route("/dashboard/{port}/{path:path}", _reverse_proxy, ["GET", "POST"])
+    app.openapi_schema = None
+    app.openapi()
     return ''
 
+# add_proxy("dashboard", 8265)
 app.add_route("/dashboard/{port}/{path:path}", _reverse_proxy, ["GET", "POST"])
+app.add_route("/tensorboard/{port}/{path:path}", _reverse_proxy, ["GET", "POST"])
+
+@app.get("/test")
+async def test():
+    # app.add_route("/dashboard/{port}/{path:path}", _reverse_proxy, ["GET", "POST"])
+    # # add_proxy("dashboard", 8265)
+    # app.openapi_schema = None
+    # app.openapi()
+    from tensorboard_service import TensorBoardTool
+    tb = TensorBoardTool(os.path.dirname(os.path.abspath(__file__))+"/train_logs")
+    tb.run()
+    return "aa"
 
 
 @app.post("/deploy")
