@@ -45,7 +45,6 @@ class TensorBoardTool:
         if self._tensorboard_thread_queue.empty():
             self._timer.stop()
             return
-        print(time.time())
         tensorboard_thread = self._tensorboard_thread_queue.get(block=True)
         port = tensorboard_thread.port
         tensorboard_info = subprocess.check_output("ps -ef | grep tensorboard", shell=True).decode('utf-8')
@@ -60,7 +59,6 @@ class TensorBoardTool:
             os.kill(int(tid), signal.SIGTERM)
             self.release_port(port)
         self._timer.reset(tensorboard_thread.time_diff)
-        print(tensorboard_thread.time_diff)
         return
 
     def init(self):
@@ -75,8 +73,7 @@ class TensorBoardTool:
         try:
             tensorboard = program.TensorBoard(default.get_plugins(), assets.get_default_assets_zip_provider())
             tensorboard.configure(argv=[None, '--logdir', dir_path, '--port', str(port)])
-            url = tensorboard.launch()
-            print(url)
+            tensorboard.launch()
         except Exception as e:
             exc_str = ''.join(traceback.format_exception(None, e, e.__traceback__))
             print(exc_str)
