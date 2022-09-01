@@ -13,6 +13,7 @@ MAX_PIPELINE = 1
 @ray.remote
 class SharedState:
     def __init__(self):
+        self._worker = type(self).__name__
         self._logger: actor = ray.get_actor("logging_service")
         self._actors: OrderedDict[str, actor] = OrderedDict()  # if not work change to actor name
         self._pipline_result: OrderedDict[str, PipelineResult] = OrderedDict()
@@ -41,7 +42,7 @@ class SharedState:
 
     def kill_actor(self, name: str) -> int:
         if name in self._actors:
-            act = self._actors["name"]
+            act = self._actors[name]
             ray.kill(act)
             self.delete_actor(name)
             return 0

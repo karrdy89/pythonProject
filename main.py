@@ -49,6 +49,7 @@ model_serving = ModelServing.options(name="model_serving").remote()
 shared_state = SharedState.options(name="shared_state").remote()
 api_service = UvicornServer.options(name="API_service").remote(config=config)
 routers.server = model_serving
+routers.shared_state = shared_state
 
 # initiate all service
 init_processes = ray.get([model_serving.init.remote()])

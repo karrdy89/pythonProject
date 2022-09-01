@@ -9,7 +9,6 @@ from starlette.responses import StreamingResponse
 from starlette.background import BackgroundTask
 
 import VO.request_vo as rvo
-import shared_state
 from pipeline import Pipeline
 from tensorboard_service import TensorBoardTool
 from utils.common import version_decode, version_encode
@@ -20,7 +19,7 @@ app = FastAPI()
 app.add_middleware(HTTPSRedirectMiddleware)
 tensorboard_tool = TensorBoardTool()
 server = None
-shared_state = None
+# shared_state = None
 logger = None
 
 
@@ -54,24 +53,25 @@ app.add_route("/tensorboard/{port}/{path:path}", _reverse_proxy, ["GET", "POST"]
 
 @app.post("/train/run")
 async def train(request_body: rvo.Train):
+    shared_state = ray.get_actor("shared_state")
     model = request_body.model_id
     version = request_body.version
     pipeline_name = model + ":" + version
-    if not ray.get(shared_state.is_actor_exist.remote(name=pipeline_name)):
+    if ray.get(shared_state.is_actor_exist.remote(name=pipeline_name)):
         return "same model is training"
     train_info = TrainInfo()
     train_info.name = pipeline_name
     train_info.epoch = request_body.epoch
     train_info.early_stop = request_body.early_stop
     train_info.data_split = request_body.data_split
-    train_info.batch_size = request_body.batch_size
+    train_info.batch_size = request_body.batch_size #try
     tmp_path = model + "/" + str(version_encode(version))
     train_info.save_path = project_path + '/saved_models/' + tmp_path
     train_info.log_path = project_path + '/train_logs/' + tmp_path
     pipeline_actor = Pipeline.options(name="pipeline_name").remote()
     ray.get(pipeline_actor.set_pipeline.remote(name=model, version=version))
     pipeline_actor.run_pipeline.remote(train_info=train_info)
-    shared_state.set_actor.remote(name=pipeline_name, actor=pipeline_actor)
+    shared_state.set_actor.remote(name=pipeline_name, act=pipeline_actor)
     return "ok"
 
 

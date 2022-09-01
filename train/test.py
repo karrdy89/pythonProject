@@ -17,9 +17,9 @@ def train_test_model(dataset: Input[Dataset], train_info: Input[TrainInfo]):
     validation_ds = ds.skip(train_size).take(validation_size)
     test_ds = ds.skip(train_size).skip(validation_size)
 
-    train_ds = train_ds.batch(1)
-    validation_ds = validation_ds.batch(1)
-    test_ds = test_ds.batch(1)
+    train_ds = train_ds.batch(train_info.batch_size)
+    validation_ds = validation_ds.batch(train_info.batch_size)
+    test_ds = test_ds.batch(train_info.batch_size)
 
     model = tf.keras.Sequential([
         tf.keras.layers.Dense(1, input_shape=[1])
