@@ -25,15 +25,11 @@ import yaml
 import os
 import importlib
 import logging
-import json
 import traceback
-from typing import Optional
 
 import ray
 
 from pipeline import TrainInfo, PipelineComponent
-from shared_state import SharedState
-from logger import Logger
 
 
 @ray.remote
@@ -58,12 +54,12 @@ class Pipeline:
                 print(exc)
                 return {"error": exc}
 
-    def set_pipeline(self, name: str) -> dict:
+    def set_pipeline(self, name: str, version: str) -> dict:
+        self._name = name + ":" + version
         pipeline_list = self._get_piepline_definition().get("pipelines", '')
         if pipeline_list == '':
             self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg="there is no pipeline: " + self._name)
             return {"result": "there is no pipeline: " + name}
-        self._name = name
         sequences = []
         for pipeline in pipeline_list:
             if pipeline.get("name") == name:
@@ -83,6 +79,7 @@ class Pipeline:
             return
         if self._pipeline_idx >= len(self._components):
             self._pipeline_idx = 0
+            self.on_pipeline_end()
             return
         current_task_name = self._sequence_names[self._pipeline_idx]
         ray.get(self._logger.log.remote(level=logging.INFO, worker=self._worker,
@@ -120,15 +117,16 @@ class Pipeline:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                     msg=exc_str)
             self._shared_state.set_pipeline_result.remote(self._name, self._pipeline_state)
+            return -1
         else:
             self._pipeline_state[current_task_name] = StateCode.DONE
             self._shared_state.set_pipeline_result.remote(self._name, self._pipeline_state)
             self._pipeline_idx += 1
             self.run_pipeline(train_info)
 
-    def on_pipeline_end(self):
-        # return pipeline done
-        pass
+    def on_pipeline_end(self) -> int:
+        result = ray.get(self._shared_state.kill_actor.remote(self._name))
+        return result
 
 
 class StateCode:

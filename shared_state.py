@@ -9,17 +9,29 @@ from pipeline import PipelineResult, TrainResult
 
 MAX_PIPELINE = 1
 
+
 @ray.remote
 class SharedState:
     def __init__(self):
         self._logger: actor = ray.get_actor("logging_service")
         self._actors: OrderedDict[str, actor] = OrderedDict()  # if not work change to actor name
-        self._pipline_result: OrderedDict[str, PipelineResult] = OrderedDict()    # store state of actor and result maximum MAX pipeline if exceed kill lastest
+        self._pipline_result: OrderedDict[str, PipelineResult] = OrderedDict()
         self._train_result: OrderedDict[str, TrainResult] = OrderedDict()
         self._pipeline_pool: OrderedDict[str, actor] = OrderedDict()
 
-    def set_actor(self, name: str, act: actor) -> None:
+    def set_actor(self, name: str, act: actor):
         self._actors[name] = act
+        if len(self._actors) >= MAX_PIPELINE:
+            self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="max piepline exceeded")
+            return -1
+        if len(self._pipline_result) >= MAX_PIPELINE:
+            self._pipline_result.popitem(last=False)
+            self._train_result.popitem(last=False)
+
+    def is_actor_exist(self, name) -> bool:
+        if name in self._actors:
+            return True
+        return False
 
     def delete_actor(self, name: str) -> None:
         if name in self._actors:
@@ -27,13 +39,15 @@ class SharedState:
         else:
             self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="actor not exist: " + name)
 
-    def kill_actor(self, name: str) -> None:
+    def kill_actor(self, name: str) -> int:
         if name in self._actors:
             act = self._actors["name"]
             ray.kill(act)
             self.delete_actor(name)
+            return 0
         else:
             self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="actor not exist: " + name)
+            return -1
 
     def set_pipeline_result(self, name: str, pipe_result: PipelineResult) -> None:
         self._pipline_result[name] = pipe_result

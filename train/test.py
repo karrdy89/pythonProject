@@ -25,14 +25,8 @@ def train_test_model(dataset: Input[Dataset], train_info: Input[TrainInfo]):
         tf.keras.layers.Dense(1, input_shape=[1])
     ])
     model.compile(optimizer="sgd", loss="mse")
-    train_callback = base_callbacks(train_info, "loss")
+    train_callback = base_callbacks(train_info, monitor="loss")
     test_callback = evaluation_callback(train_info)
     model.fit(train_ds, validation_data=validation_ds, epochs=train_info.epoch, verbose=1, callbacks=train_callback)
     model.evaluate(test_ds, callbacks=test_callback)
-
-    # model.save(train_info.save_path)
-    # create pipeline and update handle to global state
-    # update to global state
-    # if pipeline end with 0 -> update pipeline result to database -> if updated kill pipeline process (await for result)
-    # implement nbo
-    # test run
+    model.save(train_info.save_path)

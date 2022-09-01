@@ -78,6 +78,10 @@ class CreateTensorboard(BaseModel):
 class Train(BaseModel):
     model_id: str
     version: str
+    epoch: int
+    data_split: str
+    early_stop: str
+    batch_size: int
 
     class Config:
         extra = Extra.forbid
