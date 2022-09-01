@@ -75,9 +75,9 @@ q = "select column_name from user_tab_cols where table_name='TEST'"
 #     "CHNEVTID VARCHAR2(20) NOT NULL," \
 #     "REFKEY VARCHAR2(20)," \
 #     "EVTID VARCHAR2(20) NOT NULL)"
-dbutil = DBUtil()
-dbutil.set_connection(host="192.168.72.128", user="system", password="oracle1234", port=1521, sid="sid")
-result1 = dbutil.select(q)
-result2 = dbutil.select(q)
-print(result1)
-print(result2)
+# dbutil = DBUtil()
+# dbutil.set_connection(host="192.168.72.128", user="system", password="oracle1234", port=1521, sid="sid")
+# result1 = dbutil.select(q)
+# result2 = dbutil.select(q)
+# print(result1)
+# print(result2)
