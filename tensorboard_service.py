@@ -12,18 +12,6 @@ from tensorboard import program, default, assets
 
 from utils.resettable_timer import ResettableTimer
 
-# make tensorboard by given name(log path) and port
-# return url
-# set expire an hour
-# - run -> add timer job, activate and reset(queueing the port and next, if same time or less activate if cron???? change cron to time, save time to activate
-# get current time and compare??? or calculate interval ) -> how to reset time of scheduler
-# (cur - 11:00, interval 1) -> activate on (cur - 12:00, interval ?)
-# add tb on (cur - 11:30, interval 1) -> queueing (cur time diff next interval time -> set interval )
-# kill in timer and delete in revers proxy
-# timer basic unit - sec
-# time diff
-# 11:10, 11:11, :11:12, 13:00 -> timedif 1,1,1, 1:48, if queue is empty stop and remove
-
 # set config file and read
 # run actual model
 # handle with db_util
@@ -41,6 +29,7 @@ class TensorBoardTool:
         self._port_use: list[int] = []
         self._tensorboard_thread_queue: queue = queue.Queue()
         self._timer: ResettableTimer = ResettableTimer()
+        self._before_produce_time: float = 0
         self.init()
 
     def get_port(self):
@@ -56,6 +45,7 @@ class TensorBoardTool:
         if self._tensorboard_thread_queue.empty():
             self._timer.stop()
             return
+        print(time.time())
         tensorboard_thread = self._tensorboard_thread_queue.get(block=True)
         port = tensorboard_thread.port
         tensorboard_info = subprocess.check_output("ps -ef | grep tensorboard", shell=True).decode('utf-8')
@@ -69,9 +59,8 @@ class TensorBoardTool:
             print("killed: " + str(tid))
             os.kill(int(tid), signal.SIGTERM)
             self.release_port(port)
-        time_diff = time.time() - tensorboard_thread.produce_time
-        print(time_diff)
-        self._timer.reset(time_diff)
+        self._timer.reset(tensorboard_thread.time_diff)
+        print(tensorboard_thread.time_diff)
         return
 
     def init(self):
@@ -79,6 +68,9 @@ class TensorBoardTool:
             self._port.append(TENSORBOARD_PORT_START + i)
 
     def run(self, dir_path: str) -> int:
+        if len(self._port_use) >= TENSORBOARD_THREAD_MAX:
+            print("max tensorboard thread exceeded")
+            return -1
         port = self.get_port()
         try:
             tensorboard = program.TensorBoard(default.get_plugins(), assets.get_default_assets_zip_provider())
@@ -91,10 +83,16 @@ class TensorBoardTool:
             print("launch tensorboard failed")
             return -1
         else:
-            tensorboard_thread = TensorboardThread(port=port, produce_time=time.time())
+            cur_time = time.time()
+            print(cur_time)
+            time_diff = 0
+            if self._before_produce_time != 0:
+                time_diff = cur_time - self._before_produce_time
+            self._before_produce_time = cur_time
+            tensorboard_thread = TensorboardThread(port=port, time_diff=time_diff)
             self._tensorboard_thread_queue.put(tensorboard_thread, block=True)
             if not self._timer.is_run:
-                self._timer.set(interval=20, function=self.expire_tensorboard)
+                self._timer.set(interval=10, function=self.expire_tensorboard)
                 self._timer.run()
             return port
 
@@ -102,8 +100,6 @@ class TensorBoardTool:
 @dataclasses.dataclass
 class TensorboardThread:
     port: int
-    produce_time: float
+    time_diff: float
 
-tb_tool = TensorBoardTool()
-tb_tool.run(os.path.dirname(os.path.abspath(__file__))+"/train_logs")
 
