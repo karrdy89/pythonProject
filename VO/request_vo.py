@@ -73,3 +73,11 @@ class CreateTensorboard(BaseModel):
 
     class Config:
         extra = Extra.forbid
+
+
+class Train(BaseModel):
+    model_id: str
+    version: str
+
+    class Config:
+        extra = Extra.forbid

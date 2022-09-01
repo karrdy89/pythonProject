@@ -36,6 +36,7 @@ from shared_state import SharedState
 from logger import Logger
 
 
+@ray.remote
 class Pipeline:
     def __init__(self):
         self._worker = type(self).__name__
@@ -136,17 +137,17 @@ class StateCode:
     WAITING = "WAITING"
     DONE = "DONE"
 
-
-shared_state = SharedState.options(name="shared_state").remote()
-logging_service = Logger.options(name="logging_service", max_concurrency=500).remote()
-p = Pipeline()
-p.set_pipeline('test')
-t = TrainInfo()
-t.name = "test"
-t.epoch = 100
-t.data_split = "80:10:10"
-t.early_stop = 'N'
-t.batch_size = '1'
-t.log_path = os.path.dirname(os.path.abspath(__file__)) + '/train_logs/test/101'
-t.save_path = os.path.dirname(os.path.abspath(__file__)) + '/saved_models'
-p.run_pipeline(t)
+#
+# shared_state = SharedState.options(name="shared_state").remote()
+# logging_service = Logger.options(name="logging_service", max_concurrency=500).remote()
+# p = Pipeline()
+# p.set_pipeline('test')
+# t = TrainInfo()
+# t.name = "test"
+# t.epoch = 100
+# t.data_split = "80:10:10"
+# t.early_stop = 'N'
+# t.batch_size = '1'
+# t.log_path = os.path.dirname(os.path.abspath(__file__)) + '/train_logs/test/101'
+# t.save_path = os.path.dirname(os.path.abspath(__file__)) + '/saved_models'
+# p.run_pipeline(t)

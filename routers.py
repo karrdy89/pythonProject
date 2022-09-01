@@ -16,6 +16,8 @@ app = FastAPI()
 app.add_middleware(HTTPSRedirectMiddleware)
 tensorboard_tool = TensorBoardTool()
 server = None
+global_state = None
+logger = None
 
 
 async def _reverse_proxy(request: Request):
@@ -44,6 +46,21 @@ async def _reverse_proxy(request: Request):
 
 app.add_route("/dashboard/{port}/{path:path}", _reverse_proxy, ["GET", "POST"])
 app.add_route("/tensorboard/{port}/{path:path}", _reverse_proxy, ["GET", "POST"])
+
+
+@app.post("/train/run")
+async def train(request_body: rvo.Train):
+    pass
+
+
+@app.post("/train/stop")
+async def stop_train(request_body: rvo.Train):
+    pass
+
+
+@app.get("/train/info")
+async def get_train_info():
+    pass
 
 
 @app.post("/deploy")

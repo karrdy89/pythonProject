@@ -7,13 +7,16 @@ from ray import actor
 from pipeline import PipelineResult, TrainResult
 
 
+MAX_PIPELINE = 1
+
 @ray.remote
 class SharedState:
     def __init__(self):
-        self._actors: OrderedDict[str, actor] = OrderedDict() # if not work change to actor name
         self._logger: actor = ray.get_actor("logging_service")
+        self._actors: OrderedDict[str, actor] = OrderedDict()  # if not work change to actor name
         self._pipline_result: OrderedDict[str, PipelineResult] = OrderedDict()    # store state of actor and result maximum MAX pipeline if exceed kill lastest
         self._train_result: OrderedDict[str, TrainResult] = OrderedDict()
+        self._pipeline_pool: OrderedDict[str, actor] = OrderedDict()
 
     def set_actor(self, name: str, act: actor) -> None:
         self._actors[name] = act
