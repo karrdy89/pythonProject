@@ -99,7 +99,7 @@ async def create_tensorboard(request_body: rvo.CreateTensorboard):
     version = request_body.version
     encoded_version = version_encode(version)
     model = request_body.model_id
-    log_path = project_path + "/train_logs/" + str(encoded_version) + "/" + model
+    log_path = project_path + "/train_logs/" + model + "/" + str(encoded_version)
     port = tensorboard_tool.run(log_path)
     url = "/tensorboard/"+str(port)
     return url

@@ -147,6 +147,6 @@ t.epoch = 100
 t.data_split = "80:10:10"
 t.early_stop = 'N'
 t.batch_size = '1'
-t.log_path = os.path.dirname(os.path.abspath(__file__)) + '/train_logs'
+t.log_path = os.path.dirname(os.path.abspath(__file__)) + '/train_logs/test/101'
 t.save_path = os.path.dirname(os.path.abspath(__file__)) + '/saved_models'
 p.run_pipeline(t)
