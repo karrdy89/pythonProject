@@ -12,9 +12,9 @@ from tensorboard import program, default, assets
 
 from utils.resettable_timer import ResettableTimer
 
-# set config file and read
 # run actual model
 # handle with db_util
+# set config file and read
 # error handling
 # doc string
 # test packaging
