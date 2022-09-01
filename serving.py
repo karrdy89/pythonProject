@@ -21,7 +21,7 @@ from docker.errors import ContainerError, ImageNotFound, APIError, DockerExcepti
 from docker.models.containers import Container
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-from http_util import Http
+from utils.http_util import Http
 
 HTTP_PORT_START = 8500
 GRPC_PORT_START = 8000
