@@ -60,3 +60,12 @@ if -1 in init_processes:
     ray.kill(logging_service)
     ray.kill(shared_state)
     sys.exit()
+
+
+# run actual model
+# handle with db_util
+# set config file and read
+# adjust init process
+# error handling
+# doc string
+# test packaging

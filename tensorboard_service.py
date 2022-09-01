@@ -10,13 +10,6 @@ from tensorboard import program, default, assets
 
 from utils.resettable_timer import ResettableTimer
 
-# run actual model
-# handle with db_util
-# set config file and read
-# adjust init process
-# error handling
-# doc string
-# test packaging
 
 TENSORBOARD_PORT_START = 6000
 TENSORBOARD_THREAD_MAX = 500
