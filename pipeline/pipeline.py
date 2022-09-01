@@ -38,7 +38,7 @@ from logger import Logger
 
 class Pipeline:
     def __init__(self):
-        self._worker: str = "PipelineInstance"
+        self._worker = type(self).__name__
         self._name: str = ''
         self._sequence_names: list[str] = []
         self._pipeline_definition_path: str = os.path.dirname(os.path.abspath(__file__)) + "/pipelines.yaml"
