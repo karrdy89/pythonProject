@@ -66,3 +66,10 @@ class EndDeploy(BaseModel):
     class Config:
         extra = Extra.forbid
 
+
+class CreateTensorboard(BaseModel):
+    model_id: str
+    version: str
+
+    class Config:
+        extra = Extra.forbid

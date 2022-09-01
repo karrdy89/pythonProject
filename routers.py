@@ -1,9 +1,5 @@
-import datetime
-import asyncio
-import json
 import os
 
-import ray
 import httpx
 from fastapi import FastAPI
 from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
@@ -11,12 +7,12 @@ from starlette.requests import Request
 from starlette.responses import StreamingResponse
 from starlette.background import BackgroundTask
 
-import VO.value_object as VO
-from serving import ModelServing
+import VO.request_vo as VO
+from tensorboard_service import TensorBoardTool
 
 app = FastAPI()
 app.add_middleware(HTTPSRedirectMiddleware)
-# server = ray.get_actor("model_serving")
+tensorboard_tool = TensorBoardTool()
 server = None
 
 
@@ -43,32 +39,9 @@ async def _reverse_proxy(request: Request):
             background=BackgroundTask(rp_resp.aclose),
         )
 
-# add proxy function
-def add_proxy(name:str, port:int) -> str:
-    # route = "/"+name+"/{"+str(port)+"}/{path:path}"
-    # app.add_route(route, _reverse_proxy, ["GET", "POST"])
-    from tensorboard_service import TensorBoardTool
-    tb = TensorBoardTool(os.path.dirname(os.path.abspath(__file__))+"/train_logs")
-    tb.run()
-    app.add_route("/dashboard/{port}/{path:path}", _reverse_proxy, ["GET", "POST"])
-    app.openapi_schema = None
-    app.openapi()
-    return ''
 
-# add_proxy("dashboard", 8265)
 app.add_route("/dashboard/{port}/{path:path}", _reverse_proxy, ["GET", "POST"])
 app.add_route("/tensorboard/{port}/{path:path}", _reverse_proxy, ["GET", "POST"])
-
-@app.get("/test")
-async def test():
-    # app.add_route("/dashboard/{port}/{path:path}", _reverse_proxy, ["GET", "POST"])
-    # # add_proxy("dashboard", 8265)
-    # app.openapi_schema = None
-    # app.openapi()
-    from tensorboard_service import TensorBoardTool
-    tb = TensorBoardTool(os.path.dirname(os.path.abspath(__file__))+"/train_logs")
-    tb.run()
-    return "aa"
 
 
 @app.post("/deploy")
@@ -117,3 +90,10 @@ async def deploy(request_body: VO.Predict):
                                            data=request_body.feature)
     result = await remote_job_obj
     return result
+
+
+@app.post("/tensorboard/create")
+async def create_tensorboard(request_body: VO.CreateTensorboard):
+    version = request_body.version
+    model = request_body.model_id
+    return "aa"

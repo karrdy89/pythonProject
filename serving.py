@@ -22,6 +22,7 @@ from docker.models.containers import Container
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from utils.http_util import Http
+from utils.common import version_encode, version_decode
 
 HTTP_PORT_START = 8500
 GRPC_PORT_START = 8000
@@ -63,7 +64,7 @@ class ModelServing:
             return result
 
         self._deploy_requests.append((model_id, version))
-        encoded_version = self.version_encode(version)
+        encoded_version = version_encode(version)
         model_key = model_id + "_" + version
         model_deploy_state = self._deploy_states.get(model_key)
         if model_deploy_state is not None:
@@ -182,7 +183,7 @@ class ModelServing:
             return result
 
     async def end_deploy(self, model_id: str, version: str) -> json:
-        encoded_version = self.version_encode(version)
+        encoded_version = version_encode(version)
         model_key = model_id + "_" + version
         model_deploy_state = self._deploy_states.get(model_key)
         if model_deploy_state is None:
@@ -393,7 +394,7 @@ class ModelServing:
         config.base_path = base_path
         config.model_platform = model_platform
         for i in model_version_policy:
-            version = self.version_encode(i)
+            version = version_encode(i)
             config.model_version_policy.specific.versions.append(version)
         model_server_config.model_config_list.CopyFrom(config_list)
         request.config.CopyFrom(model_server_config)
@@ -426,14 +427,14 @@ class ModelServing:
             return -1
 
         if model_deploy_state.state == StateCode.AVAILABLE:
-            result = self.copy_to_deploy(model_id, self.version_encode(version))
+            result = self.copy_to_deploy(model_id, version_encode(version))
             if result == -1:
                 return -1
             for container_name, serving_container in model_deploy_state.containers.items():
                 result = self.reset_version_config(host=serving_container.grpc_url[0] +":" + str(serving_container.grpc_url[1]),
                                                    name=serving_container.name,
                                                    base_path="/models/" + model_id, model_platform="tensorflow",
-                                                   model_version_policy=[self.version_encode(version)])
+                                                   model_version_policy=[version_encode(version)])
                 if result != 0:
                     self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                             msg="an error occur when reset config :" + model_id)
@@ -445,7 +446,7 @@ class ModelServing:
 
     def copy_to_deploy(self, model_id: str, version: int) -> int:
         model_path = self._project_path + "/saved_models/" + model_id + "/" + str(version)
-        decoded_version = self.version_decode(version)
+        decoded_version = version_decode(version)
         deploy_key = model_id + "_" + decoded_version
         deploy_path = self._project_path + "/deploy/" + deploy_key + "/" + model_id + "/" + str(version)
         try:
@@ -464,7 +465,7 @@ class ModelServing:
             return 0
 
     def delete_deployed_model(self, model_id: str, version: int) -> int:
-        decoded_version = self.version_decode(version)
+        decoded_version = version_decode(version)
         deploy_key = model_id + "_" + decoded_version
         deploy_path = self._project_path + "/deploy/" + deploy_key
         try:
@@ -558,23 +559,6 @@ class ModelServing:
                     else:
                         continue
         print(self._deploy_states)
-
-    def version_encode(self, version: str) -> int:
-        sv = version.split('.')
-        if len(sv[-1]) > 9:
-            self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg="can't exceed decimal point over 9")
-            return -1
-        else:
-            encoded = sv[0] + sv[-1] + str(len(sv[-1]))
-            return int(encoded)
-
-    def version_decode(self, version: int):
-        decimal = version // 10 ** 0 % 10
-        decoded = str(version)[:-1]
-        decimal = len(decoded) - decimal
-        if decimal > 0:
-            decoded = decoded[:decimal] + "." + decoded[decimal:]
-        return decoded
 
     def get_container_list(self):
         return self._client.containers.list()
