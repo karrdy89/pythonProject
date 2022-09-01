@@ -13,6 +13,7 @@ from utils.resettable_timer import ResettableTimer
 # run actual model
 # handle with db_util
 # set config file and read
+# adjust init process
 # error handling
 # doc string
 # test packaging
