@@ -3,6 +3,8 @@ import os
 import ray
 import httpx
 from fastapi import FastAPI
+from fastapi_utils.cbv import cbv
+from fastapi_utils.inferring_router import InferringRouter
 from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
 from starlette.requests import Request
 from starlette.responses import StreamingResponse
@@ -17,10 +19,99 @@ from pipeline import TrainInfo
 project_path = os.path.dirname(os.path.abspath(__file__))
 app = FastAPI()
 app.add_middleware(HTTPSRedirectMiddleware)
-tensorboard_tool = TensorBoardTool()
-server = None   # find way to set actor variable -> use class might be work
-# shared_state = None
-logger = None
+router = InferringRouter()
+
+
+@cbv(router)
+class AIbeemRouter:
+    def __init__(self):
+        self._server: ray.actor = ray.get_actor("model_serving")
+        self._logger: ray.actor = ray.get_actor("logging_service")
+        self._shared_state: ray.actor = ray.get_actor("shared_state")
+        self._tensorboard_tool = TensorBoardTool()
+
+    @router.post("/train/run")
+    async def train(self, request_body: rvo.Train):
+        model = request_body.model_id
+        version = request_body.version
+        pipeline_name = model + ":" + version
+        if ray.get(self._shared_state.is_actor_exist.remote(name=pipeline_name)):
+            return "same model is training"
+        train_info = TrainInfo()
+        train_info.name = pipeline_name
+        train_info.epoch = request_body.epoch
+        train_info.early_stop = request_body.early_stop
+        train_info.data_split = request_body.data_split
+        train_info.batch_size = request_body.batch_size
+        tmp_path = model + "/" + str(version_encode(version))
+        train_info.save_path = project_path + '/saved_models/' + tmp_path
+        train_info.log_path = project_path + '/train_logs/' + tmp_path
+        pipeline_actor = Pipeline.options(name="pipeline_name").remote()
+        pipeline_actor.run_pipeline.remote(name=model, version=version, train_info=train_info)
+        self._shared_state.set_actor.remote(name=pipeline_name, act=pipeline_actor)
+        return "ok"
+
+    @router.post("/train/stop")
+    async def stop_train(self, request_body: rvo.Train):
+        pass
+
+    @router.get("/train/info")
+    async def get_train_info(self):
+        pass
+
+    @router.post("/deploy")
+    async def deploy(self, request_body: rvo.Deploy):
+        print("accept deploy request")
+        remote_job_obj = self._server.deploy.remote(model_id=request_body.model_id,
+                                                    version=request_body.version,
+                                                    container_num=request_body.container_num)
+        result = await remote_job_obj
+        return result
+
+    @router.get("/deploy/state")
+    async def get_deploy_state(self):
+        remote_job_obj = self._server.get_deploy_state.remote()
+        result = await remote_job_obj
+        return result
+
+    @router.post("/deploy/add_container")
+    async def add_container(self, request_body: rvo.AddContainer):
+        remote_job_obj = self._server.add_container.remote(model_id=request_body.model_id, version=request_body.version,
+                                                           container_num=request_body.container_num)
+        result = await remote_job_obj
+        return result
+
+    @router.post("/deploy/remove_container")
+    async def remove_container(self, request_body: rvo.RemoveContainer):
+        remote_job_obj = self._server.remove_container.remote(model_id=request_body.model_id,
+                                                              version=request_body.version,
+                                                              container_num=request_body.container_num)
+        result = await remote_job_obj
+        return result
+
+    @router.post("/deploy/end_deploy")
+    async def end_deploy(self, request_body: rvo.EndDeploy):
+        remote_job_obj = self._server.end_deploy.remote(model_id=request_body.model_id, version=request_body.version)
+        result = await remote_job_obj
+        return result
+
+    @router.post("/predict")
+    async def deploy(self, request_body: rvo.Predict):
+        remote_job_obj = self._server.predict.remote(model_id=request_body.model_id, version=request_body.version,
+                                                     data=request_body.feature)
+        result = await remote_job_obj
+        return result
+
+    @router.post("/tensorboard")
+    async def create_tensorboard(self, request_body: rvo.CreateTensorboard):
+        version = request_body.version
+        encoded_version = version_encode(version)
+        model = request_body.model_id
+        log_path = project_path + "/train_logs/" + model + "/" + str(encoded_version)
+        # validate path
+        port = self._tensorboard_tool.run(dir_path=log_path)
+        path = "/tensorboard/" + str(port)
+        return path
 
 
 async def _reverse_proxy(request: Request):
@@ -49,96 +140,4 @@ async def _reverse_proxy(request: Request):
 
 app.add_route("/dashboard/{port}/{path:path}", _reverse_proxy, ["GET", "POST"])
 app.add_route("/tensorboard/{port}/{path:path}", _reverse_proxy, ["GET", "POST"])
-
-
-@app.post("/train/run")
-async def train(request_body: rvo.Train):
-    shared_state = ray.get_actor("shared_state")
-    model = request_body.model_id
-    version = request_body.version
-    pipeline_name = model + ":" + version
-    if ray.get(shared_state.is_actor_exist.remote(name=pipeline_name)):
-        return "same model is training"
-    train_info = TrainInfo()
-    train_info.name = pipeline_name
-    train_info.epoch = request_body.epoch
-    train_info.early_stop = request_body.early_stop
-    train_info.data_split = request_body.data_split
-    train_info.batch_size = request_body.batch_size
-    tmp_path = model + "/" + str(version_encode(version))
-    train_info.save_path = project_path + '/saved_models/' + tmp_path
-    train_info.log_path = project_path + '/train_logs/' + tmp_path
-    pipeline_actor = Pipeline.options(name="pipeline_name").remote()
-    pipeline_actor.run_pipeline.remote(name=model, version=version, train_info=train_info)
-    shared_state.set_actor.remote(name=pipeline_name, act=pipeline_actor)
-    return "ok"
-
-
-@app.post("/train/stop")
-async def stop_train(request_body: rvo.Train):
-    pass
-
-
-@app.get("/train/info")
-async def get_train_info():
-    pass
-
-
-@app.post("/deploy")
-async def deploy(request_body: rvo.Deploy):
-    print("accept deploy request")
-    remote_job_obj = server.deploy.remote(model_id=request_body.model_id,
-                                          version=request_body.version,
-                                          container_num=request_body.container_num)
-    result = await remote_job_obj
-    return result
-
-
-@app.get("/deploy/state")
-async def get_deploy_state():
-    remote_job_obj = server.get_deploy_state.remote()
-    result = await remote_job_obj
-    return result
-
-
-@app.post("/deploy/add_container")
-async def add_container(request_body: rvo.AddContainer):
-    remote_job_obj = server.add_container.remote(model_id=request_body.model_id, version=request_body.version,
-                                                 container_num=request_body.container_num)
-    result = await remote_job_obj
-    return result
-
-
-@app.post("/deploy/remove_container")
-async def remove_container(request_body: rvo.RemoveContainer):
-    remote_job_obj = server.remove_container.remote(model_id=request_body.model_id, version=request_body.version,
-                                                    container_num=request_body.container_num)
-    result = await remote_job_obj
-    return result
-
-
-@app.post("/deploy/end_deploy")
-async def end_deploy(request_body: rvo.EndDeploy):
-    remote_job_obj = server.end_deploy.remote(model_id=request_body.model_id, version=request_body.version)
-    result = await remote_job_obj
-    return result
-
-
-@app.post("/predict")
-async def deploy(request_body: rvo.Predict):
-    remote_job_obj = server.predict.remote(model_id=request_body.model_id, version=request_body.version,
-                                           data=request_body.feature)
-    result = await remote_job_obj
-    return result
-
-
-@app.post("/tensorboard")
-async def create_tensorboard(request_body: rvo.CreateTensorboard):
-    version = request_body.version
-    encoded_version = version_encode(version)
-    model = request_body.model_id
-    log_path = project_path + "/train_logs/" + model + "/" + str(encoded_version)
-    # validate path
-    port = tensorboard_tool.run(dir_path=log_path)
-    path = "/tensorboard/"+str(port)
-    return path
+app.include_router(router)
