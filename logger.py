@@ -13,11 +13,12 @@ class Logger:
 
     def init(self):
         formatter = logging.Formatter("[%(levelname)s] : %(asctime)s : %(message)s", "%Y-%m-%d %H:%M:%S")
-        error_handler = RotatingFileHandler(self.log_base_path+"error.log", mode='a', maxBytes=104857600,
+        error_handler = RotatingFileHandler(self.log_base_path + "error.log", mode='a', maxBytes=104857600,
                                             backupCount=100)
         error_handler.setFormatter(formatter)
         error_handler.setLevel(logging.ERROR)
-        info_handler = RotatingFileHandler(self.log_base_path+"info.log", mode='a', maxBytes=104857600, backupCount=100)
+        info_handler = RotatingFileHandler(self.log_base_path + "info.log", mode='a', maxBytes=104857600,
+                                           backupCount=100)
         info_handler.setFormatter(formatter)
         info_handler.setLevel(logging.INFO)
         console_handler = logging.StreamHandler()
@@ -40,4 +41,11 @@ class Logger:
 
 class BootLogger:
     def __init__(self):
-        pass
+        self.logger = logging.getLogger()
+        self.log_base_path = os.path.dirname(os.path.abspath(__file__)) + "/logs/"
+        formatter = logging.Formatter("[%(levelname)s] : %(asctime)s : %(message)s", "%Y-%m-%d %H:%M:%S")
+        log_handler = RotatingFileHandler(self.log_base_path + "error.log", mode='a', maxBytes=104857600,
+                                          backupCount=5)
+        log_handler.setFormatter(formatter)
+        log_handler.setLevel(logging.INFO)
+        self.logger.addHandler(log_handler)
