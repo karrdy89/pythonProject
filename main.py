@@ -60,8 +60,9 @@ if -1 in init_processes:
     ray.kill(shared_state)
     sys.exit()
 
+
 # run actual model
-# handle with db_util
+# handle with db_util -> ray or some shit
 # set config file and read
 # adjust init process
 # error handling
