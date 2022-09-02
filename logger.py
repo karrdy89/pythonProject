@@ -38,6 +38,6 @@ class Logger:
             self.logger.debug(msg)
 
 
-class BootLoger:
+class BootLogger:
     def __init__(self):
         pass
