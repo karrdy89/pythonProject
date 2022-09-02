@@ -132,13 +132,13 @@ async def deploy(request_body: rvo.Predict):
     return result
 
 
-@app.post("/tensorboard/create")
+@app.post("/tensorboard")
 async def create_tensorboard(request_body: rvo.CreateTensorboard):
     version = request_body.version
     encoded_version = version_encode(version)
     model = request_body.model_id
     log_path = project_path + "/train_logs/" + model + "/" + str(encoded_version)
     # validate path
-    port = tensorboard_tool.run(log_path)
-    url = "/tensorboard/"+str(port)
-    return url
+    port = tensorboard_tool.run(dir_path=log_path)
+    path = "/tensorboard/"+str(port)
+    return path
