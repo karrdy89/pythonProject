@@ -1,3 +1,4 @@
+import json
 import os
 
 import ray
@@ -52,12 +53,26 @@ class AIbeemRouter:
         return "ok"
 
     @router.post("/train/stop")
-    async def stop_train(self, request_body: rvo.Train):
-        pass
+    async def stop_train(self, request_body: rvo.BasicModelInfo):
+        model = request_body.model_id
+        version = request_body.version
+        pipeline_name = model + ":" + version
+        result = await self._shared_state.kill_actor.remote(name=pipeline_name)
+        if result == 0:
+            return "success"
+        else:
+            return "fail"
 
-    @router.get("/train/info")
-    async def get_train_info(self):
-        pass
+    @router.get("/train/state")
+    async def get_train_state(self, request_body: rvo.BasicModelInfo) -> json:
+        model = request_body.model_id
+        version = request_body.version
+        pipeline_name = model + ":" + version
+        pipeline_state = await self._shared_state.get_pipeline_result.remote(name=pipeline_name)
+        train_result = await self._shared_state.get_train_result.remote(name=pipeline_name)
+        result = {"pipeline_state": pipeline_state, "train_result": train_result}
+        result = json.dumps(result)
+        return result
 
     @router.get("/dataset/make")
     async def get_train_info(self):
@@ -111,14 +126,16 @@ class AIbeemRouter:
         return result
 
     @router.post("/tensorboard")
-    async def create_tensorboard(self, request_body: rvo.CreateTensorboard):
+    async def create_tensorboard(self, request_body: rvo.BasicModelInfo):
         version = request_body.version
         encoded_version = version_encode(version)
         model = request_body.model_id
         log_path = project_path + "/train_logs/" + model + "/" + str(encoded_version)
-        # validate path
-        port = self._tensorboard_tool.run(dir_path=log_path)
-        path = "/tensorboard/" + str(port)
+        if os.path.isdir(log_path):
+            port = self._tensorboard_tool.run(dir_path=log_path)
+            path = "/tensorboard/" + str(port)
+        else:
+            path = "log file not exist"
         return path
 
 

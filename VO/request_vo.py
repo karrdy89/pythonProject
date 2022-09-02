@@ -1,23 +1,10 @@
 from pydantic import BaseModel, Extra
 
-class TableInfo(BaseModel):
-    table_arr: list[str] = []
 
-    class Config:
-        extra = Extra.forbid
-
-
-class DataInfoContents(BaseModel):
-    table_nm: str
-    feature_col: list[str] = []
-    target_col: str
-
-    class Config:
-        extra = Extra.forbid
-
-
-class DataInfo(BaseModel):
-    table_arr: list[DataInfoContents]
+class BasicModelInfo(BaseModel):
+    model_id: str
+    # model_name: str
+    version: str
 
     class Config:
         extra = Extra.forbid
@@ -60,14 +47,6 @@ class RemoveContainer(BaseModel):
 
 
 class EndDeploy(BaseModel):
-    model_id: str
-    version: str
-
-    class Config:
-        extra = Extra.forbid
-
-
-class CreateTensorboard(BaseModel):
     model_id: str
     version: str
 
