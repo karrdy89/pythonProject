@@ -1,26 +1,3 @@
-# key concept : managed by kubeflow, provide easy GUI(aib), jupyter lab(SDK) interface between kubeflow and distribute
-# requires
-# 0. set environment and get used kfp
-# 1. define input and output type of component
-# 2. make container and upload to pipeline
-# 3. get pipeline client
-
-# develop first concept once
-# define pipeline component
-# define input and output
-
-
-# create input output type class -> plus define metadata (it needs to know model of tensorflow, dataset type)
-# base artifact, Dataset Type, Model Type, URL type, Path type, DataFrame Type
-# -> how to implement mata? -> 1. make more type includes meta(simple), 2. put meta in output result(better way)
-# create component factorizing class(easy to check input and output), make pipeline class connect as order with callback
-# train -> log metric, set early stopping, save to defined location
-# define pipeline
-# ordering and connect input and output in matching
-# if matching run pipe and update
-# if done update database(after save model, log
-
-
 import yaml
 import os
 import importlib
@@ -51,13 +28,18 @@ class Pipeline:
             try:
                 return yaml.safe_load(stream)
             except yaml.YAMLError as exc:
-                print(exc)
+                self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg=str(exc))
                 return {"error": exc}
 
     def run_pipeline(self, name: str, version: str, train_info: TrainInfo) -> dict:
         self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="set pipeline..." + self._name)
         self._name = name + ":" + version
-        pipeline_list = self._get_piepline_definition().get("pipelines", '')    #try exc file not exist
+        pipeline_list = self._get_piepline_definition()
+        if "error" in pipeline_list:
+            self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                    msg="an error occur when parsing yaml file")
+            return {"error": "an error occur when parsing yaml file"}
+        pipeline_list.get("pipelines", '')
         if pipeline_list == '':
             self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg="there is no pipeline: " + self._name)
             return {"result": "there is no pipeline: " + name}
@@ -74,18 +56,18 @@ class Pipeline:
             module = importlib.import_module(task_split[0])
             component = getattr(module, task_split[1])
             self._components[i] = component
-        # exc sequence not exist
         self.trigger_pipeline(train_info=train_info)
         return {"result": "pil" + name}
 
     def trigger_pipeline(self, train_info):
         if not self._components:
-            return
+            self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="there is no component: " + self._name)
+            return -1
         if self._pipeline_idx >= len(self._components):
             self._pipeline_idx = 0
             self.on_pipeline_end()
             self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="end pipeline..." + self._name)
-            return
+            return 0
         self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="run pipeline..." + self._name)
         current_task_name = self._sequence_names[self._pipeline_idx]
         ray.get(self._logger.log.remote(level=logging.INFO, worker=self._worker,
