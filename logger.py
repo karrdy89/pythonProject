@@ -3,22 +3,27 @@ import logging
 import os
 from logging.handlers import RotatingFileHandler
 
+MAX_BACKUP_COUNT = 100
+MAX_BYTES = 104857600
+
 
 @ray.remote
 class Logger:
     def __init__(self):
         self.logger = logging.getLogger()
         self.log_base_path = os.path.dirname(os.path.abspath(__file__)) + "/logs/"
+        self._max_backup_count = MAX_BACKUP_COUNT
+        self._max_bytes = MAX_BYTES
         self.init()
 
     def init(self):
         formatter = logging.Formatter("[%(levelname)s] : %(asctime)s : %(message)s", "%Y-%m-%d %H:%M:%S")
-        error_handler = RotatingFileHandler(self.log_base_path + "error.log", mode='a', maxBytes=104857600,
-                                            backupCount=100)
+        error_handler = RotatingFileHandler(self.log_base_path + "error.log", mode='a', maxBytes=self._max_bytes,
+                                            backupCount=self._max_backup_count)
         error_handler.setFormatter(formatter)
         error_handler.setLevel(logging.ERROR)
-        info_handler = RotatingFileHandler(self.log_base_path + "info.log", mode='a', maxBytes=104857600,
-                                           backupCount=100)
+        info_handler = RotatingFileHandler(self.log_base_path + "info.log", mode='a', maxBytes=self._max_bytes,
+                                           backupCount=self._max_backup_count)
         info_handler.setFormatter(formatter)
         info_handler.setLevel(logging.INFO)
         console_handler = logging.StreamHandler()
