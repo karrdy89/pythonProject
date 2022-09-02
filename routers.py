@@ -50,7 +50,7 @@ class AIbeemRouter:
         pipeline_actor = Pipeline.options(name="pipeline_name").remote()
         pipeline_actor.run_pipeline.remote(name=model, version=version, train_info=train_info)
         self._shared_state.set_actor.remote(name=pipeline_name, act=pipeline_actor)
-        return "ok"
+        return "train started"
 
     @router.post("/train/stop")
     async def stop_train(self, request_body: rvo.BasicModelInfo):
