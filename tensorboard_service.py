@@ -18,6 +18,7 @@ DEFAULT_EXPIRE_TIME = 3600
 
 class TensorBoardTool:
     def __init__(self):
+        self._worker = type(self).__name__
         self._port: list[int] = []
         self._port_use: list[int] = []
         self._tensorboard_thread_queue: queue = queue.Queue()

@@ -15,7 +15,7 @@ class SharedState:
     def __init__(self):
         self._worker = type(self).__name__
         self._logger: actor = ray.get_actor("logging_service")
-        self._actors: OrderedDict[str, actor] = OrderedDict()  # if not work change to actor name
+        self._actors: OrderedDict[str, actor] = OrderedDict()
         self._pipline_result: OrderedDict[str, PipelineResult] = OrderedDict()
         self._train_result: OrderedDict[str, TrainResult] = OrderedDict()
         self._pipeline_pool: OrderedDict[str, actor] = OrderedDict()

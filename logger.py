@@ -9,9 +9,9 @@ class Logger:
     def __init__(self):
         self.logger = logging.getLogger()
         self.log_base_path = os.path.dirname(os.path.abspath(__file__)) + "/logs/"
-        self._on_load()
+        self.init()
 
-    def _on_load(self):
+    def init(self):
         formatter = logging.Formatter("[%(levelname)s] : %(asctime)s : %(message)s", "%Y-%m-%d %H:%M:%S")
         error_handler = RotatingFileHandler(self.log_base_path+"error.log", mode='a', maxBytes=104857600,
                                             backupCount=100)
@@ -37,3 +37,7 @@ class Logger:
         elif level == logging.DEBUG:
             self.logger.debug(msg)
 
+
+class BootLoger:
+    def __init__(self):
+        pass

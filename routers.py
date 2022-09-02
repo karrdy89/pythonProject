@@ -26,6 +26,7 @@ router = InferringRouter()
 @cbv(router)
 class AIbeemRouter:
     def __init__(self):
+        self._worker = type(self).__name__
         self._server: ray.actor = ray.get_actor("model_serving")
         self._logger: ray.actor = ray.get_actor("logging_service")
         self._shared_state: ray.actor = ray.get_actor("shared_state")
