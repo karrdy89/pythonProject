@@ -54,9 +54,10 @@ class Pipeline:
                 print(exc)
                 return {"error": exc}
 
-    def set_pipeline(self, name: str, version: str) -> dict:
+    def run_pipeline(self, name: str, version: str, train_info: TrainInfo) -> dict:
+        self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="set pipeline..." + self._name)
         self._name = name + ":" + version
-        pipeline_list = self._get_piepline_definition().get("pipelines", '')
+        pipeline_list = self._get_piepline_definition().get("pipelines", '')    #try exc file not exist
         if pipeline_list == '':
             self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg="there is no pipeline: " + self._name)
             return {"result": "there is no pipeline: " + name}
@@ -73,14 +74,19 @@ class Pipeline:
             module = importlib.import_module(task_split[0])
             component = getattr(module, task_split[1])
             self._components[i] = component
+        # exc sequence not exist
+        self.trigger_pipeline(train_info=train_info)
+        return {"result": "pil" + name}
 
-    def run_pipeline(self, train_info):
+    def trigger_pipeline(self, train_info):
         if not self._components:
             return
         if self._pipeline_idx >= len(self._components):
             self._pipeline_idx = 0
             self.on_pipeline_end()
+            self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="end pipeline..." + self._name)
             return
+        self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="run pipeline..." + self._name)
         current_task_name = self._sequence_names[self._pipeline_idx]
         ray.get(self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                         msg="run pipeline step: " + current_task_name))
@@ -122,7 +128,7 @@ class Pipeline:
             self._pipeline_state[current_task_name] = StateCode.DONE
             self._shared_state.set_pipeline_result.remote(self._name, self._pipeline_state)
             self._pipeline_idx += 1
-            self.run_pipeline(train_info)
+            self.trigger_pipeline(train_info)
 
     def on_pipeline_end(self) -> int:
         result = ray.get(self._shared_state.kill_actor.remote(self._name))

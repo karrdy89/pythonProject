@@ -18,7 +18,7 @@ project_path = os.path.dirname(os.path.abspath(__file__))
 app = FastAPI()
 app.add_middleware(HTTPSRedirectMiddleware)
 tensorboard_tool = TensorBoardTool()
-server = None
+server = None   # find way to set actor variable -> use class might be work
 # shared_state = None
 logger = None
 
@@ -64,13 +64,12 @@ async def train(request_body: rvo.Train):
     train_info.epoch = request_body.epoch
     train_info.early_stop = request_body.early_stop
     train_info.data_split = request_body.data_split
-    train_info.batch_size = request_body.batch_size #try
+    train_info.batch_size = request_body.batch_size
     tmp_path = model + "/" + str(version_encode(version))
     train_info.save_path = project_path + '/saved_models/' + tmp_path
     train_info.log_path = project_path + '/train_logs/' + tmp_path
     pipeline_actor = Pipeline.options(name="pipeline_name").remote()
-    ray.get(pipeline_actor.set_pipeline.remote(name=model, version=version))
-    pipeline_actor.run_pipeline.remote(train_info=train_info)
+    pipeline_actor.run_pipeline.remote(name=model, version=version, train_info=train_info)
     shared_state.set_actor.remote(name=pipeline_name, act=pipeline_actor)
     return "ok"
 
@@ -139,6 +138,7 @@ async def create_tensorboard(request_body: rvo.CreateTensorboard):
     encoded_version = version_encode(version)
     model = request_body.model_id
     log_path = project_path + "/train_logs/" + model + "/" + str(encoded_version)
+    # validate path
     port = tensorboard_tool.run(log_path)
     url = "/tensorboard/"+str(port)
     return url
