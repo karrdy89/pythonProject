@@ -26,10 +26,10 @@ from utils.common import version_encode, version_decode
 
 HTTP_PORT_START = 8500
 GRPC_PORT_START = 8000
-MAX_CONTAINER = 20
-CHECK_INTERVAL = 10
+CONTAINER_MAX = 20
+GC_CHECK_INTERVAL = 10
 DEPLOY_PATH = ""
-SERVING_CONTAINER = "tensorflow/serving:2.6.5"
+CONTAINER_IMAGE = "tensorflow/serving:2.6.5"
 
 
 @ray.remote
@@ -91,7 +91,7 @@ class ModelServing:
                 'utf8')
             return result
 
-        if (self._current_container_num + container_num) > MAX_CONTAINER:
+        if (self._current_container_num + container_num) > CONTAINER_MAX:
             self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="max container number exceeded : "
                                                                                  + model_id + ":" + version)
             result = json.dumps({"code": 4, "msg": "max container number exceeded",
@@ -129,7 +129,7 @@ class ModelServing:
                            "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode('utf8')
 
     async def add_container(self, model_id: str, version: str, container_num: int) -> json:
-        if (self._current_container_num + container_num) > MAX_CONTAINER:
+        if (self._current_container_num + container_num) > CONTAINER_MAX:
             self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="max container number exceeded : "
                                                                                  + model_id + ":" + version)
             result = json.dumps({"code": 4, "msg": "max container number exceeded",
@@ -293,7 +293,7 @@ class ModelServing:
 
     def run_container(self, model_id: str, container_name: str, http_port: int, grpc_port: int, deploy_path: str):
         try:
-            container = self._client.containers.run(image=SERVING_CONTAINER, detach=True, name=container_name,
+            container = self._client.containers.run(image=CONTAINER_IMAGE, detach=True, name=container_name,
                                                     ports={'8501/tcp': http_port, '8500/tcp': grpc_port},
                                                     volumes=[deploy_path + model_id + ":/models/" + model_id],
                                                     environment=["MODEL_NAME=" + model_id]
@@ -343,7 +343,7 @@ class ModelServing:
 
         # make port list
         self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="init process : set port...")
-        for i in range(MAX_CONTAINER * 2):
+        for i in range(CONTAINER_MAX * 2):
             self._grpc_port.append(GRPC_PORT_START + i)
             self._http_port.append(HTTP_PORT_START + i)
 
@@ -359,7 +359,7 @@ class ModelServing:
         # set GC
         self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="init process : init GC...")
         self._manager_handle = AsyncIOScheduler()
-        self._manager_handle.add_job(self.gc_container, "interval", seconds=CHECK_INTERVAL, id="gc_container")
+        self._manager_handle.add_job(self.gc_container, "interval", seconds=GC_CHECK_INTERVAL, id="gc_container")
         self._manager_handle.start()
         return 0
 

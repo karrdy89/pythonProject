@@ -7,7 +7,7 @@ from ray import actor
 from pipeline import PipelineResult, TrainResult
 
 
-MAX_PIPELINE = 1
+PIPELINE_MAX = 1
 
 
 @ray.remote
@@ -22,10 +22,10 @@ class SharedState:
 
     def set_actor(self, name: str, act: actor):
         self._actors[name] = act
-        if len(self._actors) >= MAX_PIPELINE:
+        if len(self._actors) >= PIPELINE_MAX:
             self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="max piepline exceeded")
             return -1
-        if len(self._pipline_result) >= MAX_PIPELINE:
+        if len(self._pipline_result) >= PIPELINE_MAX:
             self._pipline_result.popitem(last=False)
             self._train_result.popitem(last=False)
 

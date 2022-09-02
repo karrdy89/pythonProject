@@ -13,7 +13,7 @@ from utils.resettable_timer import ResettableTimer
 
 TENSORBOARD_PORT_START = 6000
 TENSORBOARD_THREAD_MAX = 500
-DEFAULT_EXPIRE_TIME = 3600
+EXPIRE_TIME = 3600
 
 
 class TensorBoardTool:
@@ -82,7 +82,7 @@ class TensorBoardTool:
             tensorboard_thread = TensorboardThread(port=port, time_diff=time_diff)
             self._tensorboard_thread_queue.put(tensorboard_thread, block=True)
             if not self._timer.is_run:
-                self._timer.set(interval=DEFAULT_EXPIRE_TIME, function=self.expire_tensorboard)
+                self._timer.set(interval=EXPIRE_TIME, function=self.expire_tensorboard)
                 self._timer.run()
             return port
 
