@@ -5,10 +5,12 @@ import queue
 import subprocess
 import time
 import traceback
+import configparser
 
 from tensorboard import program, default, assets
 
 from utils.resettable_timer import ResettableTimer
+from logger import BootLogger
 
 
 TENSORBOARD_PORT_START = 6000
@@ -19,6 +21,7 @@ EXPIRE_TIME = 3600
 class TensorBoardTool:
     def __init__(self):
         self._worker = type(self).__name__
+        self._logger = BootLogger().logger
         self._port: list[int] = []
         self._port_use: list[int] = []
         self._tensorboard_thread_queue: queue = queue.Queue()
@@ -56,8 +59,15 @@ class TensorBoardTool:
         return
 
     def init(self):
+        self._logger.info("(" + self._worker + ") " + "init tensorboard...")
+        # parse config
+        config = configparser.ConfigParser()
+        config.read("config/config.ini")
+
+        self._logger.info("(" + self._worker + ") " + "set Tensorboard port range...")
         for i in range(TENSORBOARD_THREAD_MAX):
             self._port.append(TENSORBOARD_PORT_START + i)
+        self._logger.info("(" + self._worker + ") " + "init complete...")
 
     def run(self, dir_path: str) -> int:
         if len(self._port_use) >= TENSORBOARD_THREAD_MAX:
