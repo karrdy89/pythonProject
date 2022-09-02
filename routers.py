@@ -59,6 +59,14 @@ class AIbeemRouter:
     async def get_train_info(self):
         pass
 
+    @router.get("/dataset/make")
+    async def get_train_info(self):
+        pass
+
+    @router.get("/dataset/download")
+    async def get_train_info(self):
+        pass
+
     @router.post("/deploy")
     async def deploy(self, request_body: rvo.Deploy):
         print("accept deploy request")
