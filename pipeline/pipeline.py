@@ -11,11 +11,50 @@ from pipeline import TrainInfo, PipelineComponent
 
 @ray.remote
 class Pipeline:
+    """
+    A ray actor class that carry out pipeline task
+
+    Attributes
+    ----------
+    _worker : str
+        Class name of instance.
+    _name : str
+        A name of pipeline. (model_name:version)
+    _sequence_names : list[str]
+        The list of sequence name that defined in pipeline.yaml.
+    _pipeline_definition_path : str
+        The path to pipeline definition file.
+    _logger : actor
+        The actor handel of global logger.
+    _shared_state : actor
+        The actor handel of global data store.
+    _pipeline_state : dict[str, str]
+        A resettable timer for manage tensorboard thread.
+    _components : dict[int, PipelineComponent]
+        The prior time of tensorboard thread produced for calculate next expire time.
+    _component_result: int
+        Configuration of tensorboard service port range.
+    _pipeline_idx: int
+        Configuration of max tensorboard service.
+
+    Methods
+    -------
+    __init__():
+        Constructs all the necessary attributes for the person object.
+    _get_piepline_definition() -> dict:
+        Set attributes.
+    run_pipeline(name: str, version: str, train_info: TrainInfo) -> dict:
+        Get port number from available port list.
+    trigger_pipeline(train_info) -> int:
+        Release port number from list of port in use.
+    on_pipeline_end() -> int:
+        Expire tensorboard thread every set time.
+    """
     def __init__(self):
         self._worker = type(self).__name__
         self._name: str = ''
         self._sequence_names: list[str] = []
-        self._pipeline_definition_path: str = os.path.dirname(os.path.abspath(__file__)) + "/pipelines.yaml"
+        self._pipeline_definition_path: str = os.path.dirname(os.path.abspath(__file__)) + "/pipeline/pipelines.yaml"
         self._logger: ray.actor = ray.get_actor("logging_service")
         self._shared_state: ray.actor = ray.get_actor("shared_state")
         self._pipeline_state: dict[str, str] = {}
@@ -56,10 +95,10 @@ class Pipeline:
             module = importlib.import_module(task_split[0])
             component = getattr(module, task_split[1])
             self._components[i] = component
-        self.trigger_pipeline(train_info=train_info)
+        pipeline_result = self.trigger_pipeline(train_info=train_info)
         return {"result": "pil" + name}
 
-    def trigger_pipeline(self, train_info):
+    def trigger_pipeline(self, train_info) -> int:
         if not self._components:
             self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="there is no component: " + self._name)
             return -1
