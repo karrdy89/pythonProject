@@ -5,6 +5,33 @@ from pipeline import TrainInfo, TrainResult
 
 
 class BaseCallback(keras.callbacks.Callback):
+    """
+    A class that runs and manages the tensorboard service.
+
+    Attributes
+    ----------
+    _shared_state : actor
+        class name of instance
+    _train_result : TrainResult
+        log instance for init process
+    name : str
+        the global logger
+    epoch_step : int
+        list of available port
+    epoch : int
+        list of port in use
+
+    Methods
+    -------
+    __init__():
+        set attributes with default value
+    on_epoch_begin(epoch, logs=None) -> None:
+        set attributes
+    on_epoch_end(epoch, logs=None) -> None:
+        get port number from available port list
+    on_batch_end(batch, logs=None) -> None:
+        release port number from list of port in use
+    """
     def __init__(self, name):
         self._shared_state: ray.actor = ray.get_actor("shared_state")
         self._train_result: TrainResult = TrainResult()
