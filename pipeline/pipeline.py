@@ -29,13 +29,13 @@ class Pipeline:
     _shared_state : actor
         The actor handel of global data store.
     _pipeline_state : dict[str, str]
-        A resettable timer for manage tensorboard thread.
+        Progress of current pipeline. ({sequence_name_1:state_code, sequence_name_2:state_code, ...})
     _components : dict[int, PipelineComponent]
-        The prior time of tensorboard thread produced for calculate next expire time.
-    _component_result: int
-        Configuration of tensorboard service port range.
-    _pipeline_idx: int
-        Configuration of max tensorboard service.
+        Dictionary of pipeline components. ({task_idx:component})
+    _component_result: Any
+        The return of prior component.
+    _component_idx: int
+        An index of current pipeline component.
 
     Methods
     -------
@@ -60,7 +60,7 @@ class Pipeline:
         self._pipeline_state: dict[str, str] = {}
         self._components: dict[int, PipelineComponent] = {}
         self._component_result = None
-        self._pipeline_idx: int = 0
+        self._component_idx: int = 0
 
     def _get_piepline_definition(self) -> dict:
         with open(self._pipeline_definition_path, 'r') as stream:
@@ -102,18 +102,18 @@ class Pipeline:
         if not self._components:
             self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="there is no component: " + self._name)
             return -1
-        if self._pipeline_idx >= len(self._components):
-            self._pipeline_idx = 0
+        if self._component_idx >= len(self._components):
+            self._component_idx = 0
             self.on_pipeline_end()
             self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="end pipeline..." + self._name)
             return 0
         self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="run pipeline..." + self._name)
-        current_task_name = self._sequence_names[self._pipeline_idx]
+        current_task_name = self._sequence_names[self._component_idx]
         ray.get(self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                         msg="run pipeline step: " + current_task_name))
         self._pipeline_state[current_task_name] = StateCode.RUNNING
         self._shared_state.set_pipeline_result.remote(self._name, self._pipeline_state)
-        component = self._components.get(self._pipeline_idx)
+        component = self._components.get(self._component_idx)
         inputs = component.input
         outputs = component.output
         try:
@@ -148,7 +148,7 @@ class Pipeline:
         else:
             self._pipeline_state[current_task_name] = StateCode.DONE
             self._shared_state.set_pipeline_result.remote(self._name, self._pipeline_state)
-            self._pipeline_idx += 1
+            self._component_idx += 1
             self.trigger_pipeline(train_info)
 
     def on_pipeline_end(self) -> int:
