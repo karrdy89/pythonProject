@@ -108,3 +108,7 @@ class BootLogger:
         log_handler.setFormatter(formatter)
         log_handler.setLevel(logging.INFO)
         self.logger.addHandler(log_handler)
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(formatter)
+        console_handler.setLevel(logging.INFO)
+        self.logger.addHandler(console_handler)
