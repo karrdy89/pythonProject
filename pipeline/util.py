@@ -4,8 +4,8 @@ def split_ratio(data_split: str):
 
     Parameters
     ----------
-        data_split : str
-            Option of dataset split ratio. (formatted string ex. 80:10:10)
+    data_split : str
+        Option of dataset split ratio. (formatted string ex. 80:10:10)
     """
     ratio = data_split.split(":")
     train = float(ratio[0])*0.01

@@ -4,8 +4,8 @@ def version_encode(version: str) -> int:
 
     Parameters
     ----------
-        version : str
-            Option of dataset split ratio. (formatted string ex. 80:10:10)
+    version : str
+        Option of dataset split ratio. (formatted string ex. 80:10:10)
     """
     sv = version.split('.')
     if len(sv[-1]) > 9:

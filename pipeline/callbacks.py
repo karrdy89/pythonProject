@@ -115,10 +115,10 @@ def base_callbacks(train_info: TrainInfo, monitor: str) -> list:
 
     Parameters
     ----------
-        train_info : TrainInfo
-            training options
-        monitor : str
-            value to monitor for early stopping
+    train_info : TrainInfo
+        training options
+    monitor : str
+        value to monitor for early stopping
     """
     callback_list = []
     tb_cb = keras.callbacks.TensorBoard(log_dir=train_info.log_path)
@@ -137,8 +137,8 @@ def evaluation_callback(train_info: TrainInfo) -> list:
 
     Parameters
     ----------
-        train_info : TrainInfo
-            training options
+    train_info : TrainInfo
+        training options
     """
     callback_list = [EvaluationCallback(train_info.name)]
     return callback_list
