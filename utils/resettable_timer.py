@@ -7,25 +7,27 @@ class ResettableTimer(object):
 
     Attributes
     ----------
-    interval : actor
-        an actor handle of global data store.
-    function : TrainResult
-        a current result of training.
-    timer : str
-        a name of pipeline.
-    is_run : int
-        a batch of each epoch.
+    interval : float
+        The interval of activation.
+    function : callable
+        The task to run when activated.
+    timer : Timer
+        A class of thread timer.
+    is_run : bool
+        The indicator of timer state.
 
     Methods
     -------
     __init__(name: str):
         Constructs all the necessary attributes.
-    on_epoch_begin(epoch, logs=None) -> None:
-        update training progress to global data store when epoch begin.
-    on_epoch_end(epoch, logs=None) -> None:
-        update training progress to global data store when epoch end.
-    on_batch_end(batch, logs=None) -> None:
-        update training progress to global data store when batch end.
+    set(self, interval, function) -> None:
+        Set thread timer with given interval and function.
+    run(self) -> None:
+        Start thread timer.
+    stop(self) -> None:
+        Stop thread timer.
+    reset(self, interval: float) -> None:
+        Assign new thread timer with given interval and function. old one will remove by GC.
     """
     def __init__(self):
         self.interval: float | None = None
@@ -33,20 +35,20 @@ class ResettableTimer(object):
         self.timer: Timer | None = None
         self.is_run: bool = False
 
-    def set(self, interval, function):
+    def set(self, interval, function) -> None:
         self.interval = interval
         self.function = function
         self.timer = Timer(self.interval, self.function)
 
-    def run(self):
+    def run(self) -> None:
         self.timer.start()
         self.is_run = True
 
-    def stop(self):
+    def stop(self) -> None:
         self.timer.cancel()
         self.is_run = False
 
-    def reset(self, interval: float):
+    def reset(self, interval: float) -> None:
         self.timer.cancel()
         self.timer = Timer(interval, self.function)
         self.timer.start()
