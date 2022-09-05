@@ -13,11 +13,6 @@ from utils.resettable_timer import ResettableTimer
 from logger import BootLogger
 
 
-TENSORBOARD_PORT_START = 6000
-TENSORBOARD_THREAD_MAX = 500
-EXPIRE_TIME = 3600
-
-
 class TensorBoardTool:
     def __init__(self):
         self._worker = type(self).__name__
@@ -27,6 +22,9 @@ class TensorBoardTool:
         self._tensorboard_thread_queue: queue = queue.Queue()
         self._timer: ResettableTimer = ResettableTimer()
         self._before_produce_time: float = 0
+        self._TENSORBOARD_PORT_START: int = 0
+        self._TENSORBOARD_THREAD_MAX: int = 0
+        self._EXPIRE_TIME: int = 0
         self.init()
 
     def get_port(self):
@@ -60,10 +58,12 @@ class TensorBoardTool:
 
     def init(self):
         self._logger.info("(" + self._worker + ") " + "init tensorboard...")
-        # parse config
-        config = configparser.ConfigParser()
-        config.read("config/config.ini")
-
+        self._logger.info("(" + self._worker + ") " + "set statics from config...")
+        config_parser = configparser.ConfigParser()
+        config_parser.read("config/config.ini")
+        self._TENSORBOARD_PORT_START = config_parser.get("TENSOR_BOARD", "TENSORBOARD_PORT_START")
+        self._TENSORBOARD_THREAD_MAX = config_parser.get("TENSOR_BOARD", "TENSORBOARD_THREAD_MAX")
+        self._EXPIRE_TIME = config_parser.get("TENSOR_BOARD", "EXPIRE_TIME")
         self._logger.info("(" + self._worker + ") " + "set Tensorboard port range...")
         for i in range(TENSORBOARD_THREAD_MAX):
             self._port.append(TENSORBOARD_PORT_START + i)
