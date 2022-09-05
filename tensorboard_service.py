@@ -36,15 +36,20 @@ class TensorBoardTool:
     _tensorboard_thread_queue : queue
         the queue with a tensorboard thread information for expire tensorboard thread
     _timer : ResettableTimer
-
+        a resettable timer for manage tensorboard thread
     _before_produce_time : float
+        the prior time of tensorboard thread produced for calculate next expire time
     _TENSORBOARD_PORT_START: int
+        configuration of tensorboard service port range
     _TENSORBOARD_THREAD_MAX: int
+        configuration of max tensorboard service
     _EXPIRE_TIME: int
+        configuration of tensorboard service expire time
 
     Methods
     -------
     __init__():
+        set
     init() -> int:
     get_port() -> int:
     release_port(int) -> None:
