@@ -8,7 +8,7 @@ from logging.handlers import RotatingFileHandler
 @ray.remote
 class Logger:
     """
-    A ray actor class for global logging
+    A ray actor class for global logging task
 
     Attributes
     ----------
@@ -30,9 +30,9 @@ class Logger:
     __init__():
         Constructs all the necessary attributes.
     init(self) -> int
-        Create dictionary from pipeline.yaml.
+        Set attributes.
     log(self, level: int, worker: str, msg: str) -> None:
-        Set pipline attributes and run pipeline.
+        Logging given data to files
     """
     def __init__(self):
         self._worker: str = type(self).__name__
@@ -85,6 +85,21 @@ class Logger:
 
 
 class BootLogger:
+    """
+     A class that provides logger for logging init tasks
+
+     Attributes
+     ----------
+     logger : Logger
+         A Logger class for logging
+     log_base_path : Logger
+         The pre-defined Logger class for logging init process.
+
+     Methods
+     -------
+     __init__():
+         Constructs all the necessary attributes.
+     """
     def __init__(self):
         self.logger = logging.getLogger()
         self.log_base_path = os.path.dirname(os.path.abspath(__file__)) + "/logs/"
