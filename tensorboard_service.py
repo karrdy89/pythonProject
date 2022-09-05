@@ -105,7 +105,7 @@ class TensorBoardTool:
         self._timer.reset(tensorboard_thread.time_diff)
 
     def init(self) -> int:
-        self._logger.info("(" + self._worker + ") " + "init tensorboard...")
+        self._logger.info("(" + self._worker + ") " + "init tensorboard service...")
 
         self._logger.info("(" + self._worker + ") " + "set statics from config...")
         config_parser = configparser.ConfigParser()
@@ -127,7 +127,7 @@ class TensorBoardTool:
         self._logger.info("(" + self._worker + ") " + "set Tensorboard port range...")
         for i in range(self._TENSORBOARD_THREAD_MAX):
             self._port.append(self._TENSORBOARD_PORT_START + i)
-        self._logger.info("(" + self._worker + ") " + "init complete...")
+        self._logger.info("(" + self._worker + ") " + "init tensorboard service complete...")
         return 0
 
     def run(self, dir_path: str) -> int:
