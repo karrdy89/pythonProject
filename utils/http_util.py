@@ -1,4 +1,6 @@
 import aiohttp
+import ray
+import logging
 
 
 class Http:
@@ -10,12 +12,13 @@ class Http:
     __aenter__():
         Set client session entering async with.
     __aexit__(*err):
-        Clear client session when exit async with
+        Clear client session when exit async with.
     get(url) -> int | str | None:
-        update training progress to global data store when epoch end.
+        Send GET request to given url .
     post_json(url, data: dict = None) -> int | str | None:
-        update training progress to global data store when batch end.
+        Send POST request to given url with json data.
     def post(url, payload, header: dict) -> int | str | None:
+        Send get request to given url with data
     """
     async def __aenter__(self):
         self._session = aiohttp.ClientSession()
@@ -31,11 +34,14 @@ class Http:
                 if resp.status == 200:
                     return await resp.text()
                 else:
-                    print("get error. request code: " + str(resp.status))
+                    logger = ray.get_actor("logging_service")
+                    logger.log.remote(level=logging.ERROR, worker=type(self).__name__,
+                                      msg="http request error :" + str(resp.status))
                     return None
         except aiohttp.ClientConnectionError as e:
-            print("connection error")
-            print(e)
+            logger = ray.get_actor("logging_service")
+            logger.log.remote(level=logging.ERROR, worker=type(self).__name__,
+                              msg="http connection error :" + str(e))
             return -1
 
     async def post_json(self, url, data: dict = None) -> int | str | None:
@@ -44,11 +50,14 @@ class Http:
                 if resp.status == 200:
                     return await resp.text()
                 else:
-                    print("post error. request code: " + str(resp.status))
+                    logger = ray.get_actor("logging_service")
+                    logger.log.remote(level=logging.ERROR, worker=type(self).__name__,
+                                      msg="http request error :" + str(resp.status))
                     return None
         except aiohttp.ClientConnectionError as e:
-            print("connection error")
-            print(e)
+            logger = ray.get_actor("logging_service")
+            logger.log.remote(level=logging.ERROR, worker=type(self).__name__,
+                              msg="http connection error :" + str(e))
             return -1
 
     async def post(self, url, payload, header: dict) -> int | str | None:
@@ -57,9 +66,12 @@ class Http:
                 if resp.status == 200:
                     return await resp.text()
                 else:
-                    print("post error. request code: " + str(resp.status))
+                    logger = ray.get_actor("logging_service")
+                    logger.log.remote(level=logging.ERROR, worker=type(self).__name__,
+                                      msg="http request error :" + str(resp.status))
                     return None
         except aiohttp.ClientConnectionError as e:
-            print("connection error")
-            print(e)
+            logger = ray.get_actor("logging_service")
+            logger.log.remote(level=logging.ERROR, worker=type(self).__name__,
+                              msg="http connection error :" + str(e))
             return -1
