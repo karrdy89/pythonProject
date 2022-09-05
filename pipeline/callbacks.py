@@ -6,31 +6,31 @@ from pipeline import TrainInfo, TrainResult
 
 class BaseCallback(keras.callbacks.Callback):
     """
-    A class that callback to monitor training progress.
+    A callback class to monitor training progress.
 
     Attributes
     ----------
     _shared_state : actor
         an actor handle of global data store
     _train_result : TrainResult
-        log instance for init process
+        a current result of training
     name : str
-        the global logger
+        a name of pipeline
     epoch_step : int
-        list of available port
+        a batch of each epoch
     epoch : int
-        list of port in use
+        current epoch of training
 
     Methods
     -------
-    __init__():
-        set attributes with default value
-    on_epoch_begin(epoch, logs=None) -> None:
+    __init__(name: str):
         set attributes
+    on_epoch_begin(epoch, logs=None) -> None:
+        update training progress to global data store when epoch begin
     on_epoch_end(epoch, logs=None) -> None:
-        get port number from available port list
+        update training progress to global data store when epoch end
     on_batch_end(batch, logs=None) -> None:
-        release port number from list of port in use
+        update training progress to global data store when batch end
     """
     def __init__(self, name):
         self._shared_state: ray.actor = ray.get_actor("shared_state")
@@ -60,6 +60,31 @@ class BaseCallback(keras.callbacks.Callback):
 
 
 class EvaluationCallback(keras.callbacks.Callback):
+    """
+    A callback class to monitor evaluation progress.
+
+    Attributes
+    ----------
+    _shared_state : actor
+        an actor handle of global data store
+    _train_result : TrainResult
+        a current result of training
+    name : str
+        a name of pipeline
+    epoch_step : int
+        a batch of each epoch
+
+    Methods
+    -------
+    __init__(name: str):
+        set attributes
+    on_test_begin(logs=None) -> None:
+        update training progress to global data store when evaluation begin
+    on_test_batch_end(batch, logs=None) -> None:
+        update training progress to global data store when batch end
+    on_test_end(logs=None) -> None:
+        update training progress to global data store when evaluation end
+    """
     def __init__(self, name):
         self._shared_state: ray.actor = ray.get_actor("shared_state")
         self._train_result: TrainResult = TrainResult()
@@ -72,14 +97,14 @@ class EvaluationCallback(keras.callbacks.Callback):
         self._train_result.set_test_progress(progress=progress)
         self._shared_state.set_train_result.remote(self.name, self._train_result)
 
-    def on_test_batch_end(self, batch, logs=None):
+    def on_test_batch_end(self, batch, logs=None) -> None:
         self.epoch_step += 1
         progress = (self.epoch_step / self.params["steps"]) * 100
         progress = str(progress) + "%"
         self._train_result.set_test_progress(progress=progress)
         self._shared_state.set_train_result.remote(self.name, self._train_result)
 
-    def on_test_end(self, logs=None):
+    def on_test_end(self, logs=None) -> None:
         self._train_result.set_test_result(logs)
         self._shared_state.set_train_result.remote(self.name, self._train_result)
 
