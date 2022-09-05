@@ -49,7 +49,7 @@ class TensorBoardTool:
     Methods
     -------
     __init__():
-        Constructs all the necessary attributes for the person object.
+        Constructs all the necessary attributes.
     init() -> int:
         Set attributes.
     get_port() -> int:

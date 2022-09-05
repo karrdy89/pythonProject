@@ -28,7 +28,7 @@ class Logger:
     Methods
     -------
     __init__():
-        Constructs all the necessary attributes for the person object.
+        Constructs all the necessary attributes.
     init(self) -> int
         Create dictionary from pipeline.yaml.
     log(self, level: int, worker: str, msg: str) -> None:

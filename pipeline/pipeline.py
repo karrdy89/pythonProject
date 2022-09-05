@@ -40,7 +40,7 @@ class Pipeline:
     Methods
     -------
     __init__():
-        Constructs all the necessary attributes for the person object.
+        Constructs all the necessary attributes.
     _get_piepline_definition() -> dict:
         Create dictionary from pipeline.yaml.
     run_pipeline(name: str, version: str, train_info: TrainInfo) -> dict:

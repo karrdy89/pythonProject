@@ -18,7 +18,7 @@ class PipelineComponent(object):
     Methods
     -------
     __init__():
-        Constructs all the necessary attributes for the person object.
+        Constructs all the necessary attributes.
     _set_output_type() -> None:
         Set output type(return) of given function(pipeline task) in constructor.
     _set_input_types() -> None:

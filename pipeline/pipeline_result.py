@@ -16,7 +16,7 @@ class TrainResult:
     Methods
     -------
     __init__():
-        Constructs all the necessary attributes for the person object.
+        Constructs all the necessary attributes.
     set_train_progress(epoch: str, progress: str) -> None:
         Setter of _train_progress.
     get_train_progress() -> dict:
