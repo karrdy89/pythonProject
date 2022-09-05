@@ -73,6 +73,33 @@ class TensorBoardTool:
         self._TENSORBOARD_PORT_START: int = 0
         self._TENSORBOARD_THREAD_MAX: int = 0
         self._EXPIRE_TIME: int = 0
+        self.init()
+
+    def init(self) -> int:
+        self._logger.info("(" + self._worker + ") " + "init tensorboard service...")
+
+        self._logger.info("(" + self._worker + ") " + "set statics from config...")
+        config_parser = configparser.ConfigParser()
+        try:
+            config_parser.read("config/config.ini")
+            self._TENSORBOARD_PORT_START = int(config_parser.get("TENSOR_BOARD", "TENSORBOARD_PORT_START"))
+            self._TENSORBOARD_THREAD_MAX = int(config_parser.get("TENSOR_BOARD", "TENSORBOARD_THREAD_MAX"))
+            self._EXPIRE_TIME = int(config_parser.get("TENSOR_BOARD", "EXPIRE_TIME"))
+        except configparser.Error as e:
+            self._logger.error("(" + self._worker + ") " + "an error occur when set config...: " + str(e))
+            return -1
+
+        self._logger.info("(" + self._worker + ") " + "set global logger...")
+        try:
+            self._logger = ray.get_actor("logging_service")
+        except exceptions as e:
+            self._logger.error("(" + self._worker + ") " + "an error occur when set global logger...: " + str(e))
+
+        self._logger.info("(" + self._worker + ") " + "set Tensorboard port range...")
+        for i in range(self._TENSORBOARD_THREAD_MAX):
+            self._port.append(self._TENSORBOARD_PORT_START + i)
+        self._logger.info("(" + self._worker + ") " + "init tensorboard service complete...")
+        return 0
 
     def get_port(self) -> int:
         port = self._port.pop(0)
@@ -103,32 +130,6 @@ class TensorBoardTool:
                                     msg="killed: " + str(tid))
             self.release_port(port)
         self._timer.reset(tensorboard_thread.time_diff)
-
-    def init(self) -> int:
-        self._logger.info("(" + self._worker + ") " + "init tensorboard service...")
-
-        self._logger.info("(" + self._worker + ") " + "set statics from config...")
-        config_parser = configparser.ConfigParser()
-        try:
-            config_parser.read("config/config.ini")
-            self._TENSORBOARD_PORT_START = int(config_parser.get("TENSOR_BOARD", "TENSORBOARD_PORT_START"))
-            self._TENSORBOARD_THREAD_MAX = int(config_parser.get("TENSOR_BOARD", "TENSORBOARD_THREAD_MAX"))
-            self._EXPIRE_TIME = int(config_parser.get("TENSOR_BOARD", "EXPIRE_TIME"))
-        except configparser.Error as e:
-            self._logger.error("(" + self._worker + ") " + "an error occur when set config...: " + str(e))
-            return -1
-
-        self._logger.info("(" + self._worker + ") " + "set global logger...")
-        try:
-            self._logger = ray.get_actor("logging_service")
-        except exceptions as e:
-            self._logger.error("(" + self._worker + ") " + "an error occur when set global logger...: " + str(e))
-
-        self._logger.info("(" + self._worker + ") " + "set Tensorboard port range...")
-        for i in range(self._TENSORBOARD_THREAD_MAX):
-            self._port.append(self._TENSORBOARD_PORT_START + i)
-        self._logger.info("(" + self._worker + ") " + "init tensorboard service complete...")
-        return 0
 
     def run(self, dir_path: str) -> int:
         if len(self._port_use) >= self._TENSORBOARD_THREAD_MAX:

@@ -1,3 +1,4 @@
+import configparser
 import json
 import os
 import asyncio
@@ -6,6 +7,7 @@ import uuid
 import functools
 import datetime
 import logging
+import logger
 from dataclasses import dataclass, field
 from shutil import copytree, rmtree
 from concurrent.futures import ThreadPoolExecutor
@@ -23,12 +25,14 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from utils.http_util import Http
 from utils.common import version_encode, version_decode
+from logger import BootLogger
 
 
 @ray.remote
 class ModelServing:
     def __init__(self):
         self._logger: ray.actor = None
+        self._boot_loger: logger = BootLogger().logger
         self._lock: asyncio.Lock = asyncio.Lock()
         self._executor: ThreadPoolExecutor = ThreadPoolExecutor()
         self._worker: str = type(self).__name__
@@ -40,20 +44,54 @@ class ModelServing:
         self._http_port_use: list[int] = []
         self._grpc_port: list[int] = []
         self._grpc_port_use: list[int] = []
-        self._ip_container_server: str = ""
-        self._deploy_path: str = ""
         self._current_container_num: int = 0
         self._project_path: str = os.path.dirname(os.path.abspath(__file__))
         self._manager_handle: AsyncIOScheduler | None = None
+        self._HTTP_PORT_START: int = 8500
+        self._GRPC_PORT_START: int = 8000
+        self._CONTAINER_MAX: int = 20
+        self._GC_CHECK_INTERVAL: int = 10
+        self._DEPLOY_PATH: str = ''
+        self._CONTAINER_IMAGE: str = "tensorflow/serving:2.6.5"
+        self._CONTAINER_SERVER_IP: str = ""
 
     def init(self) -> int:
+        self._boot_loger.info("(" + self._worker + ") " + "init model_serving actor...")
+        self._boot_loger.info("(" + self._worker + ") " + "set global logger...")
         self._logger = ray.get_actor("logging_service")
-        HTTP_PORT_START = 8500
-        GRPC_PORT_START = 8000
-        CONTAINER_MAX = 20
-        GC_CHECK_INTERVAL = 10
-        DEPLOY_PATH = ""
-        CONTAINER_IMAGE = "tensorflow/serving:2.6.5"
+        self._boot_loger.info("(" + self._worker + ") " + "set statics from config...")
+        config_parser = configparser.ConfigParser()
+        try:
+            config_parser.read("config/config.ini")
+            self._HTTP_PORT_START = int(config_parser.get("DEPLOY", "HTTP_PORT_START"))
+            self._GRPC_PORT_START = int(config_parser.get("DEPLOY", "GRPC_PORT_START"))
+            self._CONTAINER_MAX = int(config_parser.get("DEPLOY", "CONTAINER_MAX"))
+            self._GC_CHECK_INTERVAL = int(config_parser.get("DEPLOY", "GC_CHECK_INTERVAL"))
+            self._DEPLOY_PATH = self._project_path + str(config_parser.get("DEPLOY", "DEPLOY_PATH"))
+            self._CONTAINER_IMAGE = str(config_parser.get("DEPLOY", "CONTAINER_IMAGE"))
+            self._CONTAINER_SERVER_IP = str(config_parser.get("DEPLOY", "CONTAINER_SERVER_IP"))
+        except configparser.Error as e:
+            self._boot_loger.error("(" + self._worker + ") " + "an error occur when set config...: " + str(e))
+            return -1
+
+        self._boot_loger.info("(" + self._worker + ") " + "set container port range...")
+        for i in range(self._CONTAINER_MAX * 2):
+            self._grpc_port.append(self._GRPC_PORT_START + i)
+            self._http_port.append(self._HTTP_PORT_START + i)
+
+        self._boot_loger.info("(" + self._worker + ") " + "set docker client...")
+        try:
+            self._client = docker.from_env()
+        except DockerException as e:
+            self._boot_loger.error("(" + self._worker + ") " + "can't make connection to docker client" + e.__str__())
+            return -1
+
+        self._boot_loger.info("(" + self._worker + ") " + "set garbage container collector...")
+        self._manager_handle = AsyncIOScheduler()
+        self._manager_handle.add_job(self.gc_container, "interval", seconds=self._GC_CHECK_INTERVAL, id="gc_container")
+        self._manager_handle.start()
+        self._boot_loger.info("(" + self._worker + ") " + "init model_serving actor complete...")
+        return 0
 
     async def deploy(self, model_id: str, version: str, container_num: int) -> json:
         self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="deploy start : " + model_id
@@ -93,7 +131,7 @@ class ModelServing:
                 'utf8')
             return result
 
-        if (self._current_container_num + container_num) > CONTAINER_MAX:
+        if (self._current_container_num + container_num) > self._CONTAINER_MAX:
             self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="max container number exceeded : "
                                                                                  + model_id + ":" + version)
             result = json.dumps({"code": 4, "msg": "max container number exceeded",
@@ -131,7 +169,7 @@ class ModelServing:
                            "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode('utf8')
 
     async def add_container(self, model_id: str, version: str, container_num: int) -> json:
-        if (self._current_container_num + container_num) > CONTAINER_MAX:
+        if (self._current_container_num + container_num) > self._CONTAINER_MAX:
             self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="max container number exceeded : "
                                                                                  + model_id + ":" + version)
             result = json.dumps({"code": 4, "msg": "max container number exceeded",
@@ -294,7 +332,7 @@ class ModelServing:
 
     def run_container(self, model_id: str, container_name: str, http_port: int, grpc_port: int, deploy_path: str):
         try:
-            container = self._client.containers.run(image=CONTAINER_IMAGE, detach=True, name=container_name,
+            container = self._client.containers.run(image=self._CONTAINER_IMAGE, detach=True, name=container_name,
                                                     ports={'8501/tcp': http_port, '8500/tcp': grpc_port},
                                                     volumes=[deploy_path + model_id + ":/models/" + model_id],
                                                     environment=["MODEL_NAME=" + model_id]
@@ -331,38 +369,6 @@ class ModelServing:
             result = await http.get(url)
             result = result.decode('utf8').replace("'", '"')
             return result
-
-    def init(self) -> int:
-        """
-        Initialize serving process
-        :return: success 0 / fail -1
-        """
-        # set param from config file
-        self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="init process : set config...")
-        self._ip_container_server = "localhost"  # config
-        self._deploy_path = os.path.dirname(os.path.abspath(__file__)) + "/deploy/"  # config
-
-        # make port list
-        self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="init process : set port...")
-        for i in range(CONTAINER_MAX * 2):
-            self._grpc_port.append(GRPC_PORT_START + i)
-            self._http_port.append(HTTP_PORT_START + i)
-
-        # set docker client
-        self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="init process : init docker client...")
-        try:
-            self._client = docker.from_env()
-        except DockerException as e:
-            self._logger.log.remote(level=logging.ERROR, worker=self._worker,
-                                    msg="can't make connection to docker client" + e.__str__())
-            return -1
-
-        # set GC
-        self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="init process : init GC...")
-        self._manager_handle = AsyncIOScheduler()
-        self._manager_handle.add_job(self.gc_container, "interval", seconds=GC_CHECK_INTERVAL, id="gc_container")
-        self._manager_handle.start()
-        return 0
 
     def get_port_http(self):
         port = self._http_port.pop()
