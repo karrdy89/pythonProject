@@ -1,34 +1,21 @@
 import aiohttp
-import json
 
 
 class Http:
     """
-    An async class to monitor training progress.
-
-    Attributes
-    ----------
-    _shared_state : actor
-        an actor handle of global data store.
-    _train_result : TrainResult
-        a current result of training.
-    name : str
-        a name of pipeline.
-    epoch_step : int
-        a batch of each epoch.
-    epoch : int
-        current epoch of training.
+    An async class for http request
 
     Methods
     -------
-    __init__(name: str):
+    __aenter__():
         Constructs all the necessary attributes.
-    on_epoch_begin(epoch, logs=None) -> None:
+    __aexit__(*err):
         update training progress to global data store when epoch begin.
-    on_epoch_end(epoch, logs=None) -> None:
+    get(url) -> None:
         update training progress to global data store when epoch end.
-    on_batch_end(batch, logs=None) -> None:
+    post_json(self, url, data: dict = None) -> None:
         update training progress to global data store when batch end.
+    def post(self, url, payload, header: dict):
     """
     async def __aenter__(self):
         self._session = aiohttp.ClientSession()
@@ -40,11 +27,10 @@ class Http:
 
     async def get(self, url):
         async with self._session.get(url) as resp:
-            print(await resp.read())
+            print(await resp.text())
             if resp.status == 200:
-                print(await resp.read())
+                print(await resp.text())
                 return None
-                # return await resp.read()
             else:
                 print("get error. request code: " + str(resp.status))
                 return None
