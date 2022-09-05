@@ -9,7 +9,7 @@ class PipelineComponent(object):
     Attributes
     ----------
     func : function
-        Class name of instance.
+        function of pipeline task
     output : list
         A name of pipeline. (model_name:version)
     input : dict
@@ -20,11 +20,11 @@ class PipelineComponent(object):
     __init__():
         Constructs all the necessary attributes for the person object.
     _set_output_type() -> None:
-        Create dictionary from pipeline.yaml.
+        Set output type(return) of given function(pipeline task) in constructor.
     _set_input_types() -> None:
-        Set pipline attributes and run pipeline.
+        Set input types of given function(pipeline task) in constructor.
     __call__(self, *args, **kwargs):
-        Run each component of piepline
+        run pipeline task
     """
     def __init__(self, func):
         self.func = func
