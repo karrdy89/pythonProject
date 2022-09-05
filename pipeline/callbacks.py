@@ -111,14 +111,14 @@ class EvaluationCallback(keras.callbacks.Callback):
 
 def base_callbacks(train_info: TrainInfo, monitor: str) -> list:
     """
-    Constructs all the necessary attributes for the person object.
+    Provides necessary callbacks for train(progress monitoring, early stopping, tensorboard log callback)
 
     Parameters
     ----------
         train_info : TrainInfo
-            first name of the person
+            training options
         monitor : str
-            family name of the person
+            value to monitor for early stopping
     """
     callback_list = []
     tb_cb = keras.callbacks.TensorBoard(log_dir=train_info.log_path)
@@ -132,6 +132,14 @@ def base_callbacks(train_info: TrainInfo, monitor: str) -> list:
 
 
 def evaluation_callback(train_info: TrainInfo) -> list:
+    """
+    Provides necessary callbacks for evaluation(progress monitoring)
+
+    Parameters
+    ----------
+        train_info : TrainInfo
+            training options
+    """
     callback_list = [EvaluationCallback(train_info.name)]
     return callback_list
 
