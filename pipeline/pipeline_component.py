@@ -8,7 +8,7 @@ class PipelineComponent(object):
 
     Attributes
     ----------
-    func : function
+    func : callable
         function of pipeline task
     output : list
         A name of pipeline. (model_name:version)
@@ -27,7 +27,7 @@ class PipelineComponent(object):
         run pipeline task
     """
     def __init__(self, func):
-        self.func = func
+        self.func: callable = func
         self.output: list = []
         self.input: dict = {}
         self._set_output_type()
