@@ -13,30 +13,26 @@ class Logger:
     Attributes
     ----------
     _worker : str
-        Class name of instance.
+        The class name of instance.
     logger : Logger
-        A name of pipeline. (model_name:version)
+        A Logger class for logging
     _boot_logger : Logger
-        The list of sequence name that defined in pipeline.yaml.
+        The pre-defined Logger class for logging init process.
     _log_base_path : str
-        The path to pipeline definition file.
+        The path of log directory.
     _MAX_BACKUP_COUNT : int
-        The actor handel of global logger.
+        Configuration of max backup log file number.
     _MAX_BYTES : int
-        The actor handel of global data store.
+        Configuration of max bytes of log file.
 
     Methods
     -------
     __init__():
         Constructs all the necessary attributes for the person object.
-    _get_piepline_definition() -> dict:
+    init(self) -> int
         Create dictionary from pipeline.yaml.
-    run_pipeline(name: str, version: str, train_info: TrainInfo) -> dict:
+    log(self, level: int, worker: str, msg: str) -> None:
         Set pipline attributes and run pipeline.
-    trigger_pipeline(train_info) -> int:
-        Run each component of piepline
-    on_pipeline_end() -> None:
-        Ask shared_state actor to kill this pipeline
     """
     def __init__(self):
         self._worker: str = type(self).__name__
