@@ -41,7 +41,6 @@ class Logger:
         self._log_base_path: str = os.path.dirname(os.path.abspath(__file__)) + "/logs/"
         self._MAX_BACKUP_COUNT: int = 100
         self._MAX_BYTES: int = 104857600
-        self.init()
 
     def init(self) -> int:
         self._boot_logger.info("(" + self._worker + ") " + "init actor : global loger...")

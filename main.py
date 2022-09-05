@@ -29,14 +29,14 @@ ray.init(dashboard_host="0.0.0.0", dashboard_port=8265)
 @ray.remote
 class UvicornServer(uvicorn.Server):
     """
-    A ray actor class for uv
+    A ray actor class for wrapping uvicorn server
 
     Methods
     -------
     install_signal_handlers():
-        Constructs all the necessary attributes.
+        pass
     run_server() -> int
-        Set attributes.
+        run uvicorn server
     """
     def install_signal_handlers(self):
         pass
@@ -53,20 +53,29 @@ config = uvicorn.Config("routers:app",
                         ssl_keyfile_password="1234"
                         )
 
-# create service actor
+boot_logger.info("(Main Server) create actors...")
 logging_service = Logger.options(name="logging_service", max_concurrency=500).remote()
+
+boot_logger.info("(Main Server) init logging_service...")
+init_processes = ray.get(logging_service.init.remote())
+if init_processes == -1:
+    boot_logger.error("(Main Server) failed to init logging_service")
+    sys.exit()
+
 model_serving = ModelServing.options(name="model_serving").remote()
 shared_state = SharedState.options(name="shared_state").remote()
 api_service = UvicornServer.options(name="API_service").remote(config=config)
 
-# initiate all service
+boot_logger.info("(Main Server) init services...")
 init_processes = ray.get([model_serving.init.remote()])
-api_service.run_server.remote()
 if -1 in init_processes:
-    logging_service.log.remote(level=logging.ERROR, worker=__name__, msg="failed to initiate server. shut down")
+    boot_logger.error("(Main Server) failed to init services")
     ray.kill(api_service)
     ray.kill(model_serving)
     ray.kill(logging_service)
     ray.kill(shared_state)
     sys.exit()
-
+else:
+    boot_logger.error("(Main Server) run API server...")
+    ray.get(api_service.run_server.remote())
+    boot_logger.error("(Main Server) server initiated successfully...")
