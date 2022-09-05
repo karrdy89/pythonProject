@@ -30,9 +30,53 @@ from logger import BootLogger
 
 @ray.remote
 class ModelServing:
+    """
+    A ray actor class for serving tensorflow model
+
+    Attributes
+    ----------
+    _worker : str
+        The class name of instance.
+    _logger : actor
+        A Logger class for logging
+    _boot_logger : logger
+        The pre-defined Logger class for logging init process.
+    _lock : Lock
+        The path of log directory.
+    _executor : ThreadPoolExecutor
+        Configuration of max backup log file number.
+    _deploy_requests : list[tuple[str, str]]
+        Configuration of max bytes of log file.
+    _deploy_states: dict[str, ModelDeployState]
+    _gc_list: list[tuple[int, str]]
+    _client: DockerClient
+    _http_port: list[int]
+    _http_port_use: list[int]
+    _grpc_port: list[int]
+    _grpc_port_use: list[int]
+    _current_container_num: int
+    _project_path: str
+    _manager_handle: AsyncIOScheduler
+    _HTTP_PORT_START: int
+    _GRPC_PORT_START: int
+    _CONTAINER_MAX: int
+    _GC_CHECK_INTERVAL: int
+    _DEPLOY_PATH: str
+    _CONTAINER_IMAGE: str
+    _CONTAINER_SERVER_IP: str
+
+    Methods
+    -------
+    __init__():
+        Constructs all the necessary attributes.
+    init(self) -> int
+        Set attributes.
+    log(self, level: int, worker: str, msg: str) -> None:
+        Logging given data to files
+    """
     def __init__(self):
         self._logger: ray.actor = None
-        self._boot_loger: logger = BootLogger().logger
+        self._boot_logger: logger = BootLogger().logger
         self._lock: asyncio.Lock = asyncio.Lock()
         self._executor: ThreadPoolExecutor = ThreadPoolExecutor()
         self._worker: str = type(self).__name__
@@ -56,10 +100,10 @@ class ModelServing:
         self._CONTAINER_SERVER_IP: str = ""
 
     def init(self) -> int:
-        self._boot_loger.info("(" + self._worker + ") " + "init model_serving actor...")
-        self._boot_loger.info("(" + self._worker + ") " + "set global logger...")
+        self._boot_logger.info("(" + self._worker + ") " + "init model_serving actor...")
+        self._boot_logger.info("(" + self._worker + ") " + "set global logger...")
         self._logger = ray.get_actor("logging_service")
-        self._boot_loger.info("(" + self._worker + ") " + "set statics from config...")
+        self._boot_logger.info("(" + self._worker + ") " + "set statics from config...")
         config_parser = configparser.ConfigParser()
         try:
             config_parser.read("config/config.ini")
@@ -71,26 +115,26 @@ class ModelServing:
             self._CONTAINER_IMAGE = str(config_parser.get("DEPLOY", "CONTAINER_IMAGE"))
             self._CONTAINER_SERVER_IP = str(config_parser.get("DEPLOY", "CONTAINER_SERVER_IP"))
         except configparser.Error as e:
-            self._boot_loger.error("(" + self._worker + ") " + "an error occur when set config...: " + str(e))
+            self._boot_logger.error("(" + self._worker + ") " + "an error occur when set config...: " + str(e))
             return -1
 
-        self._boot_loger.info("(" + self._worker + ") " + "set container port range...")
+        self._boot_logger.info("(" + self._worker + ") " + "set container port range...")
         for i in range(self._CONTAINER_MAX * 2):
             self._grpc_port.append(self._GRPC_PORT_START + i)
             self._http_port.append(self._HTTP_PORT_START + i)
 
-        self._boot_loger.info("(" + self._worker + ") " + "set docker client...")
+        self._boot_logger.info("(" + self._worker + ") " + "set docker client...")
         try:
             self._client = docker.from_env()
         except DockerException as e:
-            self._boot_loger.error("(" + self._worker + ") " + "can't make connection to docker client" + e.__str__())
+            self._boot_logger.error("(" + self._worker + ") " + "can't make connection to docker client" + e.__str__())
             return -1
 
-        self._boot_loger.info("(" + self._worker + ") " + "set garbage container collector...")
+        self._boot_logger.info("(" + self._worker + ") " + "set garbage container collector...")
         self._manager_handle = AsyncIOScheduler()
         self._manager_handle.add_job(self.gc_container, "interval", seconds=self._GC_CHECK_INTERVAL, id="gc_container")
         self._manager_handle.start()
-        self._boot_loger.info("(" + self._worker + ") " + "init model_serving actor complete...")
+        self._boot_logger.info("(" + self._worker + ") " + "init model_serving actor complete...")
         return 0
 
     async def deploy(self, model_id: str, version: str, container_num: int) -> json:
