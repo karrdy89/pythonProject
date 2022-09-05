@@ -71,7 +71,7 @@ class Model(Artifact):
 
 class Dataset(Artifact):
     """
-    An artifact representing a machine learning model
+    An artifact representing a dataset
     """
     TYPE_NAME = 'pipeline.Model'
 
@@ -160,7 +160,7 @@ class Path(Artifact):
 
 class TrainInfo(Artifact):
     """
-    An artifact representing a path of data
+    An artifact representing an information for training
     """
     TYPE_NAME = 'pipeline.train_info'
 
