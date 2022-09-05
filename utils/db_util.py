@@ -8,6 +8,7 @@ asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 
 
 class DBUtil:
+    # async class
     def __init__(self):
         self._session_pool = None
         self._dsn = None
@@ -64,7 +65,6 @@ class ExecuteSelect:
 # dbutil = DBUtil()
 # dbutil.set_connection(host="192.168.72.128", user="system", password="oracle1234", port=1521, sid="sid")
 
-q = "select column_name from user_tab_cols where table_name='TEST'"
 # q = "select user from dual"
 # q = "create table TEST (" \
 #     "TRSCDTM TIMESTAMP NOT NULL primary key," \

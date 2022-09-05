@@ -3,6 +3,33 @@ import json
 
 
 class Http:
+    """
+    An async class to monitor training progress.
+
+    Attributes
+    ----------
+    _shared_state : actor
+        an actor handle of global data store.
+    _train_result : TrainResult
+        a current result of training.
+    name : str
+        a name of pipeline.
+    epoch_step : int
+        a batch of each epoch.
+    epoch : int
+        current epoch of training.
+
+    Methods
+    -------
+    __init__(name: str):
+        Constructs all the necessary attributes.
+    on_epoch_begin(epoch, logs=None) -> None:
+        update training progress to global data store when epoch begin.
+    on_epoch_end(epoch, logs=None) -> None:
+        update training progress to global data store when epoch end.
+    on_batch_end(batch, logs=None) -> None:
+        update training progress to global data store when batch end.
+    """
     async def __aenter__(self):
         self._session = aiohttp.ClientSession()
         return self
