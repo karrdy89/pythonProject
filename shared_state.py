@@ -14,11 +14,14 @@ PIPELINE_MAX = 1
 class SharedState:
     def __init__(self):
         self._worker = type(self).__name__
-        self._logger: actor = ray.get_actor("logging_service")
+        self._logger: actor = None
         self._actors: OrderedDict[str, actor] = OrderedDict()
         self._pipline_result: OrderedDict[str, dict] = OrderedDict()
         self._train_result: OrderedDict[str, TrainResult] = OrderedDict()
         self._pipeline_pool: OrderedDict[str, actor] = OrderedDict()
+
+    def init(self):
+        self._logger: actor = ray.get_actor("logging_service")
 
     def set_actor(self, name: str, act: actor):
         self._actors[name] = act

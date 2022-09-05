@@ -27,12 +27,35 @@ router = InferringRouter()
 
 @cbv(router)
 class AIbeemRouter:
+    """
+    A class that runs and manages the tensorboard service.
+
+    Attributes
+    ----------
+    _worker : str
+        Class name of instance.
+    _server : actor
+        An actor handle of model_serving.
+    _logger : actor
+        An actor handle of global logger.
+    _shared_state : actor
+        An actor handle of global data store.
+    _tensorboard_tool : TensorBoardTool
+        An instance of tensorboard service
+
+    Methods
+    -------
+    __init__():
+        Constructs all the necessary attributes.
+    @router:
+        API endpoints of server
+    """
     def __init__(self):
         self._worker = type(self).__name__
         self._server: ray.actor = ray.get_actor("model_serving")
         self._logger: ray.actor = ray.get_actor("logging_service")
         self._shared_state: ray.actor = ray.get_actor("shared_state")
-        self._tensorboard_tool = TensorBoardTool()
+        self._tensorboard_tool: TensorBoardTool = TensorBoardTool()
 
     @router.post("/train/run")
     async def train(self, request_body: rvo.Train):
