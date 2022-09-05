@@ -1,6 +1,5 @@
 import sys
 import configparser
-import logging
 
 import ray
 import uvicorn
