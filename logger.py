@@ -55,12 +55,12 @@ class Logger:
             return -1
         self._boot_logger.info("(" + self._worker + ") " + "set logging parameters...")
         formatter = logging.Formatter("[%(levelname)s] : %(asctime)s : %(message)s", "%Y-%m-%d %H:%M:%S")
-        error_handler = RotatingFileHandler(self._log_base_path + "error.log", mode='a', maxBytes=self._max_bytes,
-                                            backupCount=self._max_backup_count)
+        error_handler = RotatingFileHandler(self._log_base_path + "error.log", mode='a', maxBytes=self._MAX_BYTES,
+                                            backupCount=self._MAX_BACKUP_COUNT)
         error_handler.setFormatter(formatter)
         error_handler.setLevel(logging.ERROR)
-        info_handler = RotatingFileHandler(self._log_base_path + "info.log", mode='a', maxBytes=self._max_bytes,
-                                           backupCount=self._max_backup_count)
+        info_handler = RotatingFileHandler(self._log_base_path + "info.log", mode='a', maxBytes=self._MAX_BYTES,
+                                           backupCount=self._MAX_BACKUP_COUNT)
         info_handler.setFormatter(formatter)
         info_handler.setLevel(logging.INFO)
         console_handler = logging.StreamHandler()
