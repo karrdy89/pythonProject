@@ -8,7 +8,6 @@ from serving import ModelServing
 from logger import Logger, BootLogger
 from shared_state import SharedState
 
-
 boot_logger = BootLogger().logger
 boot_logger.info("(Main Server) init main server...")
 

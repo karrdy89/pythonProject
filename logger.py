@@ -36,7 +36,7 @@ class Logger:
     """
     def __init__(self):
         self._worker: str = type(self).__name__
-        self.logger: Logger = logging.getLogger()
+        self.logger: Logger = logging.getLogger("global")
         self._boot_logger: Logger = BootLogger().logger
         self._log_base_path: str = os.path.dirname(os.path.abspath(__file__)) + "/logs/"
         self._MAX_BACKUP_COUNT: int = 100
@@ -100,15 +100,12 @@ class BootLogger:
          Constructs all the necessary attributes.
      """
     def __init__(self):
-        self.logger = logging.getLogger()
+        logging.basicConfig(level=logging.INFO)
+        self.logger = logging.getLogger("boot")
         self.log_base_path = os.path.dirname(os.path.abspath(__file__)) + "/logs/"
         formatter = logging.Formatter("[%(levelname)s] : %(asctime)s : %(message)s", "%Y-%m-%d %H:%M:%S")
-        log_handler = RotatingFileHandler(self.log_base_path + "error.log", mode='a', maxBytes=104857600,
+        log_handler = RotatingFileHandler(self.log_base_path + "boot.log", mode='a', maxBytes=104857600,
                                           backupCount=5)
         log_handler.setFormatter(formatter)
         log_handler.setLevel(logging.INFO)
         self.logger.addHandler(log_handler)
-        console_handler = logging.StreamHandler()
-        console_handler.setFormatter(formatter)
-        console_handler.setLevel(logging.INFO)
-        self.logger.addHandler(console_handler)
