@@ -1,22 +1,43 @@
 import sys
+import configparser
 import logging
 
 import ray
 import uvicorn
 
 from serving import ModelServing
-from logger import Logger
+from logger import Logger, BootLogger
 from shared_state import SharedState
 
 
+boot_logger = BootLogger().logger
+boot_logger.info("(Main Server) init main server...")
+
+SSL_CERT_PATH = ''
+config_parser = configparser.ConfigParser()
+try:
+    config_parser.read("config/config.ini")
+    SSL_CERT_PATH = str(config_parser.get("DEFAULT", "SSL_CERT_PATH"))
+except configparser.Error as e:
+    boot_logger.error("(Main Server) an error occur when set config...: " + str(e))
+    sys.exit()
+
+boot_logger.info("(Main Server) init ray...")
 ray.init(dashboard_host="0.0.0.0", dashboard_port=8265)
-
-
-SSL_CERT_PATH = "/home/ky/cert"  # from config
 
 
 @ray.remote
 class UvicornServer(uvicorn.Server):
+    """
+    A ray actor class for uv
+
+    Methods
+    -------
+    install_signal_handlers():
+        Constructs all the necessary attributes.
+    run_server() -> int
+        Set attributes.
+    """
     def install_signal_handlers(self):
         pass
 
