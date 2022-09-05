@@ -3,6 +3,29 @@ from typing import get_type_hints
 
 
 class PipelineComponent(object):
+    """
+    A class that define each task of pipeline
+
+    Attributes
+    ----------
+    func : function
+        Class name of instance.
+    output : list
+        A name of pipeline. (model_name:version)
+    input : dict
+        The list of sequence name that defined in pipeline.yaml.
+
+    Methods
+    -------
+    __init__():
+        Constructs all the necessary attributes for the person object.
+    _set_output_type() -> None:
+        Create dictionary from pipeline.yaml.
+    _set_input_types() -> None:
+        Set pipline attributes and run pipeline.
+    __call__(self, *args, **kwargs):
+        Run each component of piepline
+    """
     def __init__(self, func):
         self.func = func
         self.output: list = []
