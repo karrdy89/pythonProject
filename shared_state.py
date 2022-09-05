@@ -4,7 +4,7 @@ from collections import OrderedDict
 import ray
 from ray import actor
 
-from pipeline import PipelineResult, TrainResult
+from pipeline import TrainResult
 
 
 PIPELINE_MAX = 1
@@ -16,7 +16,7 @@ class SharedState:
         self._worker = type(self).__name__
         self._logger: actor = ray.get_actor("logging_service")
         self._actors: OrderedDict[str, actor] = OrderedDict()
-        self._pipline_result: OrderedDict[str, PipelineResult] = OrderedDict()
+        self._pipline_result: OrderedDict[str, dict] = OrderedDict()
         self._train_result: OrderedDict[str, TrainResult] = OrderedDict()
         self._pipeline_pool: OrderedDict[str, actor] = OrderedDict()
 
@@ -50,7 +50,7 @@ class SharedState:
             self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="actor not exist: " + name)
             return -1
 
-    def set_pipeline_result(self, name: str, pipe_result: PipelineResult) -> None:
+    def set_pipeline_result(self, name: str, pipe_result: dict) -> None:
         self._pipline_result[name] = pipe_result
 
     def delete_pipeline_result(self, name: str) -> None:
@@ -62,7 +62,7 @@ class SharedState:
     def get_pipeline_result(self, name: str) -> dict:
         if name in self._pipline_result:
             pipeline = self._pipline_result[name]
-            return {"component_list": pipeline.component_list, "current_process": pipeline.current_component}
+            return {"component_list": pipeline}
         else:
             return {}
 
