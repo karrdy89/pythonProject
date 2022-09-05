@@ -11,26 +11,26 @@ class BaseCallback(keras.callbacks.Callback):
     Attributes
     ----------
     _shared_state : actor
-        an actor handle of global data store
+        an actor handle of global data store.
     _train_result : TrainResult
-        a current result of training
+        a current result of training.
     name : str
-        a name of pipeline
+        a name of pipeline.
     epoch_step : int
-        a batch of each epoch
+        a batch of each epoch.
     epoch : int
-        current epoch of training
+        current epoch of training.
 
     Methods
     -------
     __init__(name: str):
-        set attributes
+        Constructs all the necessary attributes.
     on_epoch_begin(epoch, logs=None) -> None:
-        update training progress to global data store when epoch begin
+        update training progress to global data store when epoch begin.
     on_epoch_end(epoch, logs=None) -> None:
-        update training progress to global data store when epoch end
+        update training progress to global data store when epoch end.
     on_batch_end(batch, logs=None) -> None:
-        update training progress to global data store when batch end
+        update training progress to global data store when batch end.
     """
     def __init__(self, name):
         self._shared_state: ray.actor = ray.get_actor("shared_state")
@@ -66,24 +66,24 @@ class EvaluationCallback(keras.callbacks.Callback):
     Attributes
     ----------
     _shared_state : actor
-        an actor handle of global data store
+        an actor handle of global data store.
     _train_result : TrainResult
-        a current result of training
+        a current result of training.
     name : str
-        a name of pipeline
+        a name of pipeline.
     epoch_step : int
-        a batch of each epoch
+        a batch of each epoch.
 
     Methods
     -------
     __init__(name: str):
-        set attributes
+        Constructs all the necessary attributes.
     on_test_begin(logs=None) -> None:
-        update training progress to global data store when evaluation begin
+        update training progress to global data store when evaluation begin.
     on_test_batch_end(batch, logs=None) -> None:
-        update training progress to global data store when batch end
+        update training progress to global data store when batch end.
     on_test_end(logs=None) -> None:
-        update training progress to global data store when evaluation end
+        update training progress to global data store when evaluation end.
     """
     def __init__(self, name):
         self._shared_state: ray.actor = ray.get_actor("shared_state")
@@ -110,6 +110,16 @@ class EvaluationCallback(keras.callbacks.Callback):
 
 
 def base_callbacks(train_info: TrainInfo, monitor: str) -> list:
+    """
+    Constructs all the necessary attributes for the person object.
+
+    Parameters
+    ----------
+        train_info : TrainInfo
+            first name of the person
+        monitor : str
+            family name of the person
+    """
     callback_list = []
     tb_cb = keras.callbacks.TensorBoard(log_dir=train_info.log_path)
     callback_list.append(tb_cb)

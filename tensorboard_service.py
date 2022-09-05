@@ -24,42 +24,42 @@ class TensorBoardTool:
     Attributes
     ----------
     _worker : str
-        class name of instance
+        Class name of instance.
     _boot_logger : logger
-        log instance for init process
+        A log instance for init process.
     _logger : actor
-        the global logger
+        The global logger.
     _port : list[int]
-        list of available port
+        A list of available port.
     _port_use : list[int]
-        list of port in use
+        A List of port in use.
     _tensorboard_thread_queue : queue
-        the queue with a tensorboard thread information for expire tensorboard thread
+        The queue with a tensorboard thread information for expire tensorboard thread.
     _timer : ResettableTimer
-        resettable timer for manage tensorboard thread
+        A resettable timer for manage tensorboard thread.
     _before_produce_time : float
-        the prior time of tensorboard thread produced for calculate next expire time
+        The prior time of tensorboard thread produced for calculate next expire time.
     _TENSORBOARD_PORT_START: int
-        configuration of tensorboard service port range
+        Configuration of tensorboard service port range.
     _TENSORBOARD_THREAD_MAX: int
-        configuration of max tensorboard service
+        Configuration of max tensorboard service.
     _EXPIRE_TIME: int
-        configuration of tensorboard service expire time
+        Configuration of tensorboard service expire time
 
     Methods
     -------
     __init__():
-        set attributes with default value
+        Constructs all the necessary attributes for the person object.
     init() -> int:
-        set attributes
+        Set attributes.
     get_port() -> int:
-        get port number from available port list
+        Get port number from available port list.
     release_port(int) -> None:
-        release port number from list of port in use
+        Release port number from list of port in use.
     expire_tensorboard() -> None:
-        expire tensorboard thread every set time
+        Expire tensorboard thread every set time.
     run() -> int:
-        produce tensorboard thread
+        Produce tensorboard thread.
     """
     def __init__(self):
         self._worker = type(self).__name__
