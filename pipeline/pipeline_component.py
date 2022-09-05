@@ -4,7 +4,7 @@ from typing import get_type_hints
 
 class PipelineComponent(object):
     """
-    A class that define each task of pipeline
+    A class that define task of pipeline
 
     Attributes
     ----------
