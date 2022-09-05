@@ -42,13 +42,13 @@ class Pipeline:
     __init__():
         Constructs all the necessary attributes for the person object.
     _get_piepline_definition() -> dict:
-        Set attributes.
+        Create dictionary from pipeline.yaml.
     run_pipeline(name: str, version: str, train_info: TrainInfo) -> dict:
-        Get port number from available port list.
+        Set pipline attributes and run pipeline.
     trigger_pipeline(train_info) -> int:
-        Release port number from list of port in use.
-    on_pipeline_end() -> int:
-        Expire tensorboard thread every set time.
+        Run each component of piepline
+    on_pipeline_end() -> None:
+        Ask shared_state actor to kill this pipeline
     """
     def __init__(self):
         self._worker = type(self).__name__
@@ -96,7 +96,10 @@ class Pipeline:
             component = getattr(module, task_split[1])
             self._components[i] = component
         pipeline_result = self.trigger_pipeline(train_info=train_info)
-        return {"result": "pil" + name}
+        if pipeline_result == 0:
+            return {"result": "pipeline finished successfully : " + name}
+        else:
+            return {"result": "pipeline fail : " + name}
 
     def trigger_pipeline(self, train_info) -> int:
         if not self._components:
@@ -151,9 +154,8 @@ class Pipeline:
             self._component_idx += 1
             self.trigger_pipeline(train_info)
 
-    def on_pipeline_end(self) -> int:
-        result = ray.get(self._shared_state.kill_actor.remote(self._name))
-        return result
+    def on_pipeline_end(self) -> None:
+        ray.get(self._shared_state.kill_actor.remote(self._name))
 
 
 class StateCode:
