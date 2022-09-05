@@ -6,12 +6,12 @@ from pipeline import TrainInfo, TrainResult
 
 class BaseCallback(keras.callbacks.Callback):
     """
-    A class that runs and manages the tensorboard service.
+    A class that callback to monitor training progress.
 
     Attributes
     ----------
     _shared_state : actor
-        class name of instance
+        an actor handle of global data store
     _train_result : TrainResult
         log instance for init process
     name : str
