@@ -28,7 +28,7 @@ class TensorBoardTool:
     _boot_logger : logger
         log instance for init process
     _logger : actor
-        global logger
+        the global logger
     _port : list[int]
         list of available port
     _port_use : list[int]
@@ -36,7 +36,7 @@ class TensorBoardTool:
     _tensorboard_thread_queue : queue
         the queue with a tensorboard thread information for expire tensorboard thread
     _timer : ResettableTimer
-        a resettable timer for manage tensorboard thread
+        resettable timer for manage tensorboard thread
     _before_produce_time : float
         the prior time of tensorboard thread produced for calculate next expire time
     _TENSORBOARD_PORT_START: int
@@ -49,12 +49,17 @@ class TensorBoardTool:
     Methods
     -------
     __init__():
-        set
+        set attributes with default value
     init() -> int:
+        set attributes
     get_port() -> int:
+        get port number from available port list
     release_port(int) -> None:
+        release port number from list of port in use
     expire_tensorboard() -> None:
+        expire tensorboard thread every set time
     run() -> int:
+        produce tensorboard thread
     """
     def __init__(self):
         self._worker = type(self).__name__
