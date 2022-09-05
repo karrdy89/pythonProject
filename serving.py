@@ -235,7 +235,6 @@ class ModelServing:
                 elif result == -1:
                     self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg="connection error : "
                                                                                           + model_id + ":" + version)
-                    result = json.dumps({"code": 11, "msg": "connection error trying to fail back"}).encode('utf8')
                     await self.fail_back(model_id, version, container_name)
                     result = await self.predict(model_id, version, data)
                 async with self._lock:

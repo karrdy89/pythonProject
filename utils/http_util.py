@@ -8,14 +8,14 @@ class Http:
     Methods
     -------
     __aenter__():
-        Constructs all the necessary attributes.
+        Set client session entering async with.
     __aexit__(*err):
-        update training progress to global data store when epoch begin.
-    get(url) -> None:
+        Clear client session when exit async with
+    get(url) -> int | str | None:
         update training progress to global data store when epoch end.
-    post_json(self, url, data: dict = None) -> None:
+    post_json(url, data: dict = None) -> int | str | None:
         update training progress to global data store when batch end.
-    def post(self, url, payload, header: dict):
+    def post(url, payload, header: dict) -> int | str | None:
     """
     async def __aenter__(self):
         self._session = aiohttp.ClientSession()
@@ -25,17 +25,20 @@ class Http:
         await self._session.close()
         self._session = None
 
-    async def get(self, url):
-        async with self._session.get(url) as resp:
-            print(await resp.text())
-            if resp.status == 200:
-                print(await resp.text())
-                return None
-            else:
-                print("get error. request code: " + str(resp.status))
-                return None
+    async def get(self, url) -> int | str | None:
+        try:
+            async with self._session.get(url) as resp:
+                if resp.status == 200:
+                    return await resp.text()
+                else:
+                    print("get error. request code: " + str(resp.status))
+                    return None
+        except aiohttp.ClientConnectionError as e:
+            print("connection error")
+            print(e)
+            return -1
 
-    async def post_json(self, url, data: dict = None):
+    async def post_json(self, url, data: dict = None) -> int | str | None:
         try:
             async with self._session.post(url=url, json=data, timeout=60) as resp:
                 if resp.status == 200:
@@ -48,7 +51,7 @@ class Http:
             print(e)
             return -1
 
-    async def post(self, url, payload, header: dict):
+    async def post(self, url, payload, header: dict) -> int | str | None:
         try:
             async with self._session.post(url=url, data=payload, header=header, timeout=60) as resp:
                 if resp.status == 200:
