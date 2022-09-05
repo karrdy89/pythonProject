@@ -1,4 +1,12 @@
 def version_encode(version: str) -> int:
+    """
+    Return train, validation, test ratio of dataset from given string. (ex. 80:10:10)
+
+    Parameters
+    ----------
+        version : str
+            Option of dataset split ratio. (formatted string ex. 80:10:10)
+    """
     sv = version.split('.')
     if len(sv[-1]) > 9:
         raise Exception("can't exceed decimal point over 9")
