@@ -24,25 +24,18 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from utils.http_util import Http
 from utils.common import version_encode, version_decode
 
-HTTP_PORT_START = 8500
-GRPC_PORT_START = 8000
-CONTAINER_MAX = 20
-GC_CHECK_INTERVAL = 10
-DEPLOY_PATH = ""
-CONTAINER_IMAGE = "tensorflow/serving:2.6.5"
-
 
 @ray.remote
 class ModelServing:
     def __init__(self):
-        self._lock = asyncio.Lock()
-        self._executor = ThreadPoolExecutor()
-        self._logger = ray.get_actor("logging_service")
-        self._worker = type(self).__name__
+        self._logger: ray.actor = None
+        self._lock: asyncio.Lock = asyncio.Lock()
+        self._executor: ThreadPoolExecutor = ThreadPoolExecutor()
+        self._worker: str = type(self).__name__
         self._deploy_requests: list[tuple[str, str]] = []  # tuple of model_id and version
         self._deploy_states: dict[str, ModelDeployState] = {}
         self._gc_list: list[tuple[int, str]] = []  # tuple of manage type and key
-        self._client = None
+        self._client: docker.DockerClient | None = None
         self._http_port: list[int] = []
         self._http_port_use: list[int] = []
         self._grpc_port: list[int] = []
@@ -50,8 +43,17 @@ class ModelServing:
         self._ip_container_server: str = ""
         self._deploy_path: str = ""
         self._current_container_num: int = 0
-        self._project_path = os.path.dirname(os.path.abspath(__file__))
-        self._manager_handle = None
+        self._project_path: str = os.path.dirname(os.path.abspath(__file__))
+        self._manager_handle: AsyncIOScheduler | None = None
+
+    def init(self) -> int:
+        self._logger = ray.get_actor("logging_service")
+        HTTP_PORT_START = 8500
+        GRPC_PORT_START = 8000
+        CONTAINER_MAX = 20
+        GC_CHECK_INTERVAL = 10
+        DEPLOY_PATH = ""
+        CONTAINER_IMAGE = "tensorflow/serving:2.6.5"
 
     async def deploy(self, model_id: str, version: str, container_num: int) -> json:
         self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="deploy start : " + model_id
