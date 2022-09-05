@@ -25,7 +25,6 @@ class TensorBoardTool:
         self._TENSORBOARD_PORT_START: int = 0
         self._TENSORBOARD_THREAD_MAX: int = 0
         self._EXPIRE_TIME: int = 0
-        self.init()
 
     def get_port(self):
         port = self._port.pop(0)
@@ -60,17 +59,21 @@ class TensorBoardTool:
         self._logger.info("(" + self._worker + ") " + "init tensorboard...")
         self._logger.info("(" + self._worker + ") " + "set statics from config...")
         config_parser = configparser.ConfigParser()
-        config_parser.read("config/config.ini")
-        self._TENSORBOARD_PORT_START = config_parser.get("TENSOR_BOARD", "TENSORBOARD_PORT_START")
-        self._TENSORBOARD_THREAD_MAX = config_parser.get("TENSOR_BOARD", "TENSORBOARD_THREAD_MAX")
-        self._EXPIRE_TIME = config_parser.get("TENSOR_BOARD", "EXPIRE_TIME")
+        try:
+            config_parser.read("config/config.ini")
+            self._TENSORBOARD_PORT_START = int(config_parser.get("TENSOR_BOARD", "TENSORBOARD_PORT_START"))
+            self._TENSORBOARD_THREAD_MAX = int(config_parser.get("TENSOR_BOARD", "TENSORBOARD_THREAD_MAX"))
+            self._EXPIRE_TIME = int(config_parser.get("TENSOR_BOARD", "EXPIRE_TIME"))
+        except configparser.Error as e:
+            self._logger.info("(" + self._worker + ") " + "an error occur when set config...: " + str(e))
+            return -1
         self._logger.info("(" + self._worker + ") " + "set Tensorboard port range...")
-        for i in range(TENSORBOARD_THREAD_MAX):
-            self._port.append(TENSORBOARD_PORT_START + i)
+        for i in range(self._TENSORBOARD_THREAD_MAX):
+            self._port.append(self._TENSORBOARD_PORT_START + i)
         self._logger.info("(" + self._worker + ") " + "init complete...")
 
     def run(self, dir_path: str) -> int:
-        if len(self._port_use) >= TENSORBOARD_THREAD_MAX:
+        if len(self._port_use) >= self._TENSORBOARD_THREAD_MAX:
             print("max tensorboard thread exceeded")
             return -1
         port = self.get_port()
@@ -92,7 +95,7 @@ class TensorBoardTool:
             tensorboard_thread = TensorboardThread(port=port, time_diff=time_diff)
             self._tensorboard_thread_queue.put(tensorboard_thread, block=True)
             if not self._timer.is_run:
-                self._timer.set(interval=EXPIRE_TIME, function=self.expire_tensorboard)
+                self._timer.set(interval=self._EXPIRE_TIME, function=self.expire_tensorboard)
                 self._timer.run()
             return port
 
