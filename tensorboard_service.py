@@ -26,11 +26,17 @@ class TensorBoardTool:
     _worker : str
         class name of instance
     _boot_logger : logger
-    _logger : ray.actor
+        log instance for init process
+    _logger : actor
+        global logger
     _port : list[int]
+        list of available port
     _port_use : list[int]
+        list of port in use
     _tensorboard_thread_queue : queue
+        the queue with a tensorboard thread information for expire tensorboard thread
     _timer : ResettableTimer
+
     _before_produce_time : float
     _TENSORBOARD_PORT_START: int
     _TENSORBOARD_THREAD_MAX: int
