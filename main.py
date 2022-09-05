@@ -1,29 +1,18 @@
-import asyncio
-import datetime
-import json
 import sys
 import logging
 
 import ray
-import time
-import json
-
 import uvicorn
-import multiprocessing
-from ray import serve
-from fastapi import FastAPI, Request
-from starlette.middleware import Middleware
-from starlette.middleware.cors import CORSMiddleware
-from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
 
-import routers
 from serving import ModelServing
 from logger import Logger
 from shared_state import SharedState
 
-SSL_CERT_PATH = "/home/ky/cert"  # from config
 
 ray.init(dashboard_host="0.0.0.0", dashboard_port=8265)
+
+
+SSL_CERT_PATH = "/home/ky/cert"  # from config
 
 
 @ray.remote
@@ -60,11 +49,3 @@ if -1 in init_processes:
     ray.kill(shared_state)
     sys.exit()
 
-
-# run actual model
-# handle with db_util -> ray or some shit
-# set config file and read
-# adjust init process
-# error handling
-# doc string
-# test packaging
