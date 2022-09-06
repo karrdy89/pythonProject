@@ -80,7 +80,7 @@ class ModelServing:
     _GC_CHECK_INTERVAL: int
         Configuration of interval of managing container
     _DEPLOY_PATH: str
-        Configuration of location that model have to locate for deploying
+        Configuration of location that model has to locate for deploying
     _CONTAINER_IMAGE: str
         Configuration of tensorflow serving image
     _CONTAINER_SERVER_IP: str
@@ -98,30 +98,31 @@ class ModelServing:
         Return _deploy_states.
     add_container(model_id: str, version: str, container_num: int) -> json:
         Add containers for the deployed model
-    remove_container(self, model_id: str, version: str, container_num: int) -> json:
+    remove_container(model_id: str, version: str, container_num: int) -> json:
         Remove containers for the deployed model
-    end_deploy(self, model_id: str, version: str) -> json:
+    end_deploy(model_id: str, version: str) -> json:
         End model deployment
-    predict(self, model_id: str, version: str, data: dict) -> json:
+    predict(model_id: str, version: str, data: dict) -> json:
         Get inference from container with given data. and return it.
-    deploy_containers(self, model_id: str, version: str, container_num: int, model_deploy_state):
-
-    run_container(self, model_id: str, container_name: str, http_port: int, grpc_port: int, deploy_path: str)\
+    deploy_containers(model_id: str, version: str, container_num: int, model_deploy_state):
+        Request to create container in parallel with docker server.
+    run_container(model_id: str, container_name: str, http_port: int, grpc_port: int, deploy_path: str)\
             -> Container | None:
+
     fail_back(self, model_id: str, version: str, container_name: str) -> None:
-    get_model_state(self, model_name: str) -> str:
-    get_port_http(self) -> int:
-    get_port_grpc(self) -> int:
-    release_port_http(self, port: int) -> None:
-    release_port_grpc(self, port: int) -> None:
-    reset_version_config(self, host: str, name: str, base_path: str, model_platform: str, model_version_policy: list):
-    add_version(self, model_id: str, version: str):
-    copy_to_deploy(self, model_id: str, version: int) -> int:
-    delete_deployed_model(self, model_id: str, version: int) -> int:
-    _set_cycle(self, model_id: str, version: str) -> int:
-    gc_container(self) -> None:
-    get_container_list(self):
-    get_container_names(self):
+    get_model_state(model_name: str) -> str:
+    get_port_http() -> int:
+    get_port_grpc() -> int:
+    release_port_http(port: int) -> None:
+    release_port_grpc(port: int) -> None:
+    reset_version_config(host: str, name: str, base_path: str, model_platform: str, model_version_policy: list):
+    add_version(model_id: str, version: str):
+    copy_to_deploy(model_id: str, version: int) -> int:
+    delete_deployed_model(model_id: str, version: int) -> int:
+    _set_cycle(model_id: str, version: str) -> int:
+    gc_container() -> None:
+    get_container_list():
+    get_container_names():
     """
     def __init__(self):
         self._logger: ray.actor = None
