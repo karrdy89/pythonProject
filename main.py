@@ -1,5 +1,6 @@
 import sys
 import configparser
+import traceback
 
 import ray
 import uvicorn
@@ -64,7 +65,14 @@ shared_state = SharedState.options(name="shared_state").remote()
 
 boot_logger.info("(Main Server) init services...")
 init_processes = ray.get([model_serving.init.remote(), shared_state.init.remote()])
-api_service = UvicornServer.options(name="API_service").remote(config=config)
+api_service = None
+try:
+    api_service = UvicornServer.options(name="API_service").remote(config=config)
+except Exception as e:
+    exc_str = ''.join(traceback.format_exception(None, e, e.__traceback__))
+    boot_logger.error("(Main Server) failed to init API_service : " + exc_str)
+    init_processes.append(-1)
+
 if -1 in init_processes:
     boot_logger.error("(Main Server) failed to init services")
     ray.kill(api_service)

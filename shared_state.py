@@ -1,3 +1,4 @@
+import configparser
 import logging
 from collections import OrderedDict
 
@@ -5,9 +6,7 @@ import ray
 from ray import actor
 
 from pipeline import TrainResult
-
-
-PIPELINE_MAX = 1
+from logger import BootLogger
 
 
 @ray.remote
@@ -15,20 +14,33 @@ class SharedState:
     def __init__(self):
         self._worker = type(self).__name__
         self._logger: actor = None
+        self._boot_loger: logging.Logger = BootLogger().logger
         self._actors: OrderedDict[str, actor] = OrderedDict()
         self._pipline_result: OrderedDict[str, dict] = OrderedDict()
         self._train_result: OrderedDict[str, TrainResult] = OrderedDict()
-        self._pipeline_pool: OrderedDict[str, actor] = OrderedDict()
+        self._PIPELINE_MAX = 1
 
     def init(self):
-        self._logger: actor = ray.get_actor("logging_service")
+        self._boot_logger.info("(" + self._worker + ") " + "init shared_state actor...")
+        self._boot_logger.info("(" + self._worker + ") " + "set global logger...")
+        self._logger = ray.get_actor("logging_service")
+        self._boot_logger.info("(" + self._worker + ") " + "set statics from config...")
+        config_parser = configparser.ConfigParser()
+        try:
+            config_parser.read("config/config.ini")
+            self._PIPELINE_MAX = int(config_parser.get("PIPELINE", "PIPELINE_MAX"))
+        except configparser.Error as e:
+            self._boot_logger.error("(" + self._worker + ") " + "an error occur when set config...: " + str(e))
+            return -1
+        self._boot_logger.info("(" + self._worker + ") " + "init shared_state actor complete...")
+        return 0
 
     def set_actor(self, name: str, act: actor):
         self._actors[name] = act
-        if len(self._actors) >= PIPELINE_MAX:
+        if len(self._actors) >= self._PIPELINE_MAX:
             self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="max piepline exceeded")
             return -1
-        if len(self._pipline_result) >= PIPELINE_MAX:
+        if len(self._pipline_result) >= self._PIPELINE_MAX:
             self._pipline_result.popitem(last=False)
             self._train_result.popitem(last=False)
 

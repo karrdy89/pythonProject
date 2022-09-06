@@ -49,41 +49,41 @@ class ModelServing:
     _deploy_requests : list[tuple[str, str]]
         A list of deploy requests. if deploy done, the request will remove from this list.
         (Ex. [(model_1, version), (model_2, version), ...])
-    _deploy_states: dict[str, ModelDeployState]
+    _deploy_states : dict[str, ModelDeployState]
         A dictionary of current deploy state.
         (Ex. {model1_version: ModelDeployState}, {model2_version: ModelDeployState})
-    _gc_list: list[tuple[int, str]]
+    _gc_list : list[tuple[int, str]]
         A list of container to delete GC will remove container with this list.
         (Ex. [(ManageType, model1_version), (ManageType, model2_version), ...])
-    _client: DockerClient
+    _client : DockerClient
         A docker client instance.
-    _http_port: list[int]
+    _http_port : list[int]
         A list of available http port bind to container.
-    _http_port_use: list[int]
+    _http_port_use : list[int]
         A list of http port in use by container.
-    _grpc_port: list[int]
+    _grpc_port : list[int]
         A list of available grpc port bind to container.
-    _grpc_port_use: list[int]
+    _grpc_port_use : list[int]
         A list of grpc port in use by container.
-    _current_container_num: int
+    _current_container_num : int
         A number of deployed container currently
-    _project_path: str
+    _project_path : str
         Absolute path of project
-    _manager_handle: AsyncIOScheduler
+    _manager_handle : AsyncIOScheduler
         An AsyncIOScheduler instance for managing container
-    _HTTP_PORT_START: int
+    _HTTP_PORT_START : int
         Configuration of http port range
-    _GRPC_PORT_START: int
+    _GRPC_PORT_START : int
         Configuration of grpc port range
-    _CONTAINER_MAX: int
+    _CONTAINER_MAX : int
         Configuration of max container number
-    _GC_CHECK_INTERVAL: int
+    _GC_CHECK_INTERVAL : int
         Configuration of interval of managing container
-    _DEPLOY_PATH: str
+    _DEPLOY_PATH : str
         Configuration of location that model has to locate for deploying
-    _CONTAINER_IMAGE: str
+    _CONTAINER_IMAGE : str
         Configuration of tensorflow serving image
-    _CONTAINER_SERVER_IP: str
+    _CONTAINER_SERVER_IP : str
         Configuration of docker server ip
 
     Methods
