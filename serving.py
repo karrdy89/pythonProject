@@ -90,16 +90,22 @@ class ModelServing:
     -------
     __init__():
         Constructs all the necessary attributes.
-    init(self) -> int
+    init() -> int
         Set attributes.
-    deploy(self, model_id: str, version: str, container_num: int) -> json
-        Logging given data to files
-    get_deploy_state(self) -> json:
-    add_container(self, model_id: str, version: str, container_num: int) -> json:
+    deploy(model_id: str, version: str, container_num: int) -> json
+        Carry out deploy request
+    get_deploy_state() -> json:
+        Return _deploy_states.
+    add_container(model_id: str, version: str, container_num: int) -> json:
+        Add containers for the deployed model
     remove_container(self, model_id: str, version: str, container_num: int) -> json:
+        Remove containers for the deployed model
     end_deploy(self, model_id: str, version: str) -> json:
+        End model deployment
     predict(self, model_id: str, version: str, data: dict) -> json:
+        Get inference from container with given data. and return it.
     deploy_containers(self, model_id: str, version: str, container_num: int, model_deploy_state):
+
     run_container(self, model_id: str, container_name: str, http_port: int, grpc_port: int, deploy_path: str)\
             -> Container | None:
     fail_back(self, model_id: str, version: str, container_name: str) -> None:
