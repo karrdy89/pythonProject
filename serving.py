@@ -410,7 +410,7 @@ class ModelServing:
                                                        container_name=container_name,
                                                        http_port=http_port,
                                                        grpc_port=grpc_port,
-                                                       deploy_path=self._deploy_path + model_key + "/")))
+                                                       deploy_path=self._DEPLOY_PATH + model_key + "/")))
             list_container_name.append(container_name)
             list_http_url.append((self._ip_container_server, http_port))
             list_grpc_url.append((self._ip_container_server, grpc_port))
