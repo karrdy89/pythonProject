@@ -26,12 +26,13 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from utils.http_util import Http
 from utils.common import version_encode, version_decode
 from logger import BootLogger
+from statics import ErrorCode
 
 
 @ray.remote
 class ModelServing:
     """
-    A ray actor class for serving tensorflow model
+    A ray actor class to serve and inference tensorflow model
 
     Attributes
     ----------
@@ -42,19 +43,30 @@ class ModelServing:
     _boot_logger : logger
         The pre-defined Logger class for logging init process.
     _lock : Lock
-        The path of log directory.
+        Async lock for synchronization.
     _executor : ThreadPoolExecutor
-        Configuration of max backup log file number.
+        A ThreadPoolExecutor for parallel processing.
     _deploy_requests : list[tuple[str, str]]
-        Configuration of max bytes of log file.
+        A list of deploy requests. if deploy done, the request will remove from this list.
+        (Ex. [(model_1, version), (model_2, version), ...])
     _deploy_states: dict[str, ModelDeployState]
+        A dictionary of current deploy state.
+        (Ex. {model1_version: ModelDeployState}, {model2_version: ModelDeployState})
     _gc_list: list[tuple[int, str]]
+        A list of container to delete GC will remove container with this list.
+        (Ex. [(ManageType, model1_version), (ManageType, model2_version), ...])
     _client: DockerClient
+        A docker client instance.
     _http_port: list[int]
+        A list of available http port bind to container.
     _http_port_use: list[int]
+        A list of http port in use by container.
     _grpc_port: list[int]
+        A list of available grpc port bind to container.
     _grpc_port_use: list[int]
+        A list of grpc port in use by container.
     _current_container_num: int
+
     _project_path: str
     _manager_handle: AsyncIOScheduler
     _HTTP_PORT_START: int
@@ -71,8 +83,30 @@ class ModelServing:
         Constructs all the necessary attributes.
     init(self) -> int
         Set attributes.
-    log(self, level: int, worker: str, msg: str) -> None:
+    deploy(self, model_id: str, version: str, container_num: int) -> json
         Logging given data to files
+    get_deploy_state(self) -> json:
+    add_container(self, model_id: str, version: str, container_num: int) -> json:
+    remove_container(self, model_id: str, version: str, container_num: int) -> json:
+    end_deploy(self, model_id: str, version: str) -> json:
+    predict(self, model_id: str, version: str, data: dict) -> json:
+    deploy_containers(self, model_id: str, version: str, container_num: int, model_deploy_state):
+    run_container(self, model_id: str, container_name: str, http_port: int, grpc_port: int, deploy_path: str)\
+            -> Container | None:
+    fail_back(self, model_id: str, version: str, container_name: str) -> None:
+    get_model_state(self, model_name: str) -> str:
+    get_port_http(self) -> int:
+    get_port_grpc(self) -> int:
+    release_port_http(self, port: int) -> None:
+    release_port_grpc(self, port: int) -> None:
+    reset_version_config(self, host: str, name: str, base_path: str, model_platform: str, model_version_policy: list):
+    add_version(self, model_id: str, version: str):
+    copy_to_deploy(self, model_id: str, version: int) -> int:
+    delete_deployed_model(self, model_id: str, version: int) -> int:
+    _set_cycle(self, model_id: str, version: str) -> int:
+    gc_container(self) -> None:
+    get_container_list(self):
+    get_container_names(self):
     """
     def __init__(self):
         self._logger: ray.actor = None
@@ -80,9 +114,9 @@ class ModelServing:
         self._lock: asyncio.Lock = asyncio.Lock()
         self._executor: ThreadPoolExecutor = ThreadPoolExecutor()
         self._worker: str = type(self).__name__
-        self._deploy_requests: list[tuple[str, str]] = []  # tuple of model_id and version
+        self._deploy_requests: list[tuple[str, str]] = []
         self._deploy_states: dict[str, ModelDeployState] = {}
-        self._gc_list: list[tuple[int, str]] = []  # tuple of manage type and key
+        self._gc_list: list[tuple[int, str]] = []
         self._client: docker.DockerClient | None = None
         self._http_port: list[int] = []
         self._http_port_use: list[int] = []
@@ -286,7 +320,7 @@ class ModelServing:
                              "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode('utf8')
         return result
 
-    async def predict(self, model_id: str, version: str, data: dict):
+    async def predict(self, model_id: str, version: str, data: dict) -> json:
         model_deploy_state = self._deploy_states.get(model_id + "_" + version)
         if (model_deploy_state is None) or (model_deploy_state.cycle_iterator is None):
             self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="model not deployed : "
@@ -374,7 +408,8 @@ class ModelServing:
                              "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode('utf8')
         return result
 
-    def run_container(self, model_id: str, container_name: str, http_port: int, grpc_port: int, deploy_path: str):
+    def run_container(self, model_id: str, container_name: str, http_port: int, grpc_port: int, deploy_path: str)\
+            -> Container | None:
         try:
             container = self._client.containers.run(image=self._CONTAINER_IMAGE, detach=True, name=container_name,
                                                     ports={'8501/tcp': http_port, '8500/tcp': grpc_port},
@@ -395,7 +430,7 @@ class ModelServing:
                                     msg="the docker server returns an error : " + e.__str__())
             return None
 
-    async def fail_back(self, model_id: str, version: str, container_name: str):
+    async def fail_back(self, model_id: str, version: str, container_name: str) -> None:
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="trying to fail back container : " + model_id + ":" + version)
         model_deploy_state = self._deploy_states.get(model_id + "_" + version)
@@ -407,28 +442,28 @@ class ModelServing:
                 self._gc_list.append((ManageType.CONTAINER, container_name))
             await self.add_container(model_id, version, 1)
 
-    async def get_model_state(self, model_name: str):
+    async def get_model_state(self, model_name: str) -> str:
         url = self.get_model_endpoint(model_name)
         async with Http() as http:
             result = await http.get(url)
             result = result.decode('utf8').replace("'", '"')
             return result
 
-    def get_port_http(self):
+    def get_port_http(self) -> int:
         port = self._http_port.pop()
         self._http_port_use.append(port)
         return port
 
-    def get_port_grpc(self):
+    def get_port_grpc(self) -> int:
         port = self._grpc_port.pop()
         self._grpc_port_use.append(port)
         return port
 
-    def release_port_http(self, port: int):
+    def release_port_http(self, port: int) -> None:
         self._http_port_use.remove(port)
         self._http_port.append(port)
 
-    def release_port_grpc(self, port: int):
+    def release_port_grpc(self, port: int) -> None:
         self._grpc_port_use.remove(port)
         self._grpc_port.append(port)
 
@@ -544,7 +579,7 @@ class ModelServing:
             model_deploy_state.cycle_iterator = cycle(cycle_list)
         return 0
 
-    async def gc_container(self):
+    async def gc_container(self) -> None:
         self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="GC activate")
         for type_key in self._gc_list.copy():
             manage_type = type_key[0]
@@ -609,7 +644,6 @@ class ModelServing:
                             self._gc_list.remove(type_key)
                     else:
                         continue
-        print(self._deploy_states)
 
     def get_container_list(self):
         return self._client.containers.list()
