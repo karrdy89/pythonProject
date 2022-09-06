@@ -54,7 +54,7 @@ class Pipeline:
         self._worker = type(self).__name__
         self._name: str = ''
         self._sequence_names: list[str] = []
-        self._pipeline_definition_path: str = os.path.dirname(os.path.abspath(__file__)) + "/pipeline/pipelines.yaml"
+        self._pipeline_definition_path: str = os.path.dirname(os.path.abspath(__file__)) + "/pipelines.yaml"
         self._logger: ray.actor = ray.get_actor("logging_service")
         self._shared_state: ray.actor = ray.get_actor("shared_state")
         self._pipeline_state: dict[str, str] = {}
@@ -68,7 +68,9 @@ class Pipeline:
                 return yaml.safe_load(stream)
             except yaml.YAMLError as exc:
                 self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg=str(exc))
-                return {"error": exc}
+            except FileNotFoundError as fe:
+                self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg=str(fe))
+                return {"error": fe}
 
     def run_pipeline(self, name: str, version: str, train_info: TrainInfo) -> dict:
         self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="set pipeline..." + self._name)
@@ -84,7 +86,7 @@ class Pipeline:
             return {"result": "there is no pipeline: " + name}
         sequences = []
         for pipeline in pipeline_list:
-            if pipeline.get("name") == name:
+            if pipeline == name:
                 sequences = pipeline.get("sequence")
                 break
         for i, seq in enumerate(sequences):
@@ -95,6 +97,7 @@ class Pipeline:
             module = importlib.import_module(task_split[0])
             component = getattr(module, task_split[1])
             self._components[i] = component
+        print(sequences)
         pipeline_result = self.trigger_pipeline(train_info=train_info)
         if pipeline_result == 0:
             return {"result": "pipeline finished successfully : " + name}

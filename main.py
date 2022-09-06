@@ -68,6 +68,7 @@ init_processes = ray.get([model_serving.init.remote(), shared_state.init.remote(
 api_service = None
 try:
     api_service = UvicornServer.options(name="API_service").remote(config=config)
+    ray.get(api_service.run_server.remote())
 except Exception as e:
     exc_str = ''.join(traceback.format_exception(None, e, e.__traceback__))
     boot_logger.error("(Main Server) failed to init API_service : " + exc_str)
@@ -81,6 +82,5 @@ if -1 in init_processes:
     ray.kill(shared_state)
     sys.exit()
 else:
-    boot_logger.error("(Main Server) run API server...")
-    ray.get(api_service.run_server.remote())
-    boot_logger.error("(Main Server) server initiated successfully...")
+    boot_logger.info("(Main Server) run API server...")
+    boot_logger.info("(Main Server) server initiated successfully...")

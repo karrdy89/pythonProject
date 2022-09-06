@@ -90,7 +90,7 @@ class AIbeemRouter:
             return "fail"
 
     @router.get("/train/state")
-    async def get_train_state(self, request_body: rvo.BasicModelInfo) -> json:
+    async def get_train_state(self, request_body: rvo.BasicModelInfo):
         model = request_body.model_id
         version = request_body.version
         pipeline_name = model + ":" + version

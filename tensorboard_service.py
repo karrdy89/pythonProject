@@ -63,7 +63,6 @@ class TensorBoardTool:
     """
     def __init__(self):
         self._worker = type(self).__name__
-        self._boot_logger: logger = BootLogger().logger
         self._logger: ray.actor = None
         self._port: list[int] = []
         self._port_use: list[int] = []
@@ -76,9 +75,9 @@ class TensorBoardTool:
         self.init()
 
     def init(self) -> int:
-        self._logger.info("(" + self._worker + ") " + "init tensorboard service...")
-
-        self._logger.info("(" + self._worker + ") " + "set statics from config...")
+        self._logger = ray.get_actor("logging_service")
+        self._logger.log.remote(level=logging.info, worker=self._worker, msg="init tensorboard service...")
+        self._logger.log.remote(level=logging.info, worker=self._worker, msg="set statics from config...")
         config_parser = configparser.ConfigParser()
         try:
             config_parser.read("config/config.ini")
@@ -86,19 +85,14 @@ class TensorBoardTool:
             self._TENSORBOARD_THREAD_MAX = int(config_parser.get("TENSOR_BOARD", "TENSORBOARD_THREAD_MAX"))
             self._EXPIRE_TIME = int(config_parser.get("TENSOR_BOARD", "EXPIRE_TIME"))
         except configparser.Error as e:
-            self._logger.error("(" + self._worker + ") " + "an error occur when set config...: " + str(e))
+            self._logger.log.remote(level=logging.error, worker=self._worker,
+                                    msg="an error occur when set config...: " + str(e))
             return -1
 
-        self._logger.info("(" + self._worker + ") " + "set global logger...")
-        try:
-            self._logger = ray.get_actor("logging_service")
-        except exceptions as e:
-            self._logger.error("(" + self._worker + ") " + "an error occur when set global logger...: " + str(e))
-
-        self._logger.info("(" + self._worker + ") " + "set Tensorboard port range...")
+        self._logger.log.remote(level=logging.info, worker=self._worker, msg="set Tensorboard port range...")
         for i in range(self._TENSORBOARD_THREAD_MAX):
             self._port.append(self._TENSORBOARD_PORT_START + i)
-        self._logger.info("(" + self._worker + ") " + "init tensorboard service complete...")
+        self._logger.log.remote(level=logging.info, worker=self._worker, msg="init tensorboard service complete...")
         return 0
 
     def get_port(self) -> int:
