@@ -8,10 +8,24 @@ asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 
 
 class DBUtil:
-    # async class
+    # async class -> thread pool task executor
+    # put in execute query to executor
     def __init__(self):
         self._session_pool = None
         self._dsn = None
+        self._executor = None
+        try:
+            pass
+        except:
+            raise FileNotFoundError
+        DB_USER = ""
+        DB_PASSWORD = ""
+        IP = ""
+        PORT = ""
+        SID = ""
+        MAX_WORKER = 5
+        SESSION_POOL_MIN = 2
+        SESSION_POOL_MAX = 30
         # self._execute_select = ExecuteSelect()
 
     def set_connection(self, user: str, password: str, host: str, port: int, sid: str):
