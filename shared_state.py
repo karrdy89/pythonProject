@@ -38,15 +38,25 @@ class SharedState:
     init() -> int
         Set attributes.
     set_actor(name: str, act: actor) -> None | int:
+        Store actor handel to _actors with given actor name and handle
     is_actor_exist(name) -> bool:
+        Return true / false if given actor name exists in _actors
     delete_actor(name: str) -> None:
+        Delete actor data from _actors with given name
     kill_actor(name: str) -> int:
+        Kill running actor with given name
     set_pipeline_result(name: str, pipe_result: dict) -> None:
+        Store pipeline result to _pipline_result with given data
     delete_pipeline_result(name: str) -> None:
+        Delete pipeline result data from _pipline_result with given name
     get_pipeline_result(name: str) -> dict:
+        Return pipeline result data from _pipline_result with given name
     set_train_result(name: str, train_result: TrainResult) -> None:
+        Store train result to _train_result with given data
     get_train_result(name: str) -> dict:
+        Return train result data from _train_result with given name
     delete_train_result(name: str) -> None:
+        Delete train result data from _train_result with given name
     """
     def __init__(self):
         self._worker = type(self).__name__
