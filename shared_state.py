@@ -11,16 +11,44 @@ from logger import BootLogger
 
 @ray.remote
 class SharedState:
+    """
+    A ray actor class to serve and inference tensorflow model
+
+    Attributes
+    ----------
+    _worker : str
+        The class name of instance.
+    _logger : actor
+        A Logger class for logging
+    _boot_logger : Logger
+        The pre-defined Logger class for logging init process.
+    _actors : OrderedDict[str, actor]
+        An OrderedDict of actor handles (Ex. {actor_name : ray.actor})
+    _pipline_result : OrderedDict[str, dict]
+        An OrderedDict of current pipeline progress (Ex. {pipeline_name: {task_1: state, task_2: state ,...} ,...})
+    _train_result : OrderedDict[str, TrainResult]
+        An OrderedDict of current training result (Ex. {model1_version: {metric_1: n, metric_2: k, ...}, ...}
+    _PIPELINE_MAX : int
+        Configuration that number of max concurrent pipeline executions
+
+    Methods
+    -------
+    __init__():
+        Constructs all the necessary attributes.
+    init() -> int
+        Set attributes.
+
+    """
     def __init__(self):
         self._worker = type(self).__name__
         self._logger: actor = None
-        self._boot_loger: logging.Logger = BootLogger().logger
+        self._boot_logger: logging.Logger = BootLogger().logger
         self._actors: OrderedDict[str, actor] = OrderedDict()
         self._pipline_result: OrderedDict[str, dict] = OrderedDict()
         self._train_result: OrderedDict[str, TrainResult] = OrderedDict()
         self._PIPELINE_MAX = 1
 
-    def init(self):
+    def init(self) -> int:
         self._boot_logger.info("(" + self._worker + ") " + "init shared_state actor...")
         self._boot_logger.info("(" + self._worker + ") " + "set global logger...")
         self._logger = ray.get_actor("logging_service")
@@ -35,7 +63,7 @@ class SharedState:
         self._boot_logger.info("(" + self._worker + ") " + "init shared_state actor complete...")
         return 0
 
-    def set_actor(self, name: str, act: actor):
+    def set_actor(self, name: str, act: actor) -> None:
         self._actors[name] = act
         if len(self._actors) >= self._PIPELINE_MAX:
             self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="max piepline exceeded")
