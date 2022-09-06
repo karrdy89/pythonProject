@@ -1,40 +1,58 @@
+import configparser
 import datetime
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 
 import uvloop
 import oracledb
-
-asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 
 
 class DBUtil:
     # async class -> thread pool task executor
     # put in execute query to executor
     def __init__(self):
+        asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+        self._worker = type(self).__name__
         self._session_pool = None
-        self._dsn = None
-        self._executor = None
+        self._dsn: str = ''
+        self._executor: ThreadPoolExecutor | None = None
+        self._USER: str = ''
+        self._PASSWORD: str = ''
+        self._IP: str = ''
+        self._PORT: str = ''
+        self._SID: str = ''
+        self._MAX_WORKER: int = 5
+        self._SESSION_POOL_MIN: int = 2
+        self._SESSION_POOL_MAX: int = 30
         try:
-            pass
-        except:
-            raise FileNotFoundError
-        DB_USER = ""
-        DB_PASSWORD = ""
-        IP = ""
-        PORT = ""
-        SID = ""
-        MAX_WORKER = 5
-        SESSION_POOL_MIN = 2
-        SESSION_POOL_MAX = 30
-        # self._execute_select = ExecuteSelect()
+            self.init()
+        except Exception as e:
+            raise Exception(e)
 
-    def set_connection(self, user: str, password: str, host: str, port: int, sid: str):
-        self._dsn = oracledb.makedsn(host=host, port=port, sid=sid)
+        # self._execute_select = ExecuteSelect()
+    def init(self):
+        config_parser = configparser.ConfigParser()
         try:
-            self._session_pool = oracledb.SessionPool(user=user, password=password, dsn=self._dsn, min=2, max=30)
-        except ConnectionError:
-            #log
-            print("connection err", ConnectionError)
+            config_parser.read("config/config.ini")
+            self._USER = str(config_parser.get("DB", "USER"))
+            self._PASSWORD = str(config_parser.get("DB", "PASSWORD"))
+            self._IP = str(config_parser.get("DB", "IP"))
+            self._PORT = int(config_parser.get("DB", "PORT"))
+            self._SID = str(config_parser.get("DB", "SID"))
+            self._MAX_WORKER = int(config_parser.get("DB", "MAX_WORKER"))
+            self._SESSION_POOL_MIN = int(config_parser.get("DB", "SESSION_POOL_MIN"))
+            self._SESSION_POOL_MAX = int(config_parser.get("DB", "SESSION_POOL_MAX"))
+        except configparser.Error as e:
+            raise e
+        try:
+            self._dsn = oracledb.makedsn(host=self._IP, port=self._PORT, sid=self._SID)
+        except Exception as e:
+            raise e
+        try:
+            self._session_pool = oracledb.SessionPool(user=self._USER, password=self._PASSWORD, dsn=self._dsn,
+                                                      min=self._SESSION_POOL_MIN, max=self._SESSION_POOL_MAX)
+        except ConnectionError as e:
+            raise e
 
     def select(self, query: str):
         if self._session_pool is None:
