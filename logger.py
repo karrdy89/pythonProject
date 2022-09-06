@@ -35,6 +35,7 @@ class Logger:
         Logging given data to files
     """
     def __init__(self):
+        logging.basicConfig(level=logging.INFO)
         self._worker: str = type(self).__name__
         self.logger: Logger = logging.getLogger("global")
         self._boot_logger: Logger = BootLogger().logger

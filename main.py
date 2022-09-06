@@ -58,13 +58,21 @@ logging_service = Logger.options(name="logging_service", max_concurrency=500).re
 boot_logger.info("(Main Server) init logging_service...")
 init_processes = ray.get(logging_service.init.remote())
 if init_processes == -1:
-    boot_logger.error("(Main Server) failed to init logging_service")
+    boot_logger.error("(Main Server) failed to init logging_service actor")
     sys.exit()
 model_serving = ModelServing.options(name="model_serving").remote()
 shared_state = SharedState.options(name="shared_state").remote()
 
-boot_logger.info("(Main Server) init services...")
-init_processes = ray.get([model_serving.init.remote(), shared_state.init.remote()])
+init_processes = ray.get(model_serving.init.remote())
+if init_processes == -1:
+    boot_logger.error("(Main Server) failed to init model_serving actor")
+    sys.exit()
+
+init_processes = ray.get(shared_state.init.remote())
+if init_processes == -1:
+    boot_logger.error("(Main Server) failed to init model_serving actor")
+    sys.exit()
+
 api_service = None
 try:
     api_service = UvicornServer.options(name="API_service").remote(config=config)
@@ -72,7 +80,7 @@ try:
 except Exception as e:
     exc_str = ''.join(traceback.format_exception(None, e, e.__traceback__))
     boot_logger.error("(Main Server) failed to init API_service : " + exc_str)
-    init_processes.append(-1)
+    init_processes = -1
 
 if -1 in init_processes:
     boot_logger.error("(Main Server) failed to init services")
