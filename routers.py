@@ -145,7 +145,7 @@ class AIbeemRouter:
         return result
 
     @router.post("/predict")
-    async def deploy(self, request_body: rvo.Predict):
+    async def predict(self, request_body: rvo.Predict):
         remote_job_obj = self._server.predict.remote(model_id=request_body.model_id, version=request_body.version,
                                                      data=request_body.feature)
         result = await remote_job_obj

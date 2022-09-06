@@ -80,13 +80,13 @@ class Pipeline:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                     msg="an error occur when parsing yaml file")
             return {"error": "an error occur when parsing yaml file"}
-        pipeline_list.get("pipelines", '')
+        pipeline_list = pipeline_list.get("pipelines", '')
         if pipeline_list == '':
             self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg="there is no pipeline: " + self._name)
             return {"result": "there is no pipeline: " + name}
         sequences = []
         for pipeline in pipeline_list:
-            if pipeline == name:
+            if pipeline.get("name") == name:
                 sequences = pipeline.get("sequence")
                 break
         for i, seq in enumerate(sequences):
@@ -97,7 +97,6 @@ class Pipeline:
             module = importlib.import_module(task_split[0])
             component = getattr(module, task_split[1])
             self._components[i] = component
-        print(sequences)
         pipeline_result = self.trigger_pipeline(train_info=train_info)
         if pipeline_result == 0:
             return {"result": "pipeline finished successfully : " + name}
