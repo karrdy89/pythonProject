@@ -10,8 +10,6 @@ import oracledb
 
 
 class DBUtil:
-    # async class -> thread pool task executor
-    # put in execute query to executor
     def __init__(self):
         asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
         self._worker = type(self).__name__
