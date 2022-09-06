@@ -66,16 +66,25 @@ class ModelServing:
     _grpc_port_use: list[int]
         A list of grpc port in use by container.
     _current_container_num: int
-
+        A number of deployed container currently
     _project_path: str
+        Absolute path of project
     _manager_handle: AsyncIOScheduler
+        An AsyncIOScheduler instance for managing container
     _HTTP_PORT_START: int
+        Configuration of http port range
     _GRPC_PORT_START: int
+        Configuration of grpc port range
     _CONTAINER_MAX: int
+        Configuration of max container number
     _GC_CHECK_INTERVAL: int
+        Configuration of interval of managing container
     _DEPLOY_PATH: str
+        Configuration of location that model have to locate for deploying
     _CONTAINER_IMAGE: str
+        Configuration of tensorflow serving image
     _CONTAINER_SERVER_IP: str
+        Configuration of docker server ip
 
     Methods
     -------
