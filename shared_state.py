@@ -37,7 +37,16 @@ class SharedState:
         Constructs all the necessary attributes.
     init() -> int
         Set attributes.
-
+    set_actor(name: str, act: actor) -> None | int:
+    is_actor_exist(name) -> bool:
+    delete_actor(name: str) -> None:
+    kill_actor(name: str) -> int:
+    set_pipeline_result(name: str, pipe_result: dict) -> None:
+    delete_pipeline_result(name: str) -> None:
+    get_pipeline_result(name: str) -> dict:
+    set_train_result(name: str, train_result: TrainResult) -> None:
+    get_train_result(name: str) -> dict:
+    delete_train_result(name: str) -> None:
     """
     def __init__(self):
         self._worker = type(self).__name__
@@ -63,7 +72,7 @@ class SharedState:
         self._boot_logger.info("(" + self._worker + ") " + "init shared_state actor complete...")
         return 0
 
-    def set_actor(self, name: str, act: actor) -> None:
+    def set_actor(self, name: str, act: actor) -> None | int:
         self._actors[name] = act
         if len(self._actors) >= self._PIPELINE_MAX:
             self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="max piepline exceeded")
