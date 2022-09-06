@@ -110,3 +110,4 @@ class BootLogger:
         log_handler.setFormatter(formatter)
         log_handler.setLevel(logging.INFO)
         self.logger.addHandler(log_handler)
+

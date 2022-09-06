@@ -189,7 +189,7 @@ class ModelServing:
         try:
             self._client = docker.from_env()
         except DockerException as e:
-            self._boot_logger.error("(" + self._worker + ") " + "can't make connection to docker client" + e.__str__())
+            self._boot_logger.error("(" + self._worker + ") " + "can't make connection to docker client:" + e.__str__())
             return -1
 
         self._boot_logger.info("(" + self._worker + ") " + "set garbage container collector...")
