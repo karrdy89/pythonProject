@@ -1,6 +1,8 @@
+import concurrent
 import configparser
 import datetime
 import asyncio
+import time
 from concurrent.futures import ThreadPoolExecutor
 
 import uvloop
@@ -26,10 +28,9 @@ class DBUtil:
         self._SESSION_POOL_MAX: int = 30
         try:
             self.init()
-        except Exception as e:
-            raise Exception(e)
+        except Exception as exc:
+            raise exc
 
-        # self._execute_select = ExecuteSelect()
     def init(self):
         config_parser = configparser.ConfigParser()
         try:
@@ -42,59 +43,35 @@ class DBUtil:
             self._MAX_WORKER = int(config_parser.get("DB", "MAX_WORKER"))
             self._SESSION_POOL_MIN = int(config_parser.get("DB", "SESSION_POOL_MIN"))
             self._SESSION_POOL_MAX = int(config_parser.get("DB", "SESSION_POOL_MAX"))
-        except configparser.Error as e:
-            raise e
+        except configparser.Error as exc:
+            raise exc
         try:
             self._dsn = oracledb.makedsn(host=self._IP, port=self._PORT, sid=self._SID)
-        except Exception as e:
-            raise e
+        except Exception as exc:
+            raise exc
         try:
             self._session_pool = oracledb.SessionPool(user=self._USER, password=self._PASSWORD, dsn=self._dsn,
                                                       min=self._SESSION_POOL_MIN, max=self._SESSION_POOL_MAX)
-        except ConnectionError as e:
-            raise e
+        except ConnectionError as exc:
+            raise exc
+        self._executor = ThreadPoolExecutor(max_workers=self._MAX_WORKER)
 
-    def select(self, query: str):
-        if self._session_pool is None:
-            #log
-            print("session not initiated")
-            return -1
-        else:
-            return asyncio.get_event_loop().run_until_complete(self.__async__select(query))
+    def execute_query(self, query: str) -> concurrent.futures:
+        with self._executor as executor:
+            return executor.submit(self._execute, query)
 
-    async def __async__select(self, query: str):
-        # async with self._execute_select as selected:
-        async with ExecuteSelect(self._session_pool, query) as selected:
-            return selected
-
-    def insert_list(self, query: str, data: list[tuple] ):
+    def _execute(self, query: str):
         with self._session_pool.acquire() as conn:
             cursor = conn.cursor()
-            result = cursor.excutemany(query, data)
-            return result.fetchall()
-
-
-class ExecuteSelect:
-    def __init__(self, session_pool, query: str):
-        self._session_pool = session_pool
-        self.query = query
-
-    async def __aenter__(self):
-        return await self.execute_select()
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        pass
-
-    async def execute_select(self):
-        with self._session_pool.acquire() as conn:
-            cursor = conn.cursor()
-            result = cursor.execute(self.query).fetchall()
-            await asyncio.sleep(3)
-            print(datetime.datetime.now())
+            result = cursor.execute(query).fetchall()
+            time.sleep(5)
             return result
 
 
-# dbutil = DBUtil()
+dbutil = DBUtil()
+q = "select user from dual"
+f = dbutil.execute_query(q)
+print(f.result())
 # dbutil.set_connection(host="192.168.72.128", user="system", password="oracle1234", port=1521, sid="sid")
 
 # q = "select user from dual"
