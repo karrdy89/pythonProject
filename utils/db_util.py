@@ -1,6 +1,5 @@
 import concurrent
 import configparser
-import datetime
 import asyncio
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -43,33 +42,41 @@ class DBUtil:
             self._SESSION_POOL_MAX = int(config_parser.get("DB", "SESSION_POOL_MAX"))
         except configparser.Error as exc:
             raise exc
+        self._executor = ThreadPoolExecutor(max_workers=self._MAX_WORKER)
+
+        self._dsn = oracledb.makedsn(host=self._IP, port=self._PORT, sid=self._SID)
+        self._session_pool = oracledb.SessionPool(user=self._USER, password=self._PASSWORD, dsn=self._dsn,
+                                                  min=self._SESSION_POOL_MIN, max=self._SESSION_POOL_MAX,
+                                                  increment=1, encoding="UTF-8")
         try:
-            self._dsn = oracledb.makedsn(host=self._IP, port=self._PORT, sid=self._SID)
+            test_connection = self._session_pool.acquire()
+            self._session_pool.release(test_connection)
         except Exception as exc:
             raise exc
-        try:
-            self._session_pool = oracledb.SessionPool(user=self._USER, password=self._PASSWORD, dsn=self._dsn,
-                                                      min=self._SESSION_POOL_MIN, max=self._SESSION_POOL_MAX)
-        except ConnectionError as exc:
-            raise exc
-        self._executor = ThreadPoolExecutor(max_workers=self._MAX_WORKER)
 
     def execute_query(self, query: str) -> concurrent.futures:
         with self._executor as executor:
-            return executor.submit(self._execute, query)
+            # return executor.submit(self._execute, query)
+            f = executor.submit(self._execute, query)
+            print(f.result())
 
     def _execute(self, query: str):
         with self._session_pool.acquire() as conn:
             cursor = conn.cursor()
             result = cursor.execute(query).fetchall()
-            time.sleep(5)
+            # time.sleep(5)
             return result
 
 
 dbutil = DBUtil()
-q = "select user from dual"
-f = dbutil.execute_query(q)
-print(f.result())
+dbutil.execute_query("select * from TEST")
+# f = dbutil.execute_query("select * from TEST")
+# f2 = dbutil.execute_query("select * from TEST")
+# print(f.result(), f2.result())
+
+# q = "select user from dual"
+# f = dbutil.execute_query(q)
+# print(f.result())
 # dbutil.set_connection(host="192.168.72.128", user="system", password="oracle1234", port=1521, sid="sid")
 
 # q = "select user from dual"
@@ -81,6 +88,8 @@ print(f.result())
 #     "CHNEVTID VARCHAR2(20) NOT NULL," \
 #     "REFKEY VARCHAR2(20)," \
 #     "EVTID VARCHAR2(20) NOT NULL)"
+# f = dbutil.execute_query(q)
+# print(f.result())
 # dbutil = DBUtil()
 # dbutil.set_connection(host="192.168.72.128", user="system", password="oracle1234", port=1521, sid="sid")
 # result1 = dbutil.select(q)
