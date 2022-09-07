@@ -67,5 +67,7 @@ class DBUtil:
                 cursor.execute("commit")
             return result
 
-# insert with variables, -> use insert many / insert one (mapping with dict? -> mapping with special string)
+# insert select with variables, -> use insert many / insert one (mapping with dict? -> mapping with special string #{aaa} -> aaa: bb -> bb)
 # split insert / select ?
+# if param -> mapping
+# so inser/ selet with param, split method
