@@ -68,3 +68,4 @@ class DBUtil:
             return result
 
 # insert with variables, -> use insert many / insert one (mapping with dict? -> mapping with special string)
+# split insert / select ?
