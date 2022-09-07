@@ -1,4 +1,4 @@
-import xml.etree.ElementTree as ET
+import xml.etree.ElementTree as ElemTree
 import os
 
 
@@ -9,6 +9,6 @@ class QueryMapper:
         self._set_queries()
 
     def _set_queries(self):
-        queries = ET.parse(self._path)
+        queries = ElemTree.parse(self._path)
         queries = queries.getroot()
         print(queries)
