@@ -1,7 +1,6 @@
 import concurrent
 import configparser
 import asyncio
-import time
 from concurrent.futures import ThreadPoolExecutor
 
 import uvloop
@@ -54,22 +53,19 @@ class DBUtil:
         except Exception as exc:
             raise exc
 
-    def execute_query(self, query: str) -> concurrent.futures:
-        with self._executor as executor:
-            # return executor.submit(self._execute, query)
-            f = executor.submit(self._execute, query)
-            print(f.result())
+    def execute_query(self, query: str) -> concurrent.futures.Future:
+        return self._executor.submit(self._execute, query)
 
     def _execute(self, query: str):
         with self._session_pool.acquire() as conn:
             cursor = conn.cursor()
             result = cursor.execute(query).fetchall()
-            # time.sleep(5)
             return result
 
-
+q = "SELECT table_name, column_name, data_type, data_length FROM USER_TAB_COLUMNS WHERE table_name = 'TEST'"
 dbutil = DBUtil()
-dbutil.execute_query("select * from TEST")
+f = dbutil.execute_query(q)
+print(f.result())
 # f = dbutil.execute_query("select * from TEST")
 # f2 = dbutil.execute_query("select * from TEST")
 # print(f.result(), f2.result())
