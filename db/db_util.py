@@ -1,6 +1,7 @@
 import concurrent
 import configparser
 import asyncio
+import time
 from concurrent.futures import ThreadPoolExecutor
 
 import uvloop
@@ -59,36 +60,11 @@ class DBUtil:
     def _execute(self, query: str):
         with self._session_pool.acquire() as conn:
             cursor = conn.cursor()
-            result = cursor.execute(query).fetchall()
+            result = cursor.execute(query)
+            if result is not None:
+                result = result.fetchall()
+            else:
+                cursor.execute("commit")
             return result
 
-q = "SELECT table_name, column_name, data_type, data_length FROM USER_TAB_COLUMNS WHERE table_name = 'TEST'"
-dbutil = DBUtil()
-f = dbutil.execute_query(q)
-print(f.result())
-# f = dbutil.execute_query("select * from TEST")
-# f2 = dbutil.execute_query("select * from TEST")
-# print(f.result(), f2.result())
-
-# q = "select user from dual"
-# f = dbutil.execute_query(q)
-# print(f.result())
-# dbutil.set_connection(host="192.168.72.128", user="system", password="oracle1234", port=1521, sid="sid")
-
-# q = "select user from dual"
-# q = "create table TEST (" \
-#     "TRSCDTM TIMESTAMP NOT NULL primary key," \
-#     "CUSTNO NUMBER NOT NULL," \
-#     "CHNID VARCHAR2(20) NOT NULL," \
-#     "SESID VARCHAR2(20) NOT NULL," \
-#     "CHNEVTID VARCHAR2(20) NOT NULL," \
-#     "REFKEY VARCHAR2(20)," \
-#     "EVTID VARCHAR2(20) NOT NULL)"
-# f = dbutil.execute_query(q)
-# print(f.result())
-# dbutil = DBUtil()
-# dbutil.set_connection(host="192.168.72.128", user="system", password="oracle1234", port=1521, sid="sid")
-# result1 = dbutil.select(q)
-# result2 = dbutil.select(q)
-# print(result1)
-# print(result2)
+# insert with variables, -> use insert many / insert one (mapping with dict? -> mapping with special string)

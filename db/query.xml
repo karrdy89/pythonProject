@@ -1,0 +1,34 @@
+<mapper name="BaseMapper">
+        <select name="test">
+                SELECT
+                 table_name,
+                 column_name,
+                 data_type,
+                 data_length
+                FROM USER_TAB_COLUMNS
+                WHERE table_name = 'TEST'
+        </select>
+        <select name="select_test">
+                SELECT *
+                FROM TEST
+        </select>
+        <insert name="insert_test">
+                INSERT INTO TEST
+                 (TRSCDTM,
+                 CUSTNO,
+                 CHNID,
+                 SESID,
+                 CHNEVTID,
+                 REFKEY,
+                 EVTID)
+                VALUES
+                 (SYSTIMESTAMP,
+                 33,
+                 'AA1',
+                 'AA2',
+                 'AA3',
+                 'AA4',
+                 'AA5'
+                )
+        </insert>
+</mapper>
