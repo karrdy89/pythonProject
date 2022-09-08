@@ -97,9 +97,21 @@ class DBUtil:
             result = result.fetchall()
             return result
 
+    def insert_many(self, name: str, data: list[tuple]) -> concurrent.futures.Future:
+        query = self._mapper.get(name)
+        return self._executor.submit(self._execute_many, query, data)
+
+    def _execute_many(self, query: str, data: list[tuple]):
+        with self._session_pool.acquire() as conn:
+            cursor = conn.cursor()
+            cursor.executemany(query, data, batcherrors=True)
+            result = cursor.execute("commit")
+            return result
+
     def parameter_mapping(self, query: str, param: dict) -> str:
 
         return ''
+
 
 
 # insert select with variables, -> use insert many / insert one (mapping with dict? -> mapping with special string #{aaa} -> aaa: bb -> bb)
