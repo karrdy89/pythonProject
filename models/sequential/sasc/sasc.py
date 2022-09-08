@@ -14,6 +14,9 @@ import matplotlib.pyplot as plt
 # split each unique, copy to min idx, concat
 # use ray dataset and do sampling or sampling with skr and to file or use it or pandas -> using pandas
 # get lowest -> sep col -> concat
+# write model
+# if distribution pipe -> store(best param)
+
 
 df = pd.read_csv("dataset/CJ_train.csv")
 df.head(5)
