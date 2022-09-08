@@ -15,6 +15,7 @@
 # if distribution pipe -> store(best param) -> split train function
 
 import pandas as pd
+from tensorflow.keras.layers.experimental import preprocessing
 df = pd.read_csv("dataset/CJ_train.csv")
 
 df.head(5)
@@ -35,9 +36,21 @@ for label in labels:
 df = pd.concat(sep_frames, axis=0)
 df.fillna('', inplace=True)
 
-y = df.pop("Target")
+Y = df.pop("Target")
 df = df.iloc[:, ::-1]
+df_list = df.values.tolist()
+X = []
+for j in df_list:
+    X.append(j)
 
-from tensorflow.keras.layers.experimental import preprocessing
+oneCol = []
+for k in df:
+    oneCol.append(df[k])
+combined = pd.concat(oneCol, ignore_index=True)
+
+events = combined.unique()
+le = preprocessing.StringLookup()
+le.adapt(events)
+
 
 
