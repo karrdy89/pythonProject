@@ -7,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 # import uvloop
 import oracledb
 
-from mapper import Mapper
+from db.mapper import Mapper
 
 
 class DBUtil:
@@ -73,27 +73,27 @@ class DBUtil:
     def select(self, name: str, param: Optional[dict] = None) -> concurrent.futures.Future:
         query = self._mapper.get(name)
         if param is not None:
-            query = self.parameter_mapping(query, param)
+            query = self._parameter_mapping(query, param)
         return self._executor.submit(self._execute_select, query)
 
     def _execute_select(self, query: str):
         with self._session_pool.acquire() as conn:
             cursor = conn.cursor()
-            cursor.execute(query)
-            result = cursor.execute("commit")
+            result = cursor.execute(query)
+            result = result.fetchall()
             return result
 
     def insert(self, name: str, param: Optional[dict] = None) -> concurrent.futures.Future:
         query = self._mapper.get(name)
         if param is not None:
-            query = self.parameter_mapping(query, param)
+            query = self._parameter_mapping(query, param)
         return self._executor.submit(self._execute_insert, query)
 
     def _execute_insert(self, query: str):
         with self._session_pool.acquire() as conn:
             cursor = conn.cursor()
-            result = cursor.execute(query)
-            result = result.fetchall()
+            cursor.execute(query)
+            result = cursor.execute("commit")
             return result
 
     def insert_many(self, name: str, data: list[tuple]) -> concurrent.futures.Future:
@@ -107,13 +107,16 @@ class DBUtil:
             result = cursor.execute("commit")
             return result
 
-    def parameter_mapping(self, query: str, param: dict) -> str:
+    def _parameter_mapping(self, query: str, param: dict) -> str:
+        mapped = re.sub(r"\#\{(.*?)\}", lambda m: self._get_mapping_value(m.group(1), param), query)
+        return mapped
 
-        return ''
+    def _get_mapping_value(self, s: str, param: dict) -> str:
+        v = param[s]
+        if v is None:
+            raise Exception("parameter isn't matched")
+        elif type(v) == int or type(param[s]) == float:
+            return str(v)
+        elif type(v) == str:
+            return "'"+v+"'"
 
-
-
-# insert select with variables, -> use insert many / insert one (mapping with dict? -> mapping with special string #{aaa} -> aaa: bb -> bb)
-# split insert / select ?
-# if param -> mapping
-# so inser/ selet with param, split method
