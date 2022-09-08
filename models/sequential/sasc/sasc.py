@@ -21,9 +21,4 @@ for i in u:
     d[i] = df["Target"].value_counts()[i]
 
 # split each unique, copy to min idx, concat
-
-
-y = df.pop("Target")
-df = df.iloc[:, ::-1]
-df.head(5)
-
+# use ray dataset and do sampling or sampling with skr and to file or use it or
