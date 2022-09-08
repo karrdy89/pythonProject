@@ -2,16 +2,20 @@ import concurrent
 import configparser
 import asyncio
 import time
+from typing import Optional
 from concurrent.futures import ThreadPoolExecutor
 
-import uvloop
+# import uvloop
 import oracledb
+
+from mapper import Mapper
 
 
 class DBUtil:
     def __init__(self):
-        asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+        # asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
         self._worker = type(self).__name__
+        self._mapper = Mapper()
         self._session_pool = None
         self._dsn: str = ''
         self._executor: ThreadPoolExecutor | None = None
@@ -66,6 +70,37 @@ class DBUtil:
             else:
                 cursor.execute("commit")
             return result
+
+    def select(self, name: str, param: Optional[dict] = None) -> concurrent.futures.Future:
+        query = self._mapper.get(name)
+        if param is not None:
+            query = self.parameter_mapping(query, param)
+        return self._executor.submit(self._execute_select, query)
+
+    def _execute_select(self, query: str):
+        with self._session_pool.acquire() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query)
+            result = cursor.execute("commit")
+            return result
+
+    def insert(self, name: str, param: Optional[dict] = None) -> concurrent.futures.Future:
+        query = self._mapper.get(name)
+        if param is not None:
+            query = self.parameter_mapping(query, param)
+        return self._executor.submit(self._execute_insert, query)
+
+    def _execute_insert(self, query: str):
+        with self._session_pool.acquire() as conn:
+            cursor = conn.cursor()
+            result = cursor.execute(query)
+            result = result.fetchall()
+            return result
+
+    def parameter_mapping(self, query: str, param: dict) -> str:
+
+        return ''
+
 
 # insert select with variables, -> use insert many / insert one (mapping with dict? -> mapping with special string #{aaa} -> aaa: bb -> bb)
 # split insert / select ?
