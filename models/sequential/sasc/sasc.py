@@ -16,6 +16,7 @@
 
 import pandas as pd
 from tensorflow.keras.layers.experimental import preprocessing
+from sklearn.model_selection import train_test_split
 df = pd.read_csv("dataset/CJ_train.csv")
 
 df.head(5)
@@ -36,7 +37,7 @@ for label in labels:
 df = pd.concat(sep_frames, axis=0)
 df.fillna('', inplace=True)
 
-Y = df.pop("Target")
+y = df.pop("Target")
 df = df.iloc[:, ::-1]
 df_list = df.values.tolist()
 X = []
@@ -52,5 +53,5 @@ events = combined.unique()
 le = preprocessing.StringLookup()
 le.adapt(events)
 
-
-
+X_train, X_valid_test, y_train, y_valid_test = train_test_split(X, y, test_size=0.2, shuffle=False)
+X_valid, X_test, y_valid, y_test = train_test_split(X_valid_test, y_valid_test, test_size=0.5, shuffle=False)
