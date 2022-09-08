@@ -33,6 +33,7 @@ for label in labels:
         sep_frames.append(downed)
 
 df = pd.concat(sep_frames, axis=0)
+df.fillna('', inplace=True)
 
 y = df.pop("Target")
 df = df.iloc[:, ::-1]
