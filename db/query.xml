@@ -23,12 +23,12 @@
                  EVTID)
                 VALUES
                  (SYSTIMESTAMP,
-                 33,
-                 'AA1',
-                 'AA2',
-                 'AA3',
-                 'AA4',
-                 'AA5'
+                 #{CUSTNO},
+                 #{CHNID},
+                 #{SESID},
+                 #{CHNEVTID},
+                 #{REFKEY},
+                 #{EVTID}
                 )
         </insert>
 </mapper>
