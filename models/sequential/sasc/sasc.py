@@ -10,9 +10,7 @@
 # import tensorflow as tf
 # import matplotlib.pyplot as plt
 
-# split each unique, copy to min idx, concat
-# use ray dataset and do sampling or sampling with skr and to file or use it or pandas -> using pandas
-# get lowest -> sep col -> concat
+
 # write model
 # if distribution pipe -> store(best param) -> split train function
 
@@ -27,13 +25,18 @@ for i in labels:
     samples[i] = df["Target"].value_counts()[i]
 min_sample = min(samples, key=samples.get)
 
-print(samples[2])
-# split dataset with min key
+sep_frames = []
+for label in labels:
+    if label is not min_sample:
+        downed = df[df['Target'] == label]
+        downed = downed.sample(n=samples[min_sample].item(), random_state=0)
+        sep_frames.append(downed)
 
-
-
+df = pd.concat(sep_frames, axis=0)
 
 y = df.pop("Target")
 df = df.iloc[:, ::-1]
-df.head(5)
+
+from tensorflow.keras.layers.experimental import preprocessing
+
 
