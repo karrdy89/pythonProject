@@ -111,7 +111,7 @@ class DBUtil:
         mapped = re.sub(r"\#\{(.*?)\}", lambda m: self._get_mapping_value(m.group(1), param), query)
         return mapped
 
-    def _get_mapping_value(self, s: str, param: dict) -> str:
+    def _get_mapped_value(self, s: str, param: dict) -> str:
         v = param[s]
         if v is None:
             raise Exception("parameter isn't matched")
