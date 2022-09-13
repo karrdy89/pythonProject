@@ -4,7 +4,6 @@ import configparser
 from typing import Optional
 from concurrent.futures import ThreadPoolExecutor
 
-# import uvloop
 import oracledb
 
 from db.mapper import Mapper
@@ -12,7 +11,6 @@ from db.mapper import Mapper
 
 class DBUtil:
     def __init__(self):
-        # asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
         self._worker = type(self).__name__
         self._mapper = Mapper()
         self._session_pool = None
@@ -98,10 +96,10 @@ class DBUtil:
             return result
 
     def _parameter_mapping(self, query: str, param: dict) -> str:
-        mapped = re.sub(r"\#\{(.*?)\}", lambda m: self._get_mapped_value(m.group(1), param), query)
+        mapped = re.sub(r"\#\{(.*?)\}", lambda m: self._mapping(m.group(1), param), query)
         return mapped
 
-    def _get_mapped_value(self, s: str, param: dict) -> str:
+    def _mapping(self, s: str, param: dict) -> str:
         v = param[s]
         if v is None:
             raise Exception("parameter isn't matched")
