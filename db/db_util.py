@@ -57,19 +57,6 @@ class DBUtil:
         except Exception as exc:
             raise exc
 
-    def execute_query(self, query: str) -> concurrent.futures.Future:
-        return self._executor.submit(self._execute, query)
-
-    def _execute(self, query: str):
-        with self._session_pool.acquire() as conn:
-            cursor = conn.cursor()
-            result = cursor.execute(query)
-            if result is not None:
-                result = result.fetchall()
-            else:
-                cursor.execute("commit")
-            return result
-
     def select(self, name: str, param: Optional[dict] = None) -> concurrent.futures.Future:
         query = self._mapper.get(name)
         if param is not None:
