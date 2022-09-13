@@ -115,9 +115,14 @@ model.summary()
 optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0,
                                      amsgrad=False)
 
+def loss_function(y_true, y_pred):
+  loss = tf.keras.losses.SparseCategoricalCrossentropy(reduction='none')(y_true, y_pred)
+  mask = tf.cast(tf.not_equal(y_true, 0), tf.float32)
+  loss = tf.multiply(loss, mask)
+  return tf.reduce_mean(loss)
 
-model.compile(optimizer=optimizer, loss='sparse_categorical_crossentropy', metrics=['accuracy'])
-history = model.fit(X_train, y_train, validation_data=(X_test,y_test),epochs=10, batch_size=64)
+model.compile(optimizer=optimizer, loss=loss_function, metrics=['accuracy'])
+history = model.fit(X_train, y_train, validation_data=(X_test,y_test),epochs=10, batch_size=32)
 
 
 
