@@ -92,8 +92,11 @@ class DBUtil:
     def _execute_insert(self, query: str):
         with self._session_pool.acquire() as conn:
             cursor = conn.cursor()
-            cursor.execute(query)
-            result = cursor.execute("commit")
+            result = cursor.execute(query)
+            if result is None:
+                result = cursor.execute("commit")
+            else:
+                raise Exception("query failed")
             return result
 
     def insert_many(self, name: str, data: list[tuple]) -> concurrent.futures.Future:
@@ -108,7 +111,7 @@ class DBUtil:
             return result
 
     def _parameter_mapping(self, query: str, param: dict) -> str:
-        mapped = re.sub(r"\#\{(.*?)\}", lambda m: self._get_mapping_value(m.group(1), param), query)
+        mapped = re.sub(r"\#\{(.*?)\}", lambda m: self._get_mapped_value(m.group(1), param), query)
         return mapped
 
     def _get_mapped_value(self, s: str, param: dict) -> str:
