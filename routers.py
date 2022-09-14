@@ -164,6 +164,13 @@ class AIbeemRouter:
             path = "log file not exist"
         return path
 
+    @router.get("/db_test")
+    async def db_test(self):
+        from db.db_util import DBUtil
+        db = DBUtil()
+        result = db.select("test")
+        return result
+
 
 async def _reverse_proxy(request: Request):
     path = request.url.path.split('/')
