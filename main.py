@@ -1,4 +1,5 @@
 import sys
+import os
 import configparser
 import traceback
 
@@ -16,7 +17,7 @@ SSL_CERT_PATH = ''
 config_parser = configparser.ConfigParser()
 try:
     config_parser.read("config/config.ini")
-    SSL_CERT_PATH = str(config_parser.get("DEFAULT", "SSL_CERT_PATH"))
+    SSL_CERT_PATH = os.path.dirname(os.path.abspath(__file__)) + str(config_parser.get("DEFAULT", "SSL_CERT_PATH"))
 except configparser.Error as e:
     boot_logger.error("(Main Server) an error occur when set config...: " + str(e))
     sys.exit()
