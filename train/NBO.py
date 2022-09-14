@@ -29,12 +29,10 @@ def train_NBO_model(dataset: Input[Dataset], train_info: Input[TrainInfo]):
     mask_token = events.pop(events.index(''))
     le = preprocessing.StringLookup()
     le.adapt(events)
-
     label_vocab = preprocessing.IntegerLookup(dtype='int64')
     label_vocab.adapt(labels)
 
     train_ratio, validation_ratio, test_ratio = split_ratio(train_info.data_split)
-
     X_train, X_valid_test, y_train, y_valid_test = train_test_split(X, y, test_size=validation_ratio+test_ratio,
                                                                     shuffle=False)
     X_valid, X_test, y_valid, y_test = train_test_split(X_valid_test, y_valid_test,
@@ -50,8 +48,8 @@ def train_NBO_model(dataset: Input[Dataset], train_info: Input[TrainInfo]):
     y_test = np.array(y_test).astype(int)
     y_test = label_vocab(y_test)
 
-    vocab_size = len(le.get_vocabulary())  # Size of sequence vocab
-    max_len = len(df.columns)  # Sequence length
+    vocab_size = len(le.get_vocabulary())
+    max_len = len(df.columns)
     num_labels = len(label_vocab.get_vocabulary())
 
     model = sasc.get_model(vocab_size=vocab_size, max_len=max_len, num_labels=num_labels, mask_token=mask_token)
