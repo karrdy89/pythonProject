@@ -7,7 +7,14 @@ pipelines:
         task: preprocess.test.process_test_data
       - name: "train model"
         task: train.test.train_test_model
-
+  - name: NBO
+    sequence:
+      - name: "load data"
+        task: data_loader.NBO.get_nbo_data
+      - name: "data preprocessing"
+        task: preprocess.NBO.process_nbo_data
+      - name: "train model"
+        task: train.NBO.train_NBO_model
 
 
 

@@ -1,66 +1,67 @@
-import pandas as pd
-import numpy as np
-from tensorflow.keras.layers.experimental import preprocessing
+# import pandas as pd
+# import numpy as np
+# from tensorflow.keras.layers.experimental import preprocessing
+# from tensorflow.keras import layers
+# from sklearn.model_selection import train_test_split
 from tensorflow.keras import layers
-from sklearn.model_selection import train_test_split
-
 from models.sequential.sasc.modules import *
+#
+# df = pd.read_csv("dataset/CJ_train.csv")
+# labels = df['Target'].unique()
+# labels = labels.tolist()
+# samples = {}
+# for i in labels:
+#     samples[i] = df["Target"].value_counts()[i]
+# min_sample = min(samples, key=samples.get)
+#
+# sep_frames = []
+# for label in labels:
+#     if label is not min_sample:
+#         downed = df[df['Target'] == label]
+#         downed = downed.sample(n=samples[min_sample].item(), random_state=0)
+#         sep_frames.append(downed)
+#
+# df = pd.concat(sep_frames, axis=0)
+# df.fillna('', inplace=True)
+#
+# y = df.pop("Target")
+# df = df.iloc[:, ::-1]
+# X = df.stack().groupby(level=0).apply(list).tolist()
+#
+# oneCol = []
+# for k in df:
+#     oneCol.append(df[k])
+# combined = pd.concat(oneCol, ignore_index=True)
+#
+# events = combined.unique().tolist()
+# mask = events.pop(events.index(''))
+# le = preprocessing.StringLookup()
+# le.adapt(events)
+#
+# label_vocab = preprocessing.IntegerLookup(dtype='int64')
+# label_vocab.adapt(labels)
+#
+# X_train, X_valid_test, y_train, y_valid_test = train_test_split(X, y, test_size=0.2, shuffle=False)
+# X_valid, X_test, y_valid, y_test = train_test_split(X_valid_test, y_valid_test, test_size=0.5, shuffle=False)
+#
+# X_train = np.array(X_train, dtype='object')
+# X_valid = np.array(X_valid, dtype='object')
+# X_test = np.array(X_test, dtype='object')
+# y_train = np.array(y_train).astype(int)
+# y_train = label_vocab(y_train)
+# y_valid = np.array(y_valid).astype(int)
+# y_valid = label_vocab(y_valid)
+# y_test = np.array(y_test).astype(int)
+# y_test = label_vocab(y_test)
+#
+# vocab_size = len(le.get_vocabulary())  # Size of sequence vocab
+# max_len = len(df.columns)  # Sequence length
+# num_labels = len(label_vocab.get_vocabulary())
+#
 
-df = pd.read_csv("dataset/CJ_train.csv")
-labels = df['Target'].unique()
-labels = labels.tolist()
-samples = {}
-for i in labels:
-    samples[i] = df["Target"].value_counts()[i]
-min_sample = min(samples, key=samples.get)
-
-sep_frames = []
-for label in labels:
-    if label is not min_sample:
-        downed = df[df['Target'] == label]
-        downed = downed.sample(n=samples[min_sample].item(), random_state=0)
-        sep_frames.append(downed)
-
-df = pd.concat(sep_frames, axis=0)
-df.fillna('', inplace=True)
-
-y = df.pop("Target")
-df = df.iloc[:, ::-1]
-X = df.stack().groupby(level=0).apply(list).tolist()
-
-oneCol = []
-for k in df:
-    oneCol.append(df[k])
-combined = pd.concat(oneCol, ignore_index=True)
-
-events = combined.unique().tolist()
-mask = events.pop(events.index(''))
-le = preprocessing.StringLookup()
-le.adapt(events)
-
-label_vocab = preprocessing.IntegerLookup(dtype='int64')
-label_vocab.adapt(labels)
-
-X_train, X_valid_test, y_train, y_valid_test = train_test_split(X, y, test_size=0.2, shuffle=False)
-X_valid, X_test, y_valid, y_test = train_test_split(X_valid_test, y_valid_test, test_size=0.5, shuffle=False)
-
-X_train = np.array(X_train, dtype='object')
-X_valid = np.array(X_valid, dtype='object')
-X_test = np.array(X_test, dtype='object')
-y_train = np.array(y_train).astype(int)
-y_train = label_vocab(y_train)
-y_valid = np.array(y_valid).astype(int)
-y_valid = label_vocab(y_valid)
-y_test = np.array(y_test).astype(int)
-y_test = label_vocab(y_test)
-
-vocab_size = len(le.get_vocabulary())  # Size of sequence vocab
-max_len = len(df.columns)  # Sequence length
-num_labels = len(label_vocab.get_vocabulary())
-
-
-def get_model(embedding_dim: int = 64, dropout_rate: float = 0.3, num_blocks: int = 2, attention_num_heads: int = 8,
-              l2_reg: float = 1e-6, epsilon: float = 1e-8, learning_rate: float = 0.0013, mask_token: str = ''):
+def get_model(vocab_size:int, max_len:int, num_labels:int, embedding_dim: int = 64, dropout_rate: float = 0.3,
+              num_blocks: int = 2, attention_num_heads: int = 8, l2_reg: float = 1e-6, epsilon: float = 1e-8,
+              learning_rate: float = 0.0013, mask_token: str = ''):
     attention_dim = embedding_dim
     conv_dims = [embedding_dim, embedding_dim]
     inputs = layers.Input(shape=(None,), name='seq', dtype=object)
@@ -96,4 +97,4 @@ def get_model(embedding_dim: int = 64, dropout_rate: float = 0.3, num_blocks: in
 
 
 
-model.fit(X_train, y_train, validation_data=(X_test, y_test), epochs=10, batch_size=32)
+# model.fit(X_train, y_train, validation_data=(X_test, y_test), epochs=10, batch_size=32)
