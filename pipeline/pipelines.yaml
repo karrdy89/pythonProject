@@ -15,6 +15,3 @@ pipelines:
         task: preprocess.NBO.process_nbo_data
       - name: "train model"
         task: train.NBO.train_NBO_model
-
-
-

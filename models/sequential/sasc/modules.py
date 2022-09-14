@@ -121,7 +121,6 @@ class PointWiseFeedForward(tf.keras.layers.Layer):
 
         # Residual connection
         output += x
-
         return output
 
 
@@ -171,7 +170,6 @@ class EncoderLayer(tf.keras.layers.Layer):
 
         # masking
         out2 *= mask
-
         return out2
 
     def call(self, x, training, mask):
@@ -179,8 +177,11 @@ class EncoderLayer(tf.keras.layers.Layer):
         attn_output = self.mha(queries=x_norm, keys=x)
         attn_output = self.ffn(attn_output)
         out = attn_output * mask
-
         return out
+
+    def get_config(self):
+        cfg = super().get_config()
+        return cfg
 
 
 class Encoder(tf.keras.layers.Layer):
@@ -222,6 +223,10 @@ class Encoder(tf.keras.layers.Layer):
 
         return x  # (batch_size, input_seq_len, d_model)
 
+    def get_config(self):
+        cfg = super().get_config()
+        return cfg
+
 
 class LayerNormalization(tf.keras.layers.Layer):
     """
@@ -252,6 +257,9 @@ class LayerNormalization(tf.keras.layers.Layer):
         output = self.gamma * normalized + self.beta
         return output
 
+    def get_config(self):
+        cfg = super().get_config()
+        return cfg
 
 def embedding(input_seq, item_embedding_layer, positional_embedding_layer):
     seq_embeddings = item_embedding_layer(input_seq)

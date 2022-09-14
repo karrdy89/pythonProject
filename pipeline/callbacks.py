@@ -1,7 +1,7 @@
 import ray
 from tensorflow import keras
 
-from pipeline import TrainInfo, TrainResult
+from pipeline import TrainInfo
 
 
 class BaseCallback(keras.callbacks.Callback):
@@ -12,8 +12,6 @@ class BaseCallback(keras.callbacks.Callback):
     ----------
     _shared_state : actor
         an actor handle of global data store.
-    _train_result : TrainResult
-        a current result of training.
     name : str
         a name of pipeline.
     epoch_step : int
@@ -34,7 +32,6 @@ class BaseCallback(keras.callbacks.Callback):
     """
     def __init__(self, name):
         self._shared_state: ray.actor = ray.get_actor("shared_state")
-        self._train_result: TrainResult = TrainResult()
         self.name: str = name
         self.epoch_step: int = 0
         self.epoch: int = 0
@@ -44,19 +41,23 @@ class BaseCallback(keras.callbacks.Callback):
         self.epoch += 1
         progress = (self.epoch_step / self.params["steps"]) * 100
         progress = str(progress) + "%"
-        self._train_result.set_train_progress(epoch=str(self.epoch)+"/"+str(self.params["epochs"]), progress=progress)
-        self._shared_state.set_train_result.remote(self.name, self._train_result)
+        # self._train_result.set_train_progress(epoch=str(self.epoch)+"/"+str(self.params["epochs"]), progress=progress)
+        self._shared_state.set_train_progress.remote(name=self.name,
+                                                     epoch=str(self.epoch)+"/"+str(self.params["epochs"]),
+                                                     progress=progress)
+        self._shared_state.set_train_result.remote(name=self.name, train_result=logs)
 
     def on_epoch_end(self, epoch, logs=None) -> None:
-        self._train_result.set_train_result(logs)
-        self._shared_state.set_train_result.remote(self.name, self._train_result)
+        self._shared_state.set_train_result.remote(name=self.name, train_result=logs)
 
     def on_batch_end(self, batch, logs=None) -> None:
         self.epoch_step += 1
         progress = (self.epoch_step / self.params["steps"]) * 100
         progress = str(progress) + "%"
-        self._train_result.set_train_progress(epoch=str(self.epoch)+"/"+str(self.params["epochs"]), progress=progress)
-        self._shared_state.set_train_result.remote(self.name, self._train_result)
+        self._shared_state.set_train_progress.remote(name=self.name,
+                                                     epoch=str(self.epoch)+"/"+str(self.params["epochs"]),
+                                                     progress=progress)
+        self._shared_state.set_train_result.remote(name=self.name, train_result=logs)
 
 
 class EvaluationCallback(keras.callbacks.Callback):
@@ -87,26 +88,24 @@ class EvaluationCallback(keras.callbacks.Callback):
     """
     def __init__(self, name):
         self._shared_state: ray.actor = ray.get_actor("shared_state")
-        self._train_result: TrainResult = TrainResult()
         self.name: str = name
         self.epoch_step: int = 0
 
     def on_test_begin(self, logs=None) -> None:
         progress = (self.epoch_step / self.params["steps"]) * 100
         progress = str(progress) + "%"
-        self._train_result.set_test_progress(progress=progress)
-        self._shared_state.set_train_result.remote(self.name, self._train_result)
+        self._shared_state.set_test_progress.remote(name=self.name, progress=progress)
+        self._shared_state.set_test_result.remote(self.name, logs)
 
     def on_test_batch_end(self, batch, logs=None) -> None:
         self.epoch_step += 1
         progress = (self.epoch_step / self.params["steps"]) * 100
         progress = str(progress) + "%"
-        self._train_result.set_test_progress(progress=progress)
-        self._shared_state.set_train_result.remote(self.name, self._train_result)
+        self._shared_state.set_test_progress.remote(name=self.name, progress=progress)
+        self._shared_state.set_test_result.remote(self.name, logs)
 
     def on_test_end(self, logs=None) -> None:
-        self._train_result.set_test_result(logs)
-        self._shared_state.set_train_result.remote(self.name, self._train_result)
+        self._shared_state.set_test_result.remote(self.name, logs)
 
 
 def base_callbacks(train_info: TrainInfo, monitor: str) -> list:

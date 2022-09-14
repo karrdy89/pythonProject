@@ -84,6 +84,7 @@ class SharedState:
 
     def set_actor(self, name: str, act: actor) -> None | int:
         self._actors[name] = act
+        self._train_result[name] = TrainResult()
         if len(self._actors) >= self._PIPELINE_MAX:
             self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="max piepline exceeded")
             return -1
@@ -128,8 +129,17 @@ class SharedState:
         else:
             return {}
 
-    def set_train_result(self, name: str, train_result: TrainResult) -> None:
-        self._train_result[name] = train_result
+    def set_train_progress(self, name: str, epoch: str, progress: str) -> None:
+        self._train_result[name].set_train_progress(epoch=epoch, progress=progress)
+
+    def set_test_progress(self, name: str, progress: str) -> None:
+        self._train_result[name].set_test_progress(progress=progress)
+
+    def set_train_result(self, name: str, train_result: dict) -> None:
+        self._train_result[name].set_train_result(train_result)
+
+    def set_test_result(self, name: str, test_result: dict) -> None:
+        self._train_result[name].set_test_result(test_result)
 
     def get_train_result(self, name: str) -> dict:
         if name in self._train_result:
