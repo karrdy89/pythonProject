@@ -1,5 +1,4 @@
 import tensorflow as tf
-import numpy as np
 
 
 class MultiHeadAttention(tf.keras.layers.Layer):
@@ -261,3 +260,9 @@ def embedding(input_seq, item_embedding_layer, positional_embedding_layer):
     positional_embeddings = positional_embedding_layer(positional_seq)
     return seq_embeddings, positional_embeddings
 
+
+def loss_function(y_true, y_pred):
+  loss = tf.keras.losses.SparseCategoricalCrossentropy(reduction='none')(y_true, y_pred)
+  mask = tf.cast(tf.not_equal(y_true, 0), tf.float32)
+  loss = tf.multiply(loss, mask)
+  return tf.reduce_mean(loss)
