@@ -562,6 +562,10 @@ class ModelServing:
             self._logger.log.remote(level=logging.WARN, worker=self._worker,
                                     msg="model file already exist in deploy dir" + model_id + ":" + decoded_version)
             return 1
+        except FileNotFoundError:
+            self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                    msg="model not exist" + model_id + ":" + decoded_version)
+            return -1
         except shutil.Error as err:
             src, dist, msg = err
             self._logger.log.remote(level=logging.ERROR, worker=self._worker,

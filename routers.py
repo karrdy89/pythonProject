@@ -123,6 +123,13 @@ class AIbeemRouter:
         result = await remote_job_obj
         return result
 
+    @router.get("/db")
+    async def db_test(self):
+        from db.db_util import DBUtil
+        db = DBUtil()
+        result = db.select("test")
+        return result
+
     @router.post("/deploy/add_container")
     async def add_container(self, request_body: rvo.AddContainer):
         remote_job_obj = self._server.add_container.remote(model_id=request_body.model_id, version=request_body.version,
@@ -163,13 +170,6 @@ class AIbeemRouter:
         else:
             path = "log file not exist"
         return path
-
-    @router.get("/db_test")
-    async def db_test(self):
-        from db.db_util import DBUtil
-        db = DBUtil()
-        result = db.select("test")
-        return result
 
 
 async def _reverse_proxy(request: Request):
