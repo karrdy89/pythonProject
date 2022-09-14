@@ -52,7 +52,7 @@ def train_NBO_model(dataset: Input[Dataset], train_info: Input[TrainInfo]):
     max_len = len(df.columns)
     num_labels = len(label_vocab.get_vocabulary())
 
-    model = sasc.get_model(vocab_size=vocab_size, max_len=max_len, num_labels=num_labels, mask_token=mask_token)
+    model = sasc.get_model(vocab_size=vocab_size, vocabulary=events, max_len=max_len, num_labels=num_labels, mask_token=mask_token)
 
     train_callback = base_callbacks(train_info, monitor="val_loss")
     test_callback = evaluation_callback(train_info)

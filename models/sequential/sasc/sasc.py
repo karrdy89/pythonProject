@@ -59,13 +59,13 @@ from models.sequential.sasc.modules import *
 # num_labels = len(label_vocab.get_vocabulary())
 #
 
-def get_model(vocab_size:int, max_len:int, num_labels:int, embedding_dim: int = 64, dropout_rate: float = 0.3,
-              num_blocks: int = 2, attention_num_heads: int = 8, l2_reg: float = 1e-6, epsilon: float = 1e-8,
-              learning_rate: float = 0.0013, mask_token: str = ''):
+def get_model(vocab_size:int, vocabulary, max_len:int, num_labels:int, embedding_dim: int = 64,
+              dropout_rate: float = 0.3, num_blocks: int = 2, attention_num_heads: int = 8, l2_reg: float = 1e-6,
+              epsilon: float = 1e-8, learning_rate: float = 0.0013, mask_token: str = ''):
     attention_dim = embedding_dim
     conv_dims = [embedding_dim, embedding_dim]
     inputs = layers.Input(shape=(None,), name='seq', dtype=object)
-    encoding_layer = tf.keras.layers.experimental.preprocessing.StringLookup(vocabulary=events, mask_token=mask_token)
+    encoding_layer = tf.keras.layers.experimental.preprocessing.StringLookup(vocabulary=vocabulary, mask_token=mask_token)
     encoded_inputs = encoding_layer(inputs)
     positional_embedding_layer = tf.keras.layers.Embedding(max_len, embedding_dim,
                                                            name='positional_embeddings', mask_zero=False,
