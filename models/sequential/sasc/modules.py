@@ -152,7 +152,7 @@ class EncoderLayer(tf.keras.layers.Layer):
         self.dropout1 = tf.keras.layers.Dropout(dropout_rate)
         self.dropout2 = tf.keras.layers.Dropout(dropout_rate)
 
-        self.layer_normalization = LayerNormalization(
+        self.layer_normalization = CustomLayerNormalization(
             self.seq_max_len, self.embedding_dim, 1e-08
         )
 
@@ -228,14 +228,14 @@ class Encoder(tf.keras.layers.Layer):
         return cfg
 
 
-class LayerNormalization(tf.keras.layers.Layer):
+class CustomLayerNormalization(tf.keras.layers.Layer):
     """
     Layer normalization using mean and variance
     gamma and beta are the learnable parameters
     """
 
     def __init__(self, seq_max_len, embedding_dim, epsilon):
-        super(LayerNormalization, self).__init__()
+        super(CustomLayerNormalization, self).__init__()
         self.seq_max_len = seq_max_len
         self.embedding_dim = embedding_dim
         self.epsilon = epsilon

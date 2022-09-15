@@ -1,5 +1,5 @@
 pydantic~=1.9.1
-ray~=2.0.0rc1
+ray[default]
 uvicorn[standard]~=0.16.0
 fastapi~=0.79.0
 fastapi-utils~=0.2.1
