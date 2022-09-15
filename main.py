@@ -23,7 +23,7 @@ except configparser.Error as e:
     sys.exit()
 
 boot_logger.info("(Main Server) init ray...")
-ray.init(dashboard_host="0.0.0.0", dashboard_port=8265)
+ray.init(dashboard_host="127.0.0.1", dashboard_port=8265)
 
 
 @ray.remote
