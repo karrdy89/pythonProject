@@ -59,6 +59,6 @@ def train_NBO_model(dataset: Input[Dataset], train_info: Input[TrainInfo]):
 
     model.fit(X_train, y_train, validation_data=(X_valid, y_valid), epochs=train_info.epoch,
               batch_size=train_info.batch_size, callbacks=train_callback, verbose=1)
+    model.save(train_info.save_path)
     model = tf.keras.models.load_model(train_info.save_path)
     model.evaluate(X_test, y_test, callbacks=test_callback, batch_size=train_info.batch_size)
-    model.save(train_info.save_path)
