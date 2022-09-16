@@ -1,3 +1,4 @@
+from models.sequential.sasc.modules import LabelLayer
 from pipeline import Input, Dataset, TrainInfo, PipelineComponent
 from pipeline.util import split_ratio
 from pipeline.callbacks import base_callbacks, evaluation_callback
@@ -59,6 +60,8 @@ def train_NBO_model(dataset: Input[Dataset], train_info: Input[TrainInfo]):
 
     model.fit(X_train, y_train, validation_data=(X_valid, y_valid), epochs=train_info.epoch,
               batch_size=train_info.batch_size, callbacks=train_callback, verbose=1)
-    model.save(train_info.save_path, save_format='tf')
-    model = tf.keras.models.load_model(train_info.save_path)
-    model.evaluate(X_test, y_test, batch_size=64, callbacks=test_callback)
+    model.evaluate(X_test, y_test, callbacks=test_callback, batch_size=train_info.batch_size)
+    labeled_output = LabelLayer(label_vocab.get_vocabulary(), len(label_vocab.get_vocabulary()), name='result')(model.outputs)
+    model = tf.keras.Model(model.input, labeled_output)
+    print(model.summary())
+    model.save(train_info.save_path)

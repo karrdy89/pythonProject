@@ -191,7 +191,8 @@ class ModelServing:
         except DockerException as e:
             self._boot_logger.error("(" + self._worker + ") " + "can't make connection to docker client:" + e.__str__())
             return -1
-
+        # plus remove all container if exist
+        # if same file in deploy dir -> renew
         self._boot_logger.info("(" + self._worker + ") " + "set garbage container collector...")
         self._manager_handle = AsyncIOScheduler()
         self._manager_handle.add_job(self.gc_container, "interval", seconds=self._GC_CHECK_INTERVAL, id="gc_container")
