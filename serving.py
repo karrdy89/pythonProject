@@ -191,8 +191,8 @@ class ModelServing:
         except DockerException as e:
             self._boot_logger.error("(" + self._worker + ") " + "can't make connection to docker client:" + e.__str__())
             return -1
-        # plus remove all container if exist
-        # if same file in deploy dir -> renew
+        self._boot_logger.info("(" + self._worker + ") " + "remove all serving containers...")
+        self.remove_all_container()
         self._boot_logger.info("(" + self._worker + ") " + "set garbage container collector...")
         self._manager_handle = AsyncIOScheduler()
         self._manager_handle.add_job(self.gc_container, "interval", seconds=self._GC_CHECK_INTERVAL, id="gc_container")
@@ -294,6 +294,11 @@ class ModelServing:
 
         result = await self.deploy_containers(model_id, version, container_num, model_deploy_state)
         return result
+
+    def remove_all_container(self) -> None:
+        containers = self._client.containers.list(filters={"ancestor": self._CONTAINER_IMAGE})
+        for container in containers:
+            container.remove(force=True)
 
     async def remove_container(self, model_id: str, version: str, container_num: int) -> json:
         model_key = model_id + "_" + version
@@ -561,8 +566,10 @@ class ModelServing:
             copytree(model_path, deploy_path)
         except FileExistsError:
             self._logger.log.remote(level=logging.WARN, worker=self._worker,
-                                    msg="model file already exist in deploy dir" + model_id + ":" + decoded_version)
-            return 1
+                                    msg="model file already exist in deploy dir, attempt to overwrite" + model_id + ":" + decoded_version)
+            result = self.delete_deployed_model(model_id, version)
+            if result == 0:
+                self.copy_to_deploy(model_id, version)
         except FileNotFoundError:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                     msg="model not exist" + model_id + ":" + decoded_version)
