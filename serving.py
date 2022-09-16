@@ -246,7 +246,7 @@ class ModelServing:
                 'utf8')
             return result
 
-        cp_result = self.copy_to_deploy(model_id, encoded_version)  # validate model exist
+        cp_result = self.copy_to_deploy(model_id, encoded_version)
         if cp_result == -1:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                     msg="an error occur when copying model file :" + model_id + ":" + version)
