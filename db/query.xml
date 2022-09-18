@@ -1,34 +1,29 @@
 <mapper name="BaseMapper">
-        <select name="test">
-                SELECT
-                 table_name,
-                 column_name,
-                 data_type,
-                 data_length
-                FROM USER_TAB_COLUMNS
-                WHERE table_name = 'TEST'
-        </select>
         <select name="select_test">
                 SELECT *
                 FROM TEST
+                <![CDATA[ WHERE ROWNUM<=10000000 ]]>
         </select>
         <insert name="insert_test">
                 INSERT INTO TEST
-                 (TRSCDTM,
-                 CUSTNO,
-                 CHNID,
-                 SESID,
-                 CHNEVTID,
-                 REFKEY,
-                 EVTID)
+                 (CUST_NO,
+                 ORGN_DTM,
+                 EVNT_ID,
+                 EVNT_NM,
+                 SYS_EVNT_ID,
+                 SYS_EVNT_NM)
                 VALUES
-                 (SYSTIMESTAMP,
-                 #{CUSTNO},
-                 #{CHNID},
-                 #{SESID},
-                 #{CHNEVTID},
-                 #{REFKEY},
-                 #{EVTID}
+                 (#{CUSTNO},
+                 SYSDATE,
+                 #{EVNT_ID},
+                 #{EVNT_NM},
+                 #{SYS_EVNT_ID},
+                 #{SYS_EVNT_NM}
                 )
+        </insert>
+        <insert name="INSERT_TEST_DATA">
+                INSERT INTO TEST
+                VALUES
+                (:1, :2, :3, :4, :5, :6)
         </insert>
 </mapper>

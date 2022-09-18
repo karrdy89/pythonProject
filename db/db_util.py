@@ -66,6 +66,17 @@ class DBUtil:
             cursor = conn.cursor()
             result = cursor.execute(query)
             result = result.fetchall()
+            cursor.close()
+            return result
+
+    def execute_query(self, query: str) -> concurrent.futures.Future:
+        return self._executor.submit(self._execute_query, query)
+
+    def _execute_query(self, query: str):
+        with self._session_pool.acquire() as conn:
+            cursor = conn.cursor()
+            result = cursor.execute(query)
+            cursor.close()
             return result
 
     def insert(self, name: str, param: Optional[dict] = None) -> concurrent.futures.Future:
@@ -82,6 +93,7 @@ class DBUtil:
                 result = cursor.execute("commit")
             else:
                 raise Exception("query failed")
+            cursor.close()
             return result
 
     def insert_many(self, name: str, data: list[tuple]) -> concurrent.futures.Future:
@@ -93,6 +105,7 @@ class DBUtil:
             cursor = conn.cursor()
             cursor.executemany(query, data, batcherrors=True)
             result = cursor.execute("commit")
+            cursor.close()
             return result
 
     def _parameter_mapping(self, query: str, param: dict) -> str:
@@ -107,4 +120,3 @@ class DBUtil:
             return str(v)
         elif type(v) == str:
             return "'"+v+"'"
-
