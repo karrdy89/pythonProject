@@ -84,26 +84,6 @@ class DBUtil:
         if param is not None:
             query = self._parameter_mapping(query, param)
         self._chunk_cursor.execute(query)
-        # self._chunk_cursor = cursor
-        # with self._session_pool.acquire() as conn:
-        #     cursor = conn.cursor()
-        #     if prefetch_row is not None:
-        #         cursor.prefetchrows = prefetch_row
-        #     if array_size is not None:
-        #         cursor.arraysize = array_size
-        #     query = self._mapper.get(name)
-        #     if param is not None:
-        #         query = self._parameter_mapping(query, param)
-        #     cursor.execute(query)
-        #     self._chunk_cursor = cursor
-            # for chunk in self._execute_select_chunk(cursor):
-                # yield chunk
-            # while True:
-            #     results = cursor.fetchmany()
-            #     if not result:
-            #         break
-            #     for result in results:
-            #         yield result
 
     def select_chunk(self):
         cursor = self._chunk_cursor

@@ -2,7 +2,7 @@ import sys
 
 from db import DBUtil
 
-db = DBUtil()
+# db = DBUtil()
 # q = "CREATE TABLE TEST (" \
 #     "CUST_NO VARCHAR(13) NOT NULL," \
 #     "ORGN_DTM DATE NOT NULL," \
@@ -14,7 +14,7 @@ db = DBUtil()
 # q = "DROP TABLE TEST"
 # r = db.execute_query(q)
 # print(r.result())
-
+# make dataset again
 # test_data = []
 # for _ in range(10000000):
 #     test_data.append(("CUST_NO" + str(_), "SYSDATE", "EVT" + str(_%999).zfill(3),
@@ -33,25 +33,81 @@ db = DBUtil()
 # r = db.insert_many("INSERT_TEST_DATA", test_data[:10000])
 #
 #
-from timeit import default_timer as timer
-start = timer()
+# from timeit import default_timer as timer
+# start = timer()
 # r = db.select("select_test")
 # dt = r.result()
 
-db.set_select_chunk(name="select_test", array_size=1500, prefetch_row=1500)
-dt = []
-for chunk in db.select_chunk():
-    dt.append(chunk)
-end = timer()
-print(end - start)
-print(sys.getsizeof(dt))
+# db.set_select_chunk(name="select_test", array_size=1500, prefetch_row=1500)
+# dt = []
+# for chunk in db.select_chunk():
+#     dt.append(chunk)
+# end = timer()
+# print(end - start)
+# print(sys.getsizeof(dt))
 # fetchall without tuning : take avg 35 sec for 10,000,000, 40mb
 # fetchmany with tuning(as=1500, pf=1500) : take avg 7.2 sec for 10,000,000, 40mb
 
 # 1. def fetchmany(yield) and fetch size, prefetch : done
-# 2. def split size by memory and config <-
+# 2. def split size by memory and config, anyway maximum filesize is n% of memery size <-
+# -> append chunk to filesize max
+# -> if n(num of concurrent)/filesize exceeded, write to next buffer, next is set get and wright left over buffer and flush
 # 3. distribution job
 # -> yield from fetch, iteration
 # -> 1. revolver
 # -> 2. ray with cpu count
 # -> 3. non concurrency
+# 4. def iteration pipeline
+
+# chain with pendings, if finished check pending
+from db import DBUtil
+from concurrent.futures import ProcessPoolExecutor
+
+class MakeDatasetNBO:
+    def __init__(self):
+        self.mem_limit = 1000
+        self.num_concurrency = 10
+        self.executor = ProcessPoolExecutor(self.num_concurrency)
+        self.c_buffer_size = self.mem_limit / self.num_concurrency
+        self.db = DBUtil()
+        self.c_buffer = []
+        self.c_container = []
+        self.db.set_select_chunk(name="select_test", array_size=1500, prefetch_row=1500)
+
+    def get_chunks(self):
+        if len(self.c_container) <= self.num_concurrency:
+            for chunk in self.db.select_chunk():
+                if sys.getsizeof(self.c_buffer) < self.c_buffer_size:
+                    self.c_buffer.append(chunk) # don't need to do this just call process, add current mem
+                    # if chunk set call task executor
+                else:
+                    self.c_container.append(self.c_buffer)
+                    self.c_buffer = []  # don't need to do this, just calculate current mem
+                    if len(self.c_container) >= self.num_concurrency:
+                        break
+
+    def ordered_data_processing(self, job_num, flag, data):
+        # convert data to dataframe
+        # drop unnecessary
+        # set left over to left_overs by flag
+        # check
+        pass
+
+    def disordered_data_processing(self, job_num, flag, data):
+        # convert data to dataframe
+        # set data and inspect
+        # all task is done -> do merge task threadpool may use with amount of intersection
+        # -> task_1 : {unique_1, count}, task_2 : {unique_1, count}, task_3 : {unique_1, count}
+        # -> slice each data object with intersection data, save leftovers = list of dict
+        # -> merge each data
+        # if merge done
+        # make dataset with list of label and export to file
+        pass
+
+
+
+
+t = MakeDatasetNBO()
+t.get_chunks()
+print(t.c_container)
+print(len(t.c_container))
