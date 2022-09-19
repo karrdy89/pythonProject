@@ -2,7 +2,7 @@
         <select name="select_test">
                 SELECT *
                 FROM TEST
-                <![CDATA[ WHERE ROWNUM<=10000000 ]]>
+                <![CDATA[ WHERE ROWNUM<=1000 ]]>
         </select>
         <insert name="insert_test">
                 INSERT INTO TEST
@@ -23,6 +23,12 @@
         </insert>
         <insert name="INSERT_TEST_DATA">
                 INSERT INTO TEST
+                 (CUST_NO,
+                 ORGN_DTM,
+                 EVNT_ID,
+                 EVNT_NM,
+                 SYS_EVNT_ID,
+                 SYS_EVNT_NM)
                 VALUES
                 (:1, :2, :3, :4, :5, :6)
         </insert>

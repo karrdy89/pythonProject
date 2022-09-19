@@ -1,7 +1,7 @@
-import sys
-
-from db import DBUtil
-
+# import sys
+#
+# from db import DBUtil
+#
 # db = DBUtil()
 # q = "CREATE TABLE TEST (" \
 #     "CUST_NO VARCHAR(13) NOT NULL," \
@@ -9,17 +9,39 @@ from db import DBUtil
 #     "EVNT_ID VARCHAR(6)," \
 #     "EVNT_NM VARCHAR(9)," \
 #     "SYS_EVNT_ID VARCHAR(10)," \
-#     "SYS_EVNT_NM VARCHAR(20)," \
-#     "CONSTRAINT TEST_PK PRIMARY KEY(CUST_NO, ORGN_DTM))"
+#     "SYS_EVNT_NM VARCHAR(20))"
 # q = "DROP TABLE TEST"
 # r = db.execute_query(q)
 # print(r.result())
-# make dataset again
+
+# import datetime
 # test_data = []
 # for _ in range(10000000):
-#     test_data.append(("CUST_NO" + str(_), "SYSDATE", "EVT" + str(_%999).zfill(3),
+#     test_data.append(("CUST" + str(_%1000).zfill(7), datetime.datetime.now(), "EVT" + str(_%999).zfill(3),
 #                       "T_EVNT" + str(_%999).zfill(3), "C03-EVT" + str(_%999).zfill(3),
 #                       "T_CH" + str(_%99).zfill(2) + "-T_EVNT" + str(_%999).zfill(3)))
+# print(test_data[:1])
+
+# d = None
+# for _ in range(1):
+#     d = {"CUSTNO": "CUST" + str(_).zfill(7),
+#          "EVNT_ID": "EVT" + str(_%999).zfill(3),
+#          "EVNT_NM": "T_EVNT" + str(_%999).zfill(3),
+#          "SYS_EVNT_ID": "C03-EVT" + str(_%999).zfill(3),
+#          "SYS_EVNT_NM": "T_CH" + str(_%99).zfill(2) + "-T_EVNT" + str(_%999).zfill(3)}
+# print(d)
+# from db.mapper import Mapper
+# m = Mapper()
+# md = db.parameter_mapping(m.get("insert_test"), d)
+# print(md)
+
+# r = db.insert_many("INSERT_TEST_DATA", test_data)
+# r = db.execute_query("COMMIT")
+# print(r.result())
+# r = db.select("select_test")
+# print(r.result())
+
+
 # for _ in range(10000000):
 #     d = {"CUSTNO": "CUST" + str(_).zfill(7),
 #          "EVNT_ID": "EVT" + str(_%999).zfill(3),
@@ -60,6 +82,7 @@ from db import DBUtil
 # 4. def iteration pipeline
 
 # chain with pendings, if finished check pending
+import pandas as pd
 from db import DBUtil
 from concurrent.futures import ProcessPoolExecutor
 
@@ -72,6 +95,11 @@ class MakeDatasetNBO:
         self.db = DBUtil()
         self.c_buffer = []
         self.c_container = []
+        self.c_futures = []
+        self.c_info = []
+        self.c_leftovers = [] # list of dict
+        self.c_datas = [] # list of dict
+
         self.db.set_select_chunk(name="select_test", array_size=1500, prefetch_row=1500)
 
     def get_chunks(self):
@@ -95,7 +123,7 @@ class MakeDatasetNBO:
 
     def disordered_data_processing(self, job_num, flag, data):
         # convert data to dataframe
-        # set data and inspect
+        # set data to c_datas : key is num and set inspect to c_info key is num
         # all task is done -> do merge task threadpool may use with amount of intersection
         # -> task_1 : {unique_1, count}, task_2 : {unique_1, count}, task_3 : {unique_1, count}
         # -> slice each data object with intersection data, save leftovers = list of dict
