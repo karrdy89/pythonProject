@@ -1,3 +1,5 @@
+import sys
+
 from db import DBUtil
 
 db = DBUtil()
@@ -33,7 +35,23 @@ db = DBUtil()
 #
 from timeit import default_timer as timer
 start = timer()
-r = db.select("select_test")
-r.result()
+# r = db.select("select_test")
+# dt = r.result()
+
+db.set_select_chunk(name="select_test", array_size=1500, prefetch_row=1500)
+dt = []
+for chunk in db.select_chunk():
+    dt.append(chunk)
 end = timer()
 print(end - start)
+print(sys.getsizeof(dt))
+# fetchall without tuning : take avg 35 sec for 10,000,000, 40mb
+# fetchmany with tuning(as=1500, pf=1500) : take avg 7.2 sec for 10,000,000, 40mb
+
+# 1. def fetchmany(yield) and fetch size, prefetch : done
+# 2. def split size by memory and config <-
+# 3. distribution job
+# -> yield from fetch, iteration
+# -> 1. revolver
+# -> 2. ray with cpu count
+# -> 3. non concurrency

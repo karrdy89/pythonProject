@@ -14,6 +14,8 @@ class DBUtil:
         self._worker = type(self).__name__
         self._mapper = Mapper()
         self._session_pool = None
+        self._chunk_cursor = None
+        self._chunk_conn = None
         self._dsn: str = ''
         self._executor: ThreadPoolExecutor | None = None
         self._USER: str = ''
@@ -63,17 +65,65 @@ class DBUtil:
 
     def _execute_select(self, query: str):
         with self._session_pool.acquire() as conn:
+            conn.autocommit = True
             cursor = conn.cursor()
             result = cursor.execute(query)
             result = result.fetchall()
             cursor.close()
             return result
 
+    def set_select_chunk(self, name: str, param: Optional[dict] = None,
+                         prefetch_row: Optional[int] = None, array_size: Optional[int] = None):
+        self._chunk_conn = self._session_pool.acquire()
+        self._chunk_cursor = self._chunk_conn.cursor()
+        if prefetch_row is not None:
+            self._chunk_cursor.prefetchrows = prefetch_row
+        if array_size is not None:
+            self._chunk_cursor.arraysize = array_size
+        query = self._mapper.get(name)
+        if param is not None:
+            query = self._parameter_mapping(query, param)
+        self._chunk_cursor.execute(query)
+        # self._chunk_cursor = cursor
+        # with self._session_pool.acquire() as conn:
+        #     cursor = conn.cursor()
+        #     if prefetch_row is not None:
+        #         cursor.prefetchrows = prefetch_row
+        #     if array_size is not None:
+        #         cursor.arraysize = array_size
+        #     query = self._mapper.get(name)
+        #     if param is not None:
+        #         query = self._parameter_mapping(query, param)
+        #     cursor.execute(query)
+        #     self._chunk_cursor = cursor
+            # for chunk in self._execute_select_chunk(cursor):
+                # yield chunk
+            # while True:
+            #     results = cursor.fetchmany()
+            #     if not result:
+            #         break
+            #     for result in results:
+            #         yield result
+
+    def select_chunk(self):
+        cursor = self._chunk_cursor
+        while True:
+            results = cursor.fetchmany()
+            if not results:
+                cursor.close()
+                self._session_pool.release(self._chunk_conn)
+                self._chunk_cursor = None
+                self._chunk_conn = None
+                break
+            for result in results:
+                yield result
+
     def execute_query(self, query: str) -> concurrent.futures.Future:
         return self._executor.submit(self._execute_query, query)
 
     def _execute_query(self, query: str):
         with self._session_pool.acquire() as conn:
+            conn.autocommit = True
             cursor = conn.cursor()
             result = cursor.execute(query)
             cursor.close()
@@ -87,14 +137,14 @@ class DBUtil:
 
     def _execute_insert(self, query: str):
         with self._session_pool.acquire() as conn:
+            conn.autocommit = True
             cursor = conn.cursor()
             result = cursor.execute(query)
             if result is None:
-                result = cursor.execute("commit")
+                cursor.close()
+                return result
             else:
                 raise Exception("query failed")
-            cursor.close()
-            return result
 
     def insert_many(self, name: str, data: list[tuple]) -> concurrent.futures.Future:
         query = self._mapper.get(name)
@@ -102,9 +152,9 @@ class DBUtil:
 
     def _execute_many(self, query: str, data: list[tuple]):
         with self._session_pool.acquire() as conn:
+            conn.autocommit = True
             cursor = conn.cursor()
-            cursor.executemany(query, data, batcherrors=True)
-            result = cursor.execute("commit")
+            result = cursor.executemany(query, data, batcherrors=True)
             cursor.close()
             return result
 
@@ -119,4 +169,4 @@ class DBUtil:
         elif type(v) == int or type(param[s]) == float:
             return str(v)
         elif type(v) == str:
-            return "'"+v+"'"
+            return "'" + v + "'"
