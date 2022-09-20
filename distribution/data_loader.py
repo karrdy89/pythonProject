@@ -127,26 +127,23 @@ class MakeDatasetNBO:
                 self.chunk_size = sys.getsizeof(chunk) + sys.getsizeof("N")
             self.c_buffer_size_cur += self.chunk_size
 
-            print(str(self.c_buffer_size_cur) + "/" + str(self.c_buffer_size_limit))
-            if self.c_buffer_size_cur + self.chunk_size > self.c_buffer_size_limit:
-                print(str(self.c_buffer_size_cur) + "/" + str(self.c_buffer_size_limit))
-                break
+            if self.c_buffer_size_cur + self.chunk_size < self.c_buffer_size_limit:
+                self.c_buffer_list[self.write_buffer_idx].append([chunk, "N"])
+            else:
+                self.c_buffer_list[self.write_buffer_idx].append([chunk, "Y"])
+                self.executor.submit(self.split_chunk)
+                print("@")
 
             # print(self.chunk_size)
             # print(str(sys.getsizeof(self.c_buffer_list[self.write_buffer_idx]))+"/"+str(self.c_buffer_size))
-            # if sys.getsizeof(self.c_buffer_list[self.write_buffer_idx]) + self.chunk_size < self.c_buffer_size:
-            #     self.c_buffer_list[self.write_buffer_idx].append([chunk, "N"])
-            #     # self.split_futures.append(self.executor.submit(self.split_chunk, index=i))
-            # else:
-            #     self.c_buffer_list[self.write_buffer_idx].append([chunk, "Y"])
-            #     print("@")
+
             #     # self.split_futures.append(self.executor.submit(self.split_chunk, index=i))
             #     # self.split_futures[0].result()
             #     # self.write_buffer_idx += 1
             #     break
 
-    def split_chunk(self, index):
-        temp = self.c_buffer_list[self.write_buffer_idx][index]
+    def split_chunk(self):
+        temp = self.c_buffer_list[self.write_buffer_idx][0]
         print(temp)
 
     def execute_split(self, data, flag):
