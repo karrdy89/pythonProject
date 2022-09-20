@@ -112,6 +112,7 @@ class MakeDatasetNBO:
         self.working_buffer_idx = 0 # working buffer, writing buffer
         self.write_buffer_idx = 0
         self.is_first_chunk = True
+        self.split_futures = []
         self.merge_futures = [] # list of futures
         self.c_info = []
         self.c_leftovers = [] # list of dict
@@ -121,20 +122,23 @@ class MakeDatasetNBO:
 
     def get_chunks(self):
         c_buffer = self.c_buffer_list[self.write_buffer_idx]
-        for chunk in self.db.select_chunk():
+        for i, chunk in enumerate(self.db.select_chunk()):
             # print(chunk)
             self.chunk_size = sys.getsizeof(chunk) + sys.getsizeof("Y")
             print(self.chunk_size)
+            print(sys.getsizeof(c_buffer))
             if sys.getsizeof(c_buffer) + self.chunk_size < self.c_buffer_size:
                 c_buffer.append([chunk, "N"])
+                # self.split_futures.append(self.executor.submit(self.split_chunk, index=i))
             else:
                 c_buffer.append([chunk, "Y"])
-                self.executor.submit(self.split_chunk)
+                self.split_futures.append(self.executor.submit(self.split_chunk, index=i))
+                self.split_futures[0].result()
                 # self.write_buffer_idx += 1
                 break
 
-    def split_chunk(self):
-        temp = self.c_buffer_list[self.write_buffer_idx].pop(0)
+    def split_chunk(self, index):
+        temp = self.c_buffer_list[self.write_buffer_idx][index]
         print(temp)
 
     def execute_split(self, data, flag):
