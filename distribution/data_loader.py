@@ -82,14 +82,19 @@
 # 4. def iteration pipeline
 
 # chain with pendings, if finished check pending
-import pandas as pd
-from db import DBUtil
+import sys
 from concurrent.futures import ProcessPoolExecutor
 
+import pandas as pd
+
+from db import DBUtil
+
+
+#it will be ray actor
 class MakeDatasetNBO:
     def __init__(self):
-        self.mem_limit = 1000
-        self.num_concurrency = 10
+        self.mem_limit = 100000
+        self.num_concurrency = 100
         self.executor = ProcessPoolExecutor(self.num_concurrency)
         self.c_buffer_size = self.mem_limit / self.num_concurrency
         self.db = DBUtil()
@@ -130,12 +135,16 @@ class MakeDatasetNBO:
         # -> merge each data
         # if merge done
         # make dataset with list of label and export to file
+        # this method will not work, so test ray memory limit and precess all data at once -> query always ordered
+        # make some buffers of spliced chunk, if exceed max size of buffer, then write to next buffer start merge, keep last(future)
+        # if appended something to buffer queue pop and start splice(if can atomic submit to processpool)
+        # if merge(if can atomic process task) done(add to process task), export to file except last, append last to chunking task, read from next buffer
+        # repeat
         pass
 
 
 
-
-t = MakeDatasetNBO()
-t.get_chunks()
-print(t.c_container)
-print(len(t.c_container))
+# t = MakeDatasetNBO()
+# t.get_chunks()
+# print(t.c_container)
+# print(len(t.c_container))

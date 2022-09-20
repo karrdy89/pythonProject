@@ -74,6 +74,8 @@ except Exception as e:
     exc_str = ''.join(traceback.format_exception(None, e, e.__traceback__))
     init_processes.append(-1)
 
+# plus check db connection
+
 if -1 in init_processes:
     boot_logger.error("(Main Server) failed to init services")
     ray.kill(api_service)
