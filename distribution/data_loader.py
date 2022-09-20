@@ -122,17 +122,21 @@ class MakeDatasetNBO:
         self.db.set_select_chunk(name="select_test", array_size=2000, prefetch_row=2000)
 
     def get_chunks(self):
-        for i, chunk in enumerate(self.db.select_chunk()):
-            if self.chunk_size == 0:
-                self.chunk_size = sys.getsizeof(chunk) + sys.getsizeof("N")
-            self.c_buffer_size_cur += self.chunk_size
-            if self.c_buffer_size_cur + self.chunk_size < self.c_buffer_size_limit:
-                self.c_buffer_list[self.write_buffer_idx].append([chunk, "N"])
-            else:
-                self.c_buffer_list[self.write_buffer_idx].append([chunk, "Y"])
-                self.executor.submit(self.split_chunk)
-                print("@")
-                break
+        self.split_chunk()
+        # for i, chunk in enumerate(self.db.select_chunk()):
+        #     if self.chunk_size == 0:
+        #         self.chunk_size = sys.getsizeof(chunk) + sys.getsizeof("N")
+        #     self.c_buffer_size_cur += self.chunk_size
+        #     if self.c_buffer_size_cur + self.chunk_size < self.c_buffer_size_limit:
+        #         self.c_buffer_list[self.write_buffer_idx].append([chunk, "N"])
+        #         self.split_futures.append(self.executor.submit(self.split_chunk, index=i))
+        #     else:
+        #         self.c_buffer_list[self.write_buffer_idx].append([chunk, "Y"])
+        #         self.executor.submit(self.split_chunk, index=i)
+        #         self.split_futures.append(self.executor.submit(self.split_chunk, index=i))
+        #
+        #         print("@")
+        #         break
 
             # print(self.chunk_size)
             # print(str(sys.getsizeof(self.c_buffer_list[self.write_buffer_idx]))+"/"+str(self.c_buffer_size))
@@ -143,8 +147,12 @@ class MakeDatasetNBO:
             #     break
 
     def split_chunk(self):
-        temp = self.c_buffer_list[self.write_buffer_idx][0]
-        print(temp)
+        with self.executor as executor:
+            executor.submit(self.foo)
+
+    def foo(self):
+        print("foo")
+
 
     def execute_split(self, data, flag):
         pass
