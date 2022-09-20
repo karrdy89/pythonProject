@@ -93,14 +93,26 @@ from db import DBUtil
 #it will be ray actor
 class MakeDatasetNBO:
     def __init__(self):
-        self.mem_limit = 100000
-        self.num_concurrency = 100
+        # make some buffers of spliced chunk, if exceed max size of buffer, then write to next buffer and start merge, keep last(future)
+        # if appended something to buffer queue pop and start splice(if can atomic submit to processpool)
+        # if merge(if can atomic process task) done(add to process task), export to file except last, append last to chunking task, read from next buffer
+        # repeat
+        self.mem_limit = 10485760
+        self.num_concurrency = 8
         self.executor = ProcessPoolExecutor(self.num_concurrency)
-        self.c_buffer_size = self.mem_limit / self.num_concurrency
+        self.c_buffer_num = 2
+        self.chunk_size = None
+        self.c_buffer_size = self.mem_limit / self.c_buffer_num
         self.db = DBUtil()
-        self.c_buffer = []
-        self.c_container = []
-        self.c_futures = []
+        self.c_buffer_list: list[list] = [] # list of buffer queue or list(whatever atomic) if buffer in -> trigger callback
+        for i in range(self.c_buffer_num):
+            self.c_buffer_list.append([])
+
+        self.c_split = [] # list of dict, dict = {uid: data, last_flag:n}
+        self.working_buffer_idx = 0 # working buffer, writing buffer
+        self.write_buffer_idx = 0
+        self.is_first_chunk = True
+        self.merge_futures = [] # list of futures
         self.c_info = []
         self.c_leftovers = [] # list of dict
         self.c_datas = [] # list of dict
@@ -108,16 +120,25 @@ class MakeDatasetNBO:
         self.db.set_select_chunk(name="select_test", array_size=1500, prefetch_row=1500)
 
     def get_chunks(self):
-        if len(self.c_container) <= self.num_concurrency:
-            for chunk in self.db.select_chunk():
-                if sys.getsizeof(self.c_buffer) < self.c_buffer_size:
-                    self.c_buffer.append(chunk) # don't need to do this just call process, add current mem
-                    # if chunk set call task executor
-                else:
-                    self.c_container.append(self.c_buffer)
-                    self.c_buffer = []  # don't need to do this, just calculate current mem
-                    if len(self.c_container) >= self.num_concurrency:
-                        break
+        c_buffer = self.c_buffer_list[self.write_buffer_idx]
+        for chunk in self.db.select_chunk():
+            print(chunk)
+            self.chunk_size = sys.getsizeof(chunk) + sys.getsizeof("Y")
+            if sys.getsizeof(c_buffer) + self.chunk_size < self.c_buffer_size:
+                c_buffer.append([chunk, "N"])
+                self.executor.submit(self.split_chunk)
+            else:
+                c_buffer.append([chunk, "Y"])
+                self.executor.submit(self.split_chunk)
+                # self.write_buffer_idx += 1
+                break
+
+    def split_chunk(self):
+        temp = self.c_buffer_list[self.write_buffer_idx].pop(0)
+        print(temp)
+
+    def execute_split(self, data, flag):
+        pass
 
     def ordered_data_processing(self, job_num, flag, data):
         # convert data to dataframe
@@ -136,7 +157,7 @@ class MakeDatasetNBO:
         # if merge done
         # make dataset with list of label and export to file
         # this method will not work, so test ray memory limit and precess all data at once -> query always ordered
-        # make some buffers of spliced chunk, if exceed max size of buffer, then write to next buffer start merge, keep last(future)
+        # make some buffers of spliced chunk, if exceed max size of buffer, then write to next buffer and start merge, keep last(future)
         # if appended something to buffer queue pop and start splice(if can atomic submit to processpool)
         # if merge(if can atomic process task) done(add to process task), export to file except last, append last to chunking task, read from next buffer
         # repeat
@@ -144,7 +165,5 @@ class MakeDatasetNBO:
 
 
 
-# t = MakeDatasetNBO()
-# t.get_chunks()
-# print(t.c_container)
-# print(len(t.c_container))
+t = MakeDatasetNBO()
+t.get_chunks()

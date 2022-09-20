@@ -2,7 +2,7 @@
         <select name="select_test">
                 SELECT *
                 FROM TEST
-                <![CDATA[ WHERE ROWNUM<=1000 ]]>
+<!--                <![CDATA[ WHERE ROWNUM<=1000 ]]>-->
         </select>
         <insert name="insert_test">
                 INSERT INTO TEST
