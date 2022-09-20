@@ -101,8 +101,9 @@ class MakeDatasetNBO:
         self.num_concurrency = 8
         self.executor = ProcessPoolExecutor(self.num_concurrency)
         self.c_buffer_num = 2
-        self.chunk_size = None
-        self.c_buffer_size = self.mem_limit / self.c_buffer_num
+        self.chunk_size = 0
+        self.c_buffer_size_cur = 0
+        self.c_buffer_size_limit = self.mem_limit / self.c_buffer_num
         self.db = DBUtil()
         self.c_buffer_list: list[list] = [] # list of buffer queue or list(whatever atomic) if buffer in -> trigger callback
         for i in range(self.c_buffer_num):
@@ -118,24 +119,31 @@ class MakeDatasetNBO:
         self.c_leftovers = [] # list of dict
         self.c_datas = [] # list of dict
 
-        self.db.set_select_chunk(name="select_test", array_size=1500, prefetch_row=1500)
+        self.db.set_select_chunk(name="select_test", array_size=2000, prefetch_row=2000)
 
     def get_chunks(self):
-        c_buffer = self.c_buffer_list[self.write_buffer_idx]
         for i, chunk in enumerate(self.db.select_chunk()):
-            # print(chunk)
-            self.chunk_size = sys.getsizeof(chunk) + sys.getsizeof("Y")
-            print(self.chunk_size)
-            print(sys.getsizeof(c_buffer))
-            if sys.getsizeof(c_buffer) + self.chunk_size < self.c_buffer_size:
-                c_buffer.append([chunk, "N"])
-                # self.split_futures.append(self.executor.submit(self.split_chunk, index=i))
-            else:
-                c_buffer.append([chunk, "Y"])
-                self.split_futures.append(self.executor.submit(self.split_chunk, index=i))
-                self.split_futures[0].result()
-                # self.write_buffer_idx += 1
+            if self.chunk_size == 0:
+                self.chunk_size = sys.getsizeof(chunk) + sys.getsizeof("N")
+            self.c_buffer_size_cur += self.chunk_size
+
+            print(str(self.c_buffer_size_cur) + "/" + str(self.c_buffer_size_limit))
+            if self.c_buffer_size_cur + self.chunk_size > self.c_buffer_size_limit:
+                print(str(self.c_buffer_size_cur) + "/" + str(self.c_buffer_size_limit))
                 break
+
+            # print(self.chunk_size)
+            # print(str(sys.getsizeof(self.c_buffer_list[self.write_buffer_idx]))+"/"+str(self.c_buffer_size))
+            # if sys.getsizeof(self.c_buffer_list[self.write_buffer_idx]) + self.chunk_size < self.c_buffer_size:
+            #     self.c_buffer_list[self.write_buffer_idx].append([chunk, "N"])
+            #     # self.split_futures.append(self.executor.submit(self.split_chunk, index=i))
+            # else:
+            #     self.c_buffer_list[self.write_buffer_idx].append([chunk, "Y"])
+            #     print("@")
+            #     # self.split_futures.append(self.executor.submit(self.split_chunk, index=i))
+            #     # self.split_futures[0].result()
+            #     # self.write_buffer_idx += 1
+            #     break
 
     def split_chunk(self, index):
         temp = self.c_buffer_list[self.write_buffer_idx][index]
@@ -170,4 +178,9 @@ class MakeDatasetNBO:
 
 
 t = MakeDatasetNBO()
+
+from timeit import default_timer as timer
+start = timer()
 t.get_chunks()
+end = timer()
+print(end - start)

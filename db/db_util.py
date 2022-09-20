@@ -88,15 +88,14 @@ class DBUtil:
     def select_chunk(self):
         cursor = self._chunk_cursor
         while True:
-            results = cursor.fetchmany()
+            results = cursor.fetchmany(numRows=self._chunk_cursor.arraysize)
             if not results:
                 cursor.close()
                 self._session_pool.release(self._chunk_conn)
                 self._chunk_cursor = None
                 self._chunk_conn = None
                 break
-            for result in results:
-                yield result
+            yield results
 
     def execute_query(self, query: str) -> concurrent.futures.Future:
         return self._executor.submit(self._execute_query, query)
