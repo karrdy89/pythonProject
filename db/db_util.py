@@ -130,15 +130,6 @@ class DBUtil:
         query = self._mapper.get(name)
         return self._executor.submit(self._execute_many, query, data)
 
-    # def insert_many(self, name: str, data: list[tuple]):
-    #     query = self._mapper.get(name)
-    #     conn = self._session_pool.acquire()
-    #     conn.autocommit = True
-    #     cursor = conn.cursor()
-    #     cursor.executemany(query, data, batcherrors=True)
-    #     for error in cursor.getbatcherrors():
-    #         print(error.message)
-
     def _execute_many(self, query: str, data: list[tuple]):
         with self._session_pool.acquire() as conn:
             conn.autocommit = True

@@ -122,15 +122,14 @@ class MakeDatasetNBO:
     def get_chunks(self):
         c_buffer = self.c_buffer_list[self.write_buffer_idx]
         for chunk in self.db.select_chunk():
-            print(chunk)
+            # print(chunk)
             self.chunk_size = sys.getsizeof(chunk) + sys.getsizeof("Y")
             print(self.chunk_size)
             if sys.getsizeof(c_buffer) + self.chunk_size < self.c_buffer_size:
                 c_buffer.append([chunk, "N"])
-                # self.executor.submit(self.split_chunk)
             else:
                 c_buffer.append([chunk, "Y"])
-                # self.executor.submit(self.split_chunk)
+                self.executor.submit(self.split_chunk)
                 # self.write_buffer_idx += 1
                 break
 
