@@ -126,13 +126,13 @@ class MakeDatasetNBO:
             if self.chunk_size == 0:
                 self.chunk_size = sys.getsizeof(chunk) + sys.getsizeof("N")
             self.c_buffer_size_cur += self.chunk_size
-
             if self.c_buffer_size_cur + self.chunk_size < self.c_buffer_size_limit:
                 self.c_buffer_list[self.write_buffer_idx].append([chunk, "N"])
             else:
                 self.c_buffer_list[self.write_buffer_idx].append([chunk, "Y"])
                 self.executor.submit(self.split_chunk)
                 print("@")
+                break
 
             # print(self.chunk_size)
             # print(str(sys.getsizeof(self.c_buffer_list[self.write_buffer_idx]))+"/"+str(self.c_buffer_size))
