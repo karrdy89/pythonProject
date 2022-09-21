@@ -186,10 +186,9 @@ class MakeDatasetNBO:
         self.chunk_size = 0
         self.c_buffer_size_cur = 0
         self.c_buffer_size_limit = self.mem_limit / self.c_buffer_num
-        self.c_buffer_list: list[list] = [] # list of buffer queue or list(whatever atomic) if buffer in -> trigger callback
+        self.c_buffer_list: list[list] = []
         for i in range(self.c_buffer_num):
             self.c_buffer_list.append([])
-        #
         self.c_split = [] # list of dict, dict = {uid: data, last_flag:n}
         self.working_buffer_idx = 0 # working buffer, writing buffer
         self.write_buffer_idx = 0
@@ -199,26 +198,51 @@ class MakeDatasetNBO:
         self.c_info = []
         self.c_leftovers = [] # list of dict
         self.c_datas = [] # list of dict
+        self.labels = []
         self.p = Pool()
         self.db = DBUtil()
         self.db.set_select_chunk(name="select_test", array_size=2000, prefetch_row=2000)
 
+    def set_split_data(self, data):
+        # with lock
+        # update merged
+        #
+        pass
+
+    def set_leftover(self, data):
+        pass
+
     def operation_data(self):
-        # a = concurrent.futures.ProcessPoolExecutor()
-        # self.c.submit(self.operation, ar=3)
-        # for chunk in self.db.select_chunk():
-        #     self.p.apply_async(operation, chunk)
-        # print("done")
+        # with lock
+        # calculate here
+        # write to next buffer
+        # if merge
+
+        # for i, chunk in enumerate(self.db.select_chunk()):
+        #     # check split buffer max
+        #     if self.chunk_size == 0:
+        #         self.chunk_size = sys.getsizeof(chunk) + sys.getsizeof("N")
+        #     self.c_buffer_size_cur += self.chunk_size
+        #     if self.c_buffer_size_cur + self.chunk_size < self.c_buffer_size_limit:
+        #         self.c_buffer_list[self.write_buffer_idx].append([chunk, "N"])
+        #         self.split_futures.append(self.executor.submit(self.split_chunk, index=i))
+        #     else:
+        #         self.c_buffer_list[self.write_buffer_idx].append([chunk, "Y"])
+        #         self.executor.submit(self.split_chunk, index=i)
+        #         self.split_futures.append(self.executor.submit(self.split_chunk, index=i))
+        #
+        #         print("@")
+        #         break
+
         for i, _ in enumerate(self.db.select_chunk()):
             self.p.apply_async(operation, args=(_,))
 
 
 
 def operation(ar):
-    print(ar)
-    # print(f" inside concurrent insert")
-    # time.sleep(2)
-    # print(f"do some operations with")
+    #split input and call set_split_dataset
+    t = ar
+    pass
 
 
 from ray.util import inspect_serializability
@@ -226,17 +250,25 @@ inspect_serializability(MakeDatasetNBO, name="MakeDatasetNBO")
 inspect_serializability(operation, name="operation")
 
 ray.init()
-# svr1 = RayServer.remote()
-# print(ray.get(svr1.serve.remote()))
 
 svr2 = MakeDatasetNBO.remote()
-svr2.operation_data.remote()
+from timeit import default_timer as timer
+start = timer()
+ray.get(svr2.operation_data.remote())
+end = timer()
+print(end - start)
+
+# make dataloader -> call by endpoint
+# get train data -> aibeem.dataset(datasetname, version) -> list of filepath, labels
+# def iteration pipeline type
 
 
-
-# concurrent_test = MakeDatasetNBO()
-# ray.get(concurrent_test.operation_data.remote())
-# print("Foo")
-#
-
-
+# from db import DBUtil
+# from timeit import default_timer as timer
+# db = DBUtil()
+# db.set_select_chunk(name="select_test", array_size=2000, prefetch_row=2000)
+# start = timer()
+# for i, c in enumerate(db.select_chunk()):
+#     t = c
+# end = timer()
+# 13 sec
