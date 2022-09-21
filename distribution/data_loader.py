@@ -257,6 +257,7 @@ start = timer()
 ray.get(svr2.operation_data.remote())
 end = timer()
 print(end - start)
+# 33sec
 
 # make dataloader -> call by endpoint
 # get train data -> aibeem.dataset(datasetname, version) -> list of filepath, labels
@@ -271,4 +272,4 @@ print(end - start)
 # for i, c in enumerate(db.select_chunk()):
 #     t = c
 # end = timer()
-# 13 sec
+# 13sec
