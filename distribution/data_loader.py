@@ -201,7 +201,7 @@ class MakeDatasetNBO:
         self.labels = []
         self.p = Pool()
         self.db = DBUtil()
-        self.db.set_select_chunk(name="select_test", array_size=2000, prefetch_row=2000)
+        self.db.set_select_chunk(name="select_test", array_size=10000, prefetch_row=10000)
 
     def set_split_data(self, data):
         # with lock
@@ -233,31 +233,34 @@ class MakeDatasetNBO:
         #
         #         print("@")
         #         break
-
-        for i, _ in enumerate(self.db.select_chunk()):
-            self.p.apply_async(operation, args=(_,))
-
+        for i, chunk in enumerate(self.db.select_chunk()):
+            self.p.apply_async(split_chunk, args=(chunk,))
 
 
-def operation(ar):
-    #split input and call set_split_dataset
-    t = ar
-    pass
+def split_chunk(chunk: list[tuple], index: int, is_buffer_end: bool):
+    split = []
+    temp = []
+    for data in chunk:
+        pass
+    dataset_maker = ray.get_actor("dataset_maker")
+    dataset_maker.set_split_data.remote(data=split)
+    # split input and call set_split_dataset
+    # pickling overhead -> how to reduce????????
 
 
 from ray.util import inspect_serializability
-inspect_serializability(MakeDatasetNBO, name="MakeDatasetNBO")
-inspect_serializability(operation, name="operation")
+inspect_serializability(MakeDatasetNBO, name="dataset_maker")
+inspect_serializability(split_chunk, name="split_chunk")
 
 ray.init()
 
-svr2 = MakeDatasetNBO.remote()
+svr2 = MakeDatasetNBO.options(name="dataset_maker").remote()
 from timeit import default_timer as timer
 start = timer()
 ray.get(svr2.operation_data.remote())
 end = timer()
 print(end - start)
-# 33sec
+# 20, 30sec, 21
 
 # make dataloader -> call by endpoint
 # get train data -> aibeem.dataset(datasetname, version) -> list of filepath, labels
@@ -267,9 +270,10 @@ print(end - start)
 # from db import DBUtil
 # from timeit import default_timer as timer
 # db = DBUtil()
-# db.set_select_chunk(name="select_test", array_size=2000, prefetch_row=2000)
+# db.set_select_chunk(name="select_test", array_size=10000, prefetch_row=10000)
 # start = timer()
 # for i, c in enumerate(db.select_chunk()):
 #     t = c
 # end = timer()
+# print(end-start)
 # 13sec
