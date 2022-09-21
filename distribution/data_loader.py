@@ -82,47 +82,54 @@
 # 4. def iteration pipeline
 
 # chain with pendings, if finished check pending
+import concurrent.futures
 import sys
+import time
 from concurrent.futures import ProcessPoolExecutor
+import asyncio
 
 import pandas as pd
 
-from db import DBUtil
 
 
 #it will be ray actor
-class MakeDatasetNBO:
-    def __init__(self):
-        # make some buffers of spliced chunk, if exceed max size of buffer, then write to next buffer and start merge, keep last(future)
-        # if appended something to buffer queue pop and start splice(if can atomic submit to processpool)
-        # if merge(if can atomic process task) done(add to process task), export to file except last, append last to chunking task, read from next buffer
-        # repeat
-        self.mem_limit = 10485760
-        self.num_concurrency = 8
-        self.executor = ProcessPoolExecutor(self.num_concurrency)
-        self.c_buffer_num = 2
-        self.chunk_size = 0
-        self.c_buffer_size_cur = 0
-        self.c_buffer_size_limit = self.mem_limit / self.c_buffer_num
-        self.db = DBUtil()
-        self.c_buffer_list: list[list] = [] # list of buffer queue or list(whatever atomic) if buffer in -> trigger callback
-        for i in range(self.c_buffer_num):
-            self.c_buffer_list.append([])
-
-        self.c_split = [] # list of dict, dict = {uid: data, last_flag:n}
-        self.working_buffer_idx = 0 # working buffer, writing buffer
-        self.write_buffer_idx = 0
-        self.is_first_chunk = True
-        self.split_futures = []
-        self.merge_futures = [] # list of futures
-        self.c_info = []
-        self.c_leftovers = [] # list of dict
-        self.c_datas = [] # list of dict
-
-        self.db.set_select_chunk(name="select_test", array_size=2000, prefetch_row=2000)
-
-    def get_chunks(self):
-        self.split_chunk()
+# class MakeDatasetNBO:
+#     def __init__(self):
+#         # make some buffers of spliced chunk, if exceed max size of buffer, then write to next buffer and start merge, keep last(future)
+#         # if appended something to buffer queue pop and start splice(if can atomic submit to processpool)
+#         # if merge(if can atomic process task) done(add to process task), export to file except last, append last to chunking task, read from next buffer
+#         # repeat
+#         self.mem_limit = 10485760
+#         self.num_concurrency = 8
+#         self.executor = ProcessPoolExecutor(self.num_concurrency)
+#         self.c_buffer_num = 2
+#         self.chunk_size = 0
+#         self.c_buffer_size_cur = 0
+#         self.c_buffer_size_limit = self.mem_limit / self.c_buffer_num
+#         self.db = DBUtil()
+#         self.c_buffer_list: list[list] = [] # list of buffer queue or list(whatever atomic) if buffer in -> trigger callback
+#         for i in range(self.c_buffer_num):
+#             self.c_buffer_list.append([])
+#
+#         self.c_split = [] # list of dict, dict = {uid: data, last_flag:n}
+#         self.working_buffer_idx = 0 # working buffer, writing buffer
+#         self.write_buffer_idx = 0
+#         self.is_first_chunk = True
+#         self.split_futures = []
+#         self.merge_futures = [] # list of futures
+#         self.c_info = []
+#         self.c_leftovers = [] # list of dict
+#         self.c_datas = [] # list of dict
+#
+#         self.db.set_select_chunk(name="select_test", array_size=2000, prefetch_row=2000)
+#
+#     def operation(self, ar):
+#         print(f"foo {ar}")
+#         time.sleep(3)
+#         print("bar")
+#
+#     def get_chunks(self):
+#         self.executor.submit(self.operation, ar=3)
         # for i, chunk in enumerate(self.db.select_chunk()):
         #     if self.chunk_size == 0:
         #         self.chunk_size = sys.getsizeof(chunk) + sys.getsizeof("N")
@@ -146,46 +153,90 @@ class MakeDatasetNBO:
             #     # self.write_buffer_idx += 1
             #     break
 
-    def split_chunk(self):
-        with self.executor as executor:
-            executor.submit(self.foo)
 
-    def foo(self):
-        print("foo")
-
-
-    def execute_split(self, data, flag):
-        pass
-
-    def ordered_data_processing(self, job_num, flag, data):
-        # convert data to dataframe
-        # drop unnecessary
-        # set left over to left_overs by flag
-        # check
-        pass
-
-    def disordered_data_processing(self, job_num, flag, data):
-        # convert data to dataframe
-        # set data to c_datas : key is num and set inspect to c_info key is num
-        # all task is done -> do merge task threadpool may use with amount of intersection
-        # -> task_1 : {unique_1, count}, task_2 : {unique_1, count}, task_3 : {unique_1, count}
-        # -> slice each data object with intersection data, save leftovers = list of dict
-        # -> merge each data
-        # if merge done
-        # make dataset with list of label and export to file
-        # this method will not work, so test ray memory limit and precess all data at once -> query always ordered
-        # make some buffers of spliced chunk, if exceed max size of buffer, then write to next buffer and start merge, keep last(future)
-        # if appended something to buffer queue pop and start splice(if can atomic submit to processpool)
-        # if merge(if can atomic process task) done(add to process task), export to file except last, append last to chunking task, read from next buffer
-        # repeat
-        pass
+# t = MakeDatasetNBO()
+# t.get_chunks()
+# from timeit import default_timer as timer
+# start = timer()
+# t.get_chunks()
+# end = timer()
+# print(end - start)
+#
+#
+from db import DBUtil
+# db = DBUtil()
+#
+#
+# db.set_select_chunk(name="select_test", array_size=2000, prefetch_row=2000)
+# for c in db.select_chunk():
+#     print(c)
 
 
+from multiprocessing import Pool
+import ray
+from ray.util.multiprocessing import Pool
 
-t = MakeDatasetNBO()
 
-from timeit import default_timer as timer
-start = timer()
-t.get_chunks()
-end = timer()
-print(end - start)
+@ray.remote
+class MakeDatasetNBO:
+    def __init__(self):
+        self.mem_limit = 10485760
+        self.num_concurrency = 8
+        self.c_buffer_num = 2
+        self.chunk_size = 0
+        self.c_buffer_size_cur = 0
+        self.c_buffer_size_limit = self.mem_limit / self.c_buffer_num
+        self.c_buffer_list: list[list] = [] # list of buffer queue or list(whatever atomic) if buffer in -> trigger callback
+        for i in range(self.c_buffer_num):
+            self.c_buffer_list.append([])
+        #
+        self.c_split = [] # list of dict, dict = {uid: data, last_flag:n}
+        self.working_buffer_idx = 0 # working buffer, writing buffer
+        self.write_buffer_idx = 0
+        self.is_first_chunk = True
+        self.split_futures = []
+        self.merge_futures = [] # list of futures
+        self.c_info = []
+        self.c_leftovers = [] # list of dict
+        self.c_datas = [] # list of dict
+        self.p = Pool()
+        self.db = DBUtil()
+        self.db.set_select_chunk(name="select_test", array_size=2000, prefetch_row=2000)
+
+    def operation_data(self):
+        # a = concurrent.futures.ProcessPoolExecutor()
+        # self.c.submit(self.operation, ar=3)
+        # for chunk in self.db.select_chunk():
+        #     self.p.apply_async(operation, chunk)
+        # print("done")
+        for i, _ in enumerate(self.db.select_chunk()):
+            self.p.apply_async(operation, args=(_,))
+
+
+
+def operation(ar):
+    print(ar)
+    # print(f" inside concurrent insert")
+    # time.sleep(2)
+    # print(f"do some operations with")
+
+
+from ray.util import inspect_serializability
+inspect_serializability(MakeDatasetNBO, name="MakeDatasetNBO")
+inspect_serializability(operation, name="operation")
+
+ray.init()
+# svr1 = RayServer.remote()
+# print(ray.get(svr1.serve.remote()))
+
+svr2 = MakeDatasetNBO.remote()
+svr2.operation_data.remote()
+
+
+
+# concurrent_test = MakeDatasetNBO()
+# ray.get(concurrent_test.operation_data.remote())
+# print("Foo")
+#
+
+

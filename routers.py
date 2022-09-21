@@ -17,6 +17,7 @@ from pipeline import Pipeline
 from tensorboard_service import TensorBoardTool
 from utils.common import version_decode, version_encode
 from pipeline import TrainInfo
+from distribution.data_loader import MakeDatasetNBO
 
 project_path = os.path.dirname(os.path.abspath(__file__))
 app = FastAPI()
@@ -101,8 +102,10 @@ class AIbeemRouter:
         return result
 
     @router.get("/dataset/make")
-    async def get_train_info(self):
-        pass
+    async def make_dataset(self):
+        t = MakeDatasetNBO()
+        t.operation_data()
+
 
     @router.get("/dataset/download")
     async def get_train_info(self):
