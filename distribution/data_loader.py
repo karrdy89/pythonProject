@@ -200,6 +200,8 @@ class MakeDatasetNBO:
         self.c_datas = [] # list of dict
         self.labels = []
         self.p = Pool()
+        self.split_result = None
+        self.merge_result = None
         self.db = DBUtil()
         self.db.set_select_chunk(name="select_test", array_size=10000, prefetch_row=10000)
 
@@ -244,8 +246,6 @@ def split_chunk(chunk: list[tuple], index: int, is_buffer_end: bool):
         pass
     dataset_maker = ray.get_actor("dataset_maker")
     dataset_maker.set_split_data.remote(data=split)
-    # split input and call set_split_dataset
-    # pickling overhead -> how to reduce????????
 
 
 from ray.util import inspect_serializability
