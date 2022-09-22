@@ -1,7 +1,9 @@
 <mapper name="BaseMapper">
         <select name="select_test">
-                SELECT *
+                SELECT CUST_NO, EVNT_ID
                 FROM TEST
+<!--                WHERE CUST_NO = 'CUST0099992'-->
+                ORDER BY CUST_NO ASC, ORGN_DTM ASC
 <!--                <![CDATA[ WHERE ROWNUM<=1 ]]>-->
         </select>
         <insert name="insert_test">

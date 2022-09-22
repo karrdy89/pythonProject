@@ -1,7 +1,7 @@
-# import sys
-#
-# from db import DBUtil
-#
+import sys
+
+from db import DBUtil
+
 # db = DBUtil()
 # q = "CREATE TABLE TEST (" \
 #     "CUST_NO VARCHAR(13) NOT NULL," \
@@ -11,15 +11,15 @@
 #     "SYS_EVNT_ID VARCHAR(10)," \
 #     "SYS_EVNT_NM VARCHAR(20))"
 # q = "DROP TABLE TEST"
-# r = db.execute_query(q)
-# print(r.result())
+# db.execute_query(q)
 
 # import datetime
+# import random
 # test_data = []
 # for _ in range(10000000):
-#     test_data.append(("CUST" + str(_%1000).zfill(7), datetime.datetime.now(), "EVT" + str(_%999).zfill(3),
-#                       "T_EVNT" + str(_%999).zfill(3), "C03-EVT" + str(_%999).zfill(3),
-#                       "T_CH" + str(_%99).zfill(2) + "-T_EVNT" + str(_%999).zfill(3)))
+#     test_data.append(("CUST" + str(_%300000).zfill(7), datetime.datetime.now(), "EVT" + str(random.randint(0, 250)).zfill(3),
+#                       "T_EVNT" + str(random.randint(0, 250)).zfill(3), "C03-EVT" + str(random.randint(0, 250)).zfill(3),
+#                       "T_CH" + str(random.randint(0, 50)).zfill(2) + "-T_EVNT" + str(random.randint(0, 250)).zfill(3)))
 # print(test_data[:1])
 
 # d = None
@@ -201,7 +201,7 @@ class MakeDatasetNBO:
         self.c_datas = [] # list of dict
         self.labels = ["EVT000", "EVT100", "EVT200", "EVT300", "EVT400", "EVT500", "EVT600", "EVT700", "EVT800", "EVT900"]
         self.key_index = 0
-        self.x_index = [2]
+        self.x_index = [1]
         self.split_process_pool = Pool(6)
         self.merge_process_pool = Pool(6)
         self.split_result = None
@@ -246,19 +246,18 @@ def split_chunk(chunk: list[tuple], chunk_index: int, key_index: int, x_index: l
     temp = []
     before_key = None
     for data in chunk:
-        c_temp = []
-        temp.append(data[key_index])
-        if before_key is not None:
-
-            pass
+        cur_key = data[key_index]
         for i in x_index:
-            c_temp.append(data[i])
-        temp.append(c_temp)
-        temp.append(chunk_index)
-        temp.append(is_buffer_end)
-        split.append(temp)
-    dataset_maker = ray.get_actor("dataset_maker")
-    dataset_maker.test.remote(data=split)
+            temp.append(data[i])
+        if before_key != data[key_index]:
+            split.append([cur_key, temp, chunk_index, is_buffer_end])
+            if cur_key == 'CUST0099992':
+                print(len(temp))
+            # print(cur_key, temp)
+            temp = []
+        before_key = data[key_index]
+    # dataset_maker = ray.get_actor("dataset_maker")
+    # dataset_maker.test.remote(data=split)
 
 
 from ray.util import inspect_serializability
@@ -279,16 +278,15 @@ print(end - start)
 # get train data -> aibeem.dataset(datasetname, version) -> list of filepath, labels
 # def iteration pipeline type
 
-
+#
 # from db import DBUtil
 # from timeit import default_timer as timer
 # db = DBUtil()
-# print(db.select(name="select_test"))
-#
 # db.set_select_chunk(name="select_test", array_size=10000, prefetch_row=10000)
+# print(db.select("select_test"))
 # start = timer()
 # for i, c in enumerate(db.select_chunk()):
-#     t = c
+#     print(c[1])
 # end = timer()
 # print(end-start)
 # 13sec
