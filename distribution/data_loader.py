@@ -171,6 +171,7 @@ from db import DBUtil
 # for c in db.select_chunk():
 #     print(c)
 
+import os
 
 from multiprocessing import Pool
 import ray
@@ -198,21 +199,22 @@ class MakeDatasetNBO:
         self.c_info = []
         self.c_leftovers = [] # list of dict
         self.c_datas = [] # list of dict
-        self.labels = []
-        self.p = Pool()
+        self.labels = ["EVT000", "EVT100", "EVT200", "EVT300", "EVT400", "EVT500", "EVT600", "EVT700", "EVT800", "EVT900"]
+        self.key_index = 0
+        self.x_index = [2]
+        self.split_process_pool = Pool(6)
+        self.merge_process_pool = Pool(6)
         self.split_result = None
         self.merge_result = None
         self.db = DBUtil()
         self.db.set_select_chunk(name="select_test", array_size=10000, prefetch_row=10000)
-
-    def set_split_data(self, data):
-        # with lock
-        # update merged
-        #
-        pass
+        self.count=0
 
     def set_leftover(self, data):
         pass
+
+    def test(self, data):
+        print(data)
 
     def operation_data(self):
         # with lock
@@ -236,16 +238,27 @@ class MakeDatasetNBO:
         #         print("@")
         #         break
         for i, chunk in enumerate(self.db.select_chunk()):
-            self.p.apply_async(split_chunk, args=(chunk,))
+            self.split_process_pool.apply_async(split_chunk, args=(chunk, i, self.key_index, self.x_index, False))
 
 
-def split_chunk(chunk: list[tuple], index: int, is_buffer_end: bool):
+def split_chunk(chunk: list[tuple], chunk_index: int, key_index: int, x_index: list[int], is_buffer_end: bool):
     split = []
     temp = []
+    before_key = None
     for data in chunk:
-        pass
+        c_temp = []
+        temp.append(data[key_index])
+        if before_key is not None:
+
+            pass
+        for i in x_index:
+            c_temp.append(data[i])
+        temp.append(c_temp)
+        temp.append(chunk_index)
+        temp.append(is_buffer_end)
+        split.append(temp)
     dataset_maker = ray.get_actor("dataset_maker")
-    dataset_maker.set_split_data.remote(data=split)
+    dataset_maker.test.remote(data=split)
 
 
 from ray.util import inspect_serializability
@@ -270,6 +283,8 @@ print(end - start)
 # from db import DBUtil
 # from timeit import default_timer as timer
 # db = DBUtil()
+# print(db.select(name="select_test"))
+#
 # db.set_select_chunk(name="select_test", array_size=10000, prefetch_row=10000)
 # start = timer()
 # for i, c in enumerate(db.select_chunk()):
