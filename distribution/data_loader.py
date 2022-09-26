@@ -218,7 +218,11 @@ class MakeDatasetNBO:
     def set_split(self, data):
         self.split.append(data)
         if len(self.split) == self.num_chunks:
-            self.merge()    # fail detection required
+            self.merge()
+        return 0
+
+    def fault_handle(self, msg):
+        raise Exception(msg)
 
     def operation_data(self):
         # get inspection
@@ -251,7 +255,9 @@ def split_chunk(chunk: list[tuple], chunk_index: int, key_index: int, x_index: l
             temp = []
         before_key = data[key_index]
     dataset_maker = ray.get_actor("dataset_maker")
-    dataset_maker.set_split.remote(data=split)
+    result = ray.get(dataset_maker.set_split.remote(data=split))
+    if result != 0:
+        dataset_maker.fault_handle.remote(msg="failed to send split result")
 
 
 def merge():
