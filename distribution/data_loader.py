@@ -90,9 +90,7 @@ import asyncio
 
 import pandas as pd
 
-
-
-#it will be ray actor
+# it will be ray actor
 # class MakeDatasetNBO:
 #     def __init__(self):
 #         # make some buffers of spliced chunk, if exceed max size of buffer, then write to next buffer and start merge, keep last(future)
@@ -130,28 +128,28 @@ import pandas as pd
 #
 #     def get_chunks(self):
 #         self.executor.submit(self.operation, ar=3)
-        # for i, chunk in enumerate(self.db.select_chunk()):
-        #     if self.chunk_size == 0:
-        #         self.chunk_size = sys.getsizeof(chunk) + sys.getsizeof("N")
-        #     self.c_buffer_size_cur += self.chunk_size
-        #     if self.c_buffer_size_cur + self.chunk_size < self.c_buffer_size_limit:
-        #         self.c_buffer_list[self.write_buffer_idx].append([chunk, "N"])
-        #         self.split_futures.append(self.executor.submit(self.split_chunk, index=i))
-        #     else:
-        #         self.c_buffer_list[self.write_buffer_idx].append([chunk, "Y"])
-        #         self.executor.submit(self.split_chunk, index=i)
-        #         self.split_futures.append(self.executor.submit(self.split_chunk, index=i))
-        #
-        #         print("@")
-        #         break
+# for i, chunk in enumerate(self.db.select_chunk()):
+#     if self.chunk_size == 0:
+#         self.chunk_size = sys.getsizeof(chunk) + sys.getsizeof("N")
+#     self.c_buffer_size_cur += self.chunk_size
+#     if self.c_buffer_size_cur + self.chunk_size < self.c_buffer_size_limit:
+#         self.c_buffer_list[self.write_buffer_idx].append([chunk, "N"])
+#         self.split_futures.append(self.executor.submit(self.split_chunk, index=i))
+#     else:
+#         self.c_buffer_list[self.write_buffer_idx].append([chunk, "Y"])
+#         self.executor.submit(self.split_chunk, index=i)
+#         self.split_futures.append(self.executor.submit(self.split_chunk, index=i))
+#
+#         print("@")
+#         break
 
-            # print(self.chunk_size)
-            # print(str(sys.getsizeof(self.c_buffer_list[self.write_buffer_idx]))+"/"+str(self.c_buffer_size))
+# print(self.chunk_size)
+# print(str(sys.getsizeof(self.c_buffer_list[self.write_buffer_idx]))+"/"+str(self.c_buffer_size))
 
-            #     # self.split_futures.append(self.executor.submit(self.split_chunk, index=i))
-            #     # self.split_futures[0].result()
-            #     # self.write_buffer_idx += 1
-            #     break
+#     # self.split_futures.append(self.executor.submit(self.split_chunk, index=i))
+#     # self.split_futures[0].result()
+#     # self.write_buffer_idx += 1
+#     break
 
 
 # t = MakeDatasetNBO()
@@ -181,64 +179,63 @@ from ray.util.multiprocessing import Pool
 @ray.remote
 class MakeDatasetNBO:
     def __init__(self):
-        self.mem_limit = 10485760
+        self.file_size_limit = 10485760
         self.num_concurrency = 8
-        self.c_buffer_num = 2
+        self.num_split_process_pool = int(self.num_concurrency / 2)
+        self.num_merge_process_pool = self.num_concurrency - self.num_split_process_pool
         self.chunk_size = 0
-        self.c_buffer_size_cur = 0
-        self.c_buffer_size_limit = self.mem_limit / self.c_buffer_num
-        self.c_buffer_list: list[list] = []
-        for i in range(self.c_buffer_num):
-            self.c_buffer_list.append([])
-        self.c_split = [] # list of dict, dict = {uid: data, last_flag:n}
-        self.working_buffer_idx = 0 # working buffer, writing buffer
-        self.write_buffer_idx = 0
-        self.is_first_chunk = True
+        self.cur_buffer_size = 0
+        self.num_chunks = 0
+        self.split = []  # list of dict, dict = {uid: data, last_flag:n}
+
         self.split_futures = []
-        self.merge_futures = [] # list of futures
+        self.merge_futures = []  # list of futures
         self.c_info = []
-        self.c_leftovers = [] # list of dict
-        self.c_datas = [] # list of dict
-        self.labels = ["EVT000", "EVT100", "EVT200", "EVT300", "EVT400", "EVT500", "EVT600", "EVT700", "EVT800", "EVT900"]
+        self.c_leftovers = []  # list of dict
+        self.c_datas = []  # list of dict
+        self.labels = ["EVT000", "EVT100", "EVT200", "EVT300", "EVT400", "EVT500", "EVT600", "EVT700", "EVT800",
+                       "EVT900"]
         self.key_index = 0
         self.x_index = [1]
-        self.split_process_pool = Pool(6)
-        self.merge_process_pool = Pool(6)
+        self.split_process_pool = Pool(self.num_split_process_pool)
+        self.merge_process_pool = Pool(self.num_merge_process_pool)
         self.split_result = None
         self.merge_result = None
         self.db = DBUtil()
         self.db.set_select_chunk(name="select_test", array_size=10000, prefetch_row=10000)
-        self.count=0
+        self.count = 0
+        self.lock = None
 
     def set_leftover(self, data):
         pass
 
-    def test(self, data):
-        print(data)
+    def merge(self):
+        # if all split task done
+        print(len(self.split))
+        # for i in split, if cust_id defined, set make dataset task
+        pass
+
+    def set_split(self, data):
+        self.split.append(data)
+        if len(self.split) == self.num_chunks:
+            self.merge()    # fail detection required
 
     def operation_data(self):
-        # with lock
-        # calculate here
-        # write to next buffer
+        # get inspection
         # if merge
 
-        # for i, chunk in enumerate(self.db.select_chunk()):
-        #     # check split buffer max
-        #     if self.chunk_size == 0:
-        #         self.chunk_size = sys.getsizeof(chunk) + sys.getsizeof("N")
-        #     self.c_buffer_size_cur += self.chunk_size
-        #     if self.c_buffer_size_cur + self.chunk_size < self.c_buffer_size_limit:
-        #         self.c_buffer_list[self.write_buffer_idx].append([chunk, "N"])
-        #         self.split_futures.append(self.executor.submit(self.split_chunk, index=i))
-        #     else:
-        #         self.c_buffer_list[self.write_buffer_idx].append([chunk, "Y"])
-        #         self.executor.submit(self.split_chunk, index=i)
-        #         self.split_futures.append(self.executor.submit(self.split_chunk, index=i))
-        #
-        #         print("@")
-        #         break
         for i, chunk in enumerate(self.db.select_chunk()):
-            self.split_process_pool.apply_async(split_chunk, args=(chunk, i, self.key_index, self.x_index, False))
+            if self.chunk_size == 0:
+                self.chunk_size = sys.getsizeof(chunk) + sys.getsizeof(True)
+            self.cur_buffer_size += self.chunk_size
+            if self.cur_buffer_size + self.chunk_size < self.file_size_limit:
+                self.split_process_pool.apply_async(split_chunk,
+                                                    args=(chunk, i, self.key_index, self.x_index, False))
+            else:
+                self.split_process_pool.apply_async(split_chunk,
+                                                    args=(chunk, i, self.key_index, self.x_index, True))
+                self.num_chunks = i+1
+                break
 
 
 def split_chunk(chunk: list[tuple], chunk_index: int, key_index: int, x_index: list[int], is_buffer_end: bool):
@@ -251,16 +248,18 @@ def split_chunk(chunk: list[tuple], chunk_index: int, key_index: int, x_index: l
             temp.append(data[i])
         if before_key != data[key_index]:
             split.append([cur_key, temp, chunk_index, is_buffer_end])
-            if cur_key == 'CUST0099992':
-                print(len(temp))
-            # print(cur_key, temp)
             temp = []
         before_key = data[key_index]
-    # dataset_maker = ray.get_actor("dataset_maker")
-    # dataset_maker.test.remote(data=split)
+    dataset_maker = ray.get_actor("dataset_maker")
+    dataset_maker.set_split.remote(data=split)
+
+
+def merge():
+    pass
 
 
 from ray.util import inspect_serializability
+
 inspect_serializability(MakeDatasetNBO, name="dataset_maker")
 inspect_serializability(split_chunk, name="split_chunk")
 
@@ -268,6 +267,7 @@ ray.init()
 
 svr2 = MakeDatasetNBO.options(name="dataset_maker").remote()
 from timeit import default_timer as timer
+
 start = timer()
 ray.get(svr2.operation_data.remote())
 end = timer()
