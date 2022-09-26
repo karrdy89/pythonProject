@@ -207,55 +207,21 @@ class MakeDatasetNBO:
 
     def merge(self):
         left_over = None
-        for i in range(len(self.split)):
+        split_len = len(self.split)
+        for i in range(split_len):
             cur_chunk = None
             for chunk in self.split:
                 if chunk[-2] == i:
                     cur_chunk = chunk[:-2]
-
             if left_over is not None:
                 left_over_cust_id = left_over[0]
-                print(i, left_over_cust_id, cur_chunk[0][0])
-                print(cur_chunk[0])
-                print(left_over)
                 if cur_chunk[0][0] == left_over_cust_id:
                     cur_chunk[0][1] = left_over[1] + cur_chunk[0][1]
                 else:
                     cur_chunk.insert(0, left_over)
-                print(cur_chunk[0])
-            left_over = cur_chunk[-1]
-
-                # for c_idx, items in enumerate(self.split):
-        #     print(c_idx)
-        #     for _ in self.split:
-        #         if _[-2] == c_idx:
-        #             pass
-        #     if items[-2] == c_idx:
-        #         before_cust_id = None
-        #         items = items[:-2]
-        #         if left_over is not None:
-        #             left_over_cust_id = left_over[0]
-        #             if items[0][0] == left_over_cust_id:
-        #                 items[0][1] = left_over[1] + items[0][1]
-        #             else:
-        #                 items[0].insert(0, left_over)
-        #         left_over = items[-1]
-        #         print(left_over)
-        # for d_idx, item in enumerate(reversed(items)):
-        #     cur_cust_id = item[0]
-        #     if before_cust_id is None:
-        #         before_cust_id = cur_cust_id
-        #     if before_cust_id != cur_cust_id:
-        #         left_over = items[len(items) - d_idx]
-        # if all split task done
-        # for i in split, if cust_id defined, set make dataset task
-        # define cust_id
-        # find chunk index 0
-        # do process
-        # get left over
-        # find next chunk index
-        # append first in current chunk
-        pass
+            if i < split_len-1:
+                left_over = cur_chunk.pop(-1)
+            # do dataset stuff
 
     def set_split(self, data):
         self.split.append(data)
