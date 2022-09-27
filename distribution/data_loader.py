@@ -263,6 +263,10 @@ def split_chunk(chunk: list[tuple], chunk_index: int, key_index: int, x_index: l
 
 def make_dataset():
     # work with split chunk
+    # make data information file (count class, set max len of total data)
+    # for cust_id_data in chunk
+    # for actions in cust_id_data
+    # find indexed
     pass
 
 
