@@ -170,8 +170,8 @@ from db import DBUtil
 #     print(c)
 
 import os
+from itertools import islice
 
-from multiprocessing import Pool
 import ray
 from ray.util.multiprocessing import Pool
 
@@ -179,31 +179,21 @@ from ray.util.multiprocessing import Pool
 @ray.remote
 class MakeDatasetNBO:
     def __init__(self):
-        self.file_size_limit = 10485760
-        self.num_concurrency = 8
+        self.file_size_limit = 10485760 # input, deal with percentage
+        self.num_concurrency = 8    # deal with cpu count
         self.chunk_size = 0
         self.cur_buffer_size = 0
         self.num_chunks = 0
-        self.split = []  # list of dict, dict = {uid: data, last_flag:n}
+        self.split = []
 
-        self.split_futures = []
-        self.merge_futures = []  # list of futures
-        self.c_info = []
-        self.c_leftovers = []  # list of dict
-        self.c_datas = []  # list of dict
         self.labels = ["EVT000", "EVT100", "EVT200", "EVT300", "EVT400", "EVT500", "EVT600", "EVT700", "EVT800",
-                       "EVT900"]
-        self.key_index = 0
-        self.x_index = [1]
+                       "EVT900"]    # input
+        self.key_index = 0  # input
+        self.x_index = [1]  # input
         self.process_pool = Pool(self.num_concurrency)
-        self.split_result = None
-        self.merge_result = None
         self.db = DBUtil()
         self.db.set_select_chunk(name="select_test", array_size=10000, prefetch_row=10000)
         self.count = 0
-
-    def set_leftover(self, data):
-        pass
 
     def merge(self):
         left_over = None
@@ -222,6 +212,8 @@ class MakeDatasetNBO:
             if i < split_len-1:
                 left_over = cur_chunk.pop(-1)
             # do dataset stuff
+            # count task number, check all done when receive data
+            # if done attach all and export to file and do next fetch
 
     def set_split(self, data):
         self.split.append(data)
@@ -233,10 +225,7 @@ class MakeDatasetNBO:
         raise Exception(msg)
 
     def operation_data(self):
-        # get inspection
-        # if merge
-
-        for i, chunk in enumerate(self.db.select_chunk()):
+        for i, chunk in enumerate(islice(self.db.select_chunk(), self.count, None)):
             if self.chunk_size == 0:
                 self.chunk_size = sys.getsizeof(chunk) + sys.getsizeof(True)
             self.cur_buffer_size += self.chunk_size
@@ -247,7 +236,9 @@ class MakeDatasetNBO:
                 self.process_pool.apply_async(split_chunk,
                                               args=(chunk, i, self.key_index, self.x_index, True))
                 self.num_chunks = i + 1
+                self.count = i
                 break
+        #end stuff
 
 
 def split_chunk(chunk: list[tuple], chunk_index: int, key_index: int, x_index: list[int], is_buffer_end: bool):
@@ -270,7 +261,8 @@ def split_chunk(chunk: list[tuple], chunk_index: int, key_index: int, x_index: l
         dataset_maker.fault_handle.remote(msg="failed to send split result")
 
 
-def merge():
+def make_dataset():
+    # work with split chunk
     pass
 
 
@@ -278,6 +270,7 @@ from ray.util import inspect_serializability
 
 inspect_serializability(MakeDatasetNBO, name="dataset_maker")
 inspect_serializability(split_chunk, name="split_chunk")
+inspect_serializability(make_dataset, name="make_dataset")
 
 ray.init()
 
