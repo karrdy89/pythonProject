@@ -266,7 +266,8 @@ def make_dataset():
     # make data information file (count class, set max len of total data)
     # for cust_id_data in chunk
     # for actions in cust_id_data
-    # find indexed
+    # find indexes of label -> is there efficient way?
+    # naive -> worst : n x j
     pass
 
 
