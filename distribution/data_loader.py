@@ -78,6 +78,8 @@ class MakeDatasetNBO:
 
     def done(self):
         self.process_pool.close()
+        # make information file
+
         print("done")
         # request kill to global state
         ray.kill(ray.get_actor("dataset_maker"))
