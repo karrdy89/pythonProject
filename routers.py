@@ -4,6 +4,7 @@ import logging
 
 import ray
 import httpx
+import tensorflow
 from fastapi import FastAPI
 from fastapi_utils.cbv import cbv
 from fastapi_utils.inferring_router import InferringRouter
