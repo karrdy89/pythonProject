@@ -1,6 +1,6 @@
-import sys
-
-from db import DBUtil
+# import sys
+#
+# from db import DBUtil
 
 # db = DBUtil()
 # q = "CREATE TABLE TEST (" \
@@ -22,64 +22,8 @@ from db import DBUtil
 #                       "T_CH" + str(random.randint(0, 50)).zfill(2) + "-T_EVNT" + str(random.randint(0, 250)).zfill(3)))
 # print(test_data[:1])
 
-# d = None
-# for _ in range(1):
-#     d = {"CUSTNO": "CUST" + str(_).zfill(7),
-#          "EVNT_ID": "EVT" + str(_%999).zfill(3),
-#          "EVNT_NM": "T_EVNT" + str(_%999).zfill(3),
-#          "SYS_EVNT_ID": "C03-EVT" + str(_%999).zfill(3),
-#          "SYS_EVNT_NM": "T_CH" + str(_%99).zfill(2) + "-T_EVNT" + str(_%999).zfill(3)}
-# print(d)
-# from db.mapper import Mapper
-# m = Mapper()
-# md = db.parameter_mapping(m.get("insert_test"), d)
-# print(md)
 
 # r = db.insert_many("INSERT_TEST_DATA", test_data)
-# r = db.execute_query("COMMIT")
-# print(r.result())
-# r = db.select("select_test")
-# print(r.result())
-
-
-# for _ in range(10000000):
-#     d = {"CUSTNO": "CUST" + str(_).zfill(7),
-#          "EVNT_ID": "EVT" + str(_%999).zfill(3),
-#          "EVNT_NM": "T_EVNT" + str(_%999).zfill(3),
-#          "SYS_EVNT_ID": "C03-EVT" + str(_%999).zfill(3),
-#          "SYS_EVNT_NM": "T_CH" + str(_%99).zfill(2) + "-T_EVNT" + str(_%999).zfill(3)}
-#     r = db.insert("insert_test", d)
-#     print(str(_) + " / 9999999")
-
-# print(test_data[9999999])
-# r = db.insert_many("INSERT_TEST_DATA", test_data[:10000])
-#
-#
-# from timeit import default_timer as timer
-# start = timer()
-# r = db.select("select_test")
-# dt = r.result()
-
-# db.set_select_chunk(name="select_test", array_size=1500, prefetch_row=1500)
-# dt = []
-# for chunk in db.select_chunk():
-#     dt.append(chunk)
-# end = timer()
-# print(end - start)
-# print(sys.getsizeof(dt))
-# fetchall without tuning : take avg 35 sec for 10,000,000, 40mb
-# fetchmany with tuning(as=1500, pf=1500) : take avg 7.2 sec for 10,000,000, 40mb
-
-# 1. def fetchmany(yield) and fetch size, prefetch : done
-# 2. def split size by memory and config, anyway maximum filesize is n% of memery size <-
-# -> append chunk to filesize max
-# -> if n(num of concurrent)/filesize exceeded, write to next buffer, next is set get and wright left over buffer and flush
-# 3. distribution job
-# -> yield from fetch, iteration
-# -> 1. revolver
-# -> 2. ray with cpu count
-# -> 3. non concurrency
-# 4. def iteration pipeline
 
 
 import sys
@@ -132,6 +76,12 @@ class MakeDatasetNBO:
             self.merge()
         return 0
 
+    def done(self):
+        self.process_pool.close()
+        print("done")
+        # request kill to global state
+        ray.kill(ray.get_actor("dataset_maker"))
+
     def export(self):
         max_len = 0
         for info in self.information:
@@ -157,6 +107,8 @@ class MakeDatasetNBO:
             df.to_csv(self.path + "/" + str(self.file_count) + ".csv", sep=",", na_rep="NaN")
         except Exception as e:
             print(e)
+            self.process_pool.close()
+            # request kill to global state
             # kill actor
         else:
             self.information = []
@@ -184,6 +136,10 @@ class MakeDatasetNBO:
         self.split = []
 
     def fault_handle(self, msg):
+        self.process_pool.close()
+        # send to logger
+        # request kill to global state
+        # kill actor
         raise Exception(msg)
 
     def operation_data(self):
@@ -202,7 +158,7 @@ class MakeDatasetNBO:
                 self.num_chunks = i + 1
                 self.count += i
                 return 1
-        print("done")
+        self.done()
         return 0
 
 
