@@ -27,6 +27,7 @@ from utils.http_util import Http
 from utils.common import version_encode, version_decode
 from logger import BootLogger
 from statics import ErrorCode
+from statics import Actors
 
 
 @ray.remote
@@ -164,7 +165,7 @@ class ModelServing:
     def init(self) -> int:
         self._boot_logger.info("(" + self._worker + ") " + "init model_serving actor...")
         self._boot_logger.info("(" + self._worker + ") " + "set global logger...")
-        self._logger = ray.get_actor("logging_service")
+        self._logger = ray.get_actor(Actors.LOGGER)
         self._boot_logger.info("(" + self._worker + ") " + "set statics from config...")
         config_parser = configparser.ConfigParser()
         try:

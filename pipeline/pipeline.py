@@ -7,6 +7,7 @@ import traceback
 import ray
 
 from pipeline import TrainInfo, PipelineComponent
+from statics import Actors
 
 
 @ray.remote
@@ -55,8 +56,8 @@ class Pipeline:
         self._name: str = ''
         self._sequence_names: list[str] = []
         self._pipeline_definition_path: str = os.path.dirname(os.path.abspath(__file__)) + "/pipelines.yaml"
-        self._logger: ray.actor = ray.get_actor("logging_service")
-        self._shared_state: ray.actor = ray.get_actor("shared_state")
+        self._logger: ray.actor = ray.get_actor(Actors.LOGGER)
+        self._shared_state: ray.actor = ray.get_actor(Actors.GLOBAL_STATE)
         self._pipeline_state: dict[str, str] = {}
         self._components: dict[int, PipelineComponent] = {}
         self._component_result = None

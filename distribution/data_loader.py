@@ -28,6 +28,7 @@
 
 import sys
 import os
+import json
 from itertools import islice, chain
 
 import pandas as pd
@@ -35,13 +36,12 @@ import ray
 from ray.util.multiprocessing import Pool
 
 from db import DBUtil
+from statics import Actors
 
 
 @ray.remote
 class MakeDatasetNBO:
     def __init__(self):
-        self.file_size_limit = 10485760  # input, deal with percentage
-        self.num_concurrency = 8  # deal with cpu count
         self.chunk_size = 0
         self.cur_buffer_size = 0
         self.num_chunks = 0
@@ -49,7 +49,11 @@ class MakeDatasetNBO:
         self.dataset = []
         self.information = []
         self.information_total = []
+        self.logger = ray.get_actor(Actors.LOGGER)
+        self.shared_state = ray.get_actor(Actors.GLOBAL_STATE)
 
+        self.file_size_limit = 10485760  # input, deal with percentage
+        self.num_concurrency = 8  # deal with cpu count
         self.labels = ["EVT000", "EVT100", "EVT200", "EVT300", "EVT400", "EVT500", "EVT600", "EVT700", "EVT800",
                        "EVT900"]  # input
         self.key_index = 0  # input
@@ -80,7 +84,23 @@ class MakeDatasetNBO:
     def done(self):
         self.process_pool.close()
         # make information file
+        max_len = 0
+        classes = None
+        for information in self.information_total:
+            inform_max = information.get("max_len")
+            if max_len < inform_max:
+                max_len = inform_max
+            if classes is not None:
+                inform_classes = information.get("classes")
+                for key in classes:
+                    classes[key] += inform_classes[key]
+            else:
+                classes = information.get("classes")
+        information = {"max_len": max_len, "class": classes}
+        with open(self.path + "/information.json", 'w', encoding="utf-8") as f:
+            json.dump(information, f, ensure_ascii=False, indent=4)
 
+        # log to logger
         print("done")
         # request kill to global state
         ray.kill(ray.get_actor("dataset_maker"))
@@ -227,16 +247,15 @@ from ray.util import inspect_serializability
 inspect_serializability(MakeDatasetNBO, name="dataset_maker")
 inspect_serializability(split_chunk, name="split_chunk")
 inspect_serializability(make_dataset, name="make_dataset")
-
-ray.init()
-
-svr2 = MakeDatasetNBO.options(name="dataset_maker").remote()
-from timeit import default_timer as timer
-
-start = timer()
-ray.get(svr2.operation_data.remote())
-end = timer()
-print(end - start)
+#
+#
+# svr2 = MakeDatasetNBO.options(name="dataset_maker").remote()
+# from timeit import default_timer as timer
+#
+# start = timer()
+# ray.get(svr2.operation_data.remote())
+# end = timer()
+# print(end - start)
 # 20, 30sec, 21
 
 # make dataloader -> call by endpoint

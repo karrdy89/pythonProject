@@ -2,6 +2,7 @@ import ray
 from tensorflow import keras
 
 from pipeline import TrainInfo
+from statics import Actors
 
 
 class BaseCallback(keras.callbacks.Callback):
@@ -31,7 +32,7 @@ class BaseCallback(keras.callbacks.Callback):
         update training progress to global data store when batch end.
     """
     def __init__(self, name):
-        self._shared_state: ray.actor = ray.get_actor("shared_state")
+        self._shared_state: ray.actor = ray.get_actor(Actors.GLOBAL_STATE)
         self.name: str = name
         self.epoch_step: int = 0
         self.epoch: int = 0

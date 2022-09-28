@@ -5,3 +5,12 @@ class ErrorCode:
     EXCEED_LIMITATION = 7
     HTTP_REQUEST = 8
     DOCKER = 9
+
+
+class Actors:
+    LOGGER = "logging_service"
+    GLOBAL_STATE = "shared_state"
+    SERVER = "API_service"
+    MODEL_SERVER = "model_serving"
+    DATASET_MAKER_NBO = "dataset_maker_NBO"
+

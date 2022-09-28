@@ -15,6 +15,7 @@ from ray import exceptions
 
 from utils.resettable_timer import ResettableTimer
 from logger import BootLogger
+from statics import Actors
 
 
 class TensorBoardTool:
@@ -75,7 +76,7 @@ class TensorBoardTool:
         self.init()
 
     def init(self) -> int:
-        self._logger = ray.get_actor("logging_service")
+        self._logger = ray.get_actor(Actors.LOGGER)
         self._logger.log.remote(level=logging.info, worker=self._worker, msg="init tensorboard service...")
         self._logger.log.remote(level=logging.info, worker=self._worker, msg="set statics from config...")
         config_parser = configparser.ConfigParser()

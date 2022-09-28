@@ -7,7 +7,7 @@ from ray import actor
 
 from pipeline import TrainResult
 from logger import BootLogger
-
+from statics import Actors
 
 @ray.remote
 class SharedState:
@@ -70,7 +70,7 @@ class SharedState:
     def init(self) -> int:
         self._boot_logger.info("(" + self._worker + ") " + "init shared_state actor...")
         self._boot_logger.info("(" + self._worker + ") " + "set global logger...")
-        self._logger = ray.get_actor("logging_service")
+        self._logger = ray.get_actor(Actors.LOGGER)
         self._boot_logger.info("(" + self._worker + ") " + "set statics from config...")
         config_parser = configparser.ConfigParser()
         try:

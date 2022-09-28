@@ -18,6 +18,7 @@ from tensorboard_service import TensorBoardTool
 from utils.common import version_decode, version_encode
 from pipeline import TrainInfo
 from distribution.data_loader import MakeDatasetNBO
+from statics import Actors
 
 project_path = os.path.dirname(os.path.abspath(__file__))
 app = FastAPI()
@@ -53,9 +54,9 @@ class AIbeemRouter:
     """
     def __init__(self):
         self._worker = type(self).__name__
-        self._server: ray.actor = ray.get_actor("model_serving")
-        self._logger: ray.actor = ray.get_actor("logging_service")
-        self._shared_state: ray.actor = ray.get_actor("shared_state")
+        self._server: ray.actor = ray.get_actor(Actors.MODEL_SERVER)
+        self._logger: ray.actor = ray.get_actor(Actors.LOGGER)
+        self._shared_state: ray.actor = ray.get_actor(Actors.GLOBAL_STATE)
         self._tensorboard_tool: TensorBoardTool = TensorBoardTool()
 
     @router.post("/train/run")

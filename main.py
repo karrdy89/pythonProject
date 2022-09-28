@@ -9,6 +9,7 @@ import uvicorn
 from serving import ModelServing
 from logger import Logger, BootLogger
 from shared_state import SharedState
+from statics import Actors
 
 boot_logger = BootLogger().logger
 boot_logger.info("(Main Server) init main server...")
@@ -54,7 +55,7 @@ config = uvicorn.Config("routers:app",
                         )
 
 boot_logger.info("(Main Server) create actors...")
-logging_service = Logger.options(name="logging_service", max_concurrency=500).remote()
+logging_service = Logger.options(name=Actors.LOGGER, max_concurrency=500).remote()
 
 boot_logger.info("(Main Server) init logging_service...")
 init_processes = ray.get(logging_service.init.remote())
@@ -62,14 +63,14 @@ if init_processes == -1:
     boot_logger.error("(Main Server) failed to init logging_service")
     sys.exit()
 
-model_serving = ModelServing.options(name="model_serving").remote()
-shared_state = SharedState.options(name="shared_state").remote()
+model_serving = ModelServing.options(name=Actors.MODEL_SERVER).remote()
+shared_state = SharedState.options(name=Actors.GLOBAL_STATE).remote()
 
 boot_logger.info("(Main Server) init services...")
 init_processes = ray.get([model_serving.init.remote(), shared_state.init.remote()])
 api_service = None
 try:
-    api_service = UvicornServer.options(name="API_service").remote(config=config)
+    api_service = UvicornServer.options(name=Actors.SERVER).remote(config=config)
 except Exception as e:
     exc_str = ''.join(traceback.format_exception(None, e, e.__traceback__))
     init_processes.append(-1)
