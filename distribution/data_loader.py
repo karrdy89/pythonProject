@@ -81,100 +81,16 @@ from db import DBUtil
 # -> 3. non concurrency
 # 4. def iteration pipeline
 
-# chain with pendings, if finished check pending
-import concurrent.futures
+
 import sys
-import time
-from concurrent.futures import ProcessPoolExecutor
-import asyncio
-
-import pandas as pd
-
-# it will be ray actor
-# class MakeDatasetNBO:
-#     def __init__(self):
-#         # make some buffers of spliced chunk, if exceed max size of buffer, then write to next buffer and start merge, keep last(future)
-#         # if appended something to buffer queue pop and start splice(if can atomic submit to processpool)
-#         # if merge(if can atomic process task) done(add to process task), export to file except last, append last to chunking task, read from next buffer
-#         # repeat
-#         self.mem_limit = 10485760
-#         self.num_concurrency = 8
-#         self.executor = ProcessPoolExecutor(self.num_concurrency)
-#         self.c_buffer_num = 2
-#         self.chunk_size = 0
-#         self.c_buffer_size_cur = 0
-#         self.c_buffer_size_limit = self.mem_limit / self.c_buffer_num
-#         self.db = DBUtil()
-#         self.c_buffer_list: list[list] = [] # list of buffer queue or list(whatever atomic) if buffer in -> trigger callback
-#         for i in range(self.c_buffer_num):
-#             self.c_buffer_list.append([])
-#
-#         self.c_split = [] # list of dict, dict = {uid: data, last_flag:n}
-#         self.working_buffer_idx = 0 # working buffer, writing buffer
-#         self.write_buffer_idx = 0
-#         self.is_first_chunk = True
-#         self.split_futures = []
-#         self.merge_futures = [] # list of futures
-#         self.c_info = []
-#         self.c_leftovers = [] # list of dict
-#         self.c_datas = [] # list of dict
-#
-#         self.db.set_select_chunk(name="select_test", array_size=2000, prefetch_row=2000)
-#
-#     def operation(self, ar):
-#         print(f"foo {ar}")
-#         time.sleep(3)
-#         print("bar")
-#
-#     def get_chunks(self):
-#         self.executor.submit(self.operation, ar=3)
-# for i, chunk in enumerate(self.db.select_chunk()):
-#     if self.chunk_size == 0:
-#         self.chunk_size = sys.getsizeof(chunk) + sys.getsizeof("N")
-#     self.c_buffer_size_cur += self.chunk_size
-#     if self.c_buffer_size_cur + self.chunk_size < self.c_buffer_size_limit:
-#         self.c_buffer_list[self.write_buffer_idx].append([chunk, "N"])
-#         self.split_futures.append(self.executor.submit(self.split_chunk, index=i))
-#     else:
-#         self.c_buffer_list[self.write_buffer_idx].append([chunk, "Y"])
-#         self.executor.submit(self.split_chunk, index=i)
-#         self.split_futures.append(self.executor.submit(self.split_chunk, index=i))
-#
-#         print("@")
-#         break
-
-# print(self.chunk_size)
-# print(str(sys.getsizeof(self.c_buffer_list[self.write_buffer_idx]))+"/"+str(self.c_buffer_size))
-
-#     # self.split_futures.append(self.executor.submit(self.split_chunk, index=i))
-#     # self.split_futures[0].result()
-#     # self.write_buffer_idx += 1
-#     break
-
-
-# t = MakeDatasetNBO()
-# t.get_chunks()
-# from timeit import default_timer as timer
-# start = timer()
-# t.get_chunks()
-# end = timer()
-# print(end - start)
-#
-#
-from db import DBUtil
-# db = DBUtil()
-#
-#
-# db.set_select_chunk(name="select_test", array_size=2000, prefetch_row=2000)
-# for c in db.select_chunk():
-#     print(c)
-
 import os
-import csv
 from itertools import islice, chain
 
+import pandas as pd
 import ray
 from ray.util.multiprocessing import Pool
+
+from db import DBUtil
 
 
 @ray.remote
@@ -200,11 +116,12 @@ class MakeDatasetNBO:
         self.db = DBUtil()
         self.db.set_select_chunk(name="select_test", array_size=10000, prefetch_row=10000)
         self.count = 0
+        self.file_count = 1
 
     def set_dataset(self, data: list, information: dict):
         self.dataset += data
         self.information.append(information)
-        if len(self.information) == len(self.split):
+        if len(self.information) == self.num_chunks:
             self.information_total += self.information
             self.export()
         return 0
@@ -221,13 +138,31 @@ class MakeDatasetNBO:
             if max_len < info.get("max_len"):
                 max_len = info.get("max_len")
         fields = ["key"]
-        for i in range(max_len-2):
+        for i in range(max_len):
             fields.append("feature" + str(i))
         fields.append("label")
-        with open():
-            pass
-        self.information = []
-        self.dataset = []
+
+        for data in self.dataset:
+            data_len = len(data)
+            r_max_len = max_len+2
+            if data_len < r_max_len:
+                label = data.pop(-1)
+                for i in range(r_max_len - data_len):
+                    data.append(None)
+                data.append(label)
+        try:
+            df = pd.DataFrame(self.dataset, columns=fields)
+            if not os.path.exists(self.path):
+                os.makedirs(self.path)
+            df.to_csv(self.path + "/" + str(self.file_count) + ".csv", sep=",", na_rep="NaN")
+        except Exception as e:
+            print(e)
+            # kill actor
+        else:
+            self.information = []
+            self.dataset = []
+            self.file_count += 1
+            self.operation_data()
 
     def merge(self):
         left_over = None
@@ -246,14 +181,14 @@ class MakeDatasetNBO:
             if i < split_len - 1:
                 left_over = cur_chunk.pop(-1)
             self.process_pool.apply_async(make_dataset, args=(cur_chunk, self.labels))
-            # do dataset stuff
-            # count task number, check all done when receive data
-            # if done attach all and export to file and do next fetch
+        self.split = []
 
     def fault_handle(self, msg):
         raise Exception(msg)
 
     def operation_data(self):
+        self.cur_buffer_size = 0
+        self.num_chunks = 0
         for i, chunk in enumerate(islice(self.db.select_chunk(), self.count, None)):
             if self.chunk_size == 0:
                 self.chunk_size = sys.getsizeof(chunk) + sys.getsizeof(True)
@@ -265,9 +200,10 @@ class MakeDatasetNBO:
                 self.process_pool.apply_async(split_chunk,
                                               args=(chunk, i, self.key_index, self.x_index, True))
                 self.num_chunks = i + 1
-                self.count = i
-                break
-        # end stuff
+                self.count += i
+                return 1
+        print("done")
+        return 0
 
 
 def split_chunk(chunk: list[tuple], chunk_index: int, key_index: int, x_index: list[int], is_buffer_end: bool):
@@ -301,23 +237,24 @@ def make_dataset(datas: list, labels: list[str]):
         cust_id = data[0]
         features = data[1]
         matched_idx_before = 0
+        matched = False
         for i, feature in enumerate(features):
+            if matched:
+                matched = False
+                matched_idx_before += 1
+                continue
             if feature in labels:
                 matched_idx_current = i
                 if matched_idx_current <= matched_idx_before + 1:
                     matched_idx_before = matched_idx_current
                 else:
                     dataset.append([cust_id] + features[matched_idx_before:matched_idx_current] + [feature])
-                    if max_len <= (matched_idx_current - matched_idx_before):
+                    if max_len < (matched_idx_current - matched_idx_before):
                         max_len = matched_idx_current - matched_idx_before
                     classes[feature] += 1
-    for data in dataset:
-        data_len = len(data[1:-1])
-        if data_len < max_len:
-            label = data.pop(-1)
-            for i in range(max_len-data_len-1):
-                data.append(None)
-            data.append(label)
+                    matched_idx_before = matched_idx_current
+                matched = True
+
     information["max_len"] = max_len
     information["classes"] = classes
     dataset_maker = ray.get_actor("dataset_maker")
