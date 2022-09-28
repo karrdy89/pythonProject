@@ -12,5 +12,5 @@ class Actors:
     GLOBAL_STATE = "shared_state"
     SERVER = "API_service"
     MODEL_SERVER = "model_serving"
-    DATASET_MAKER_NBO = "dataset_maker_NBO"
+    DATA_MAKER_NBO = "datamaker_nbo"
 

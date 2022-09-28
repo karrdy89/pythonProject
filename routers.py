@@ -13,11 +13,11 @@ from starlette.responses import StreamingResponse
 from starlette.background import BackgroundTask
 
 import VO.request_vo as rvo
+from distribution.data_loader_nbo.data_loader import MakeDatasetNBO
 from pipeline import Pipeline
 from tensorboard_service import TensorBoardTool
-from utils.common import version_decode, version_encode
+from utils.common import version_encode
 from pipeline import TrainInfo
-from distribution.data_loader import MakeDatasetNBO
 from statics import Actors
 
 project_path = os.path.dirname(os.path.abspath(__file__))
@@ -104,9 +104,12 @@ class AIbeemRouter:
 
     @router.get("/dataset/make")
     async def make_dataset(self):
-        t = MakeDatasetNBO()
-        t.operation_data()
-
+        try:
+            a = MakeDatasetNBO.options(name=Actors.DATA_MAKER_NBO).remote()
+            await a.set_act.remote(act=a)
+            a.operation_data.remote()
+        except Exception as e:
+            print(e)
 
     @router.get("/dataset/download")
     async def get_train_info(self):

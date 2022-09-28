@@ -30,6 +30,7 @@ import sys
 import os
 import json
 from itertools import islice, chain
+from typing import Any
 
 import pandas as pd
 import ray
@@ -37,18 +38,37 @@ from ray.util.multiprocessing import Pool
 
 from db import DBUtil
 from statics import Actors
+from distribution.data_loader_nbo.utils import split_chunk, make_dataset
 
 
 @ray.remote
 class MakeDatasetNBO:
     def __init__(self):
-        self.chunk_size = 0
-        self.cur_buffer_size = 0
-        self.num_chunks = 0
-        self.split = []
-        self.dataset = []
-        self.information = []
-        self.information_total = []
+        self.chunk_size: int = 0
+        self.cur_buffer_size: int = 0
+        self.num_chunks: int = 0
+        self.count: int = 0
+        self.file_count: int = 1
+        self.split: list = []
+        self.dataset: list = []
+        self.information: list = []
+        self.information_total: list = []
+
+        self.logger: ray.actor = None
+        self.shared_state: ray.actor = None
+        self.file_size_limit: int = 10485760
+        self.num_concurrency: int = 1
+        self.labels: list | None = None
+        self.key_index: int = 0
+        self.x_index: list | None = None
+        self.version: str = '0'
+        self.dataset_name: str = "NBO"
+        self.path: str = ''
+        self.process_pool: Pool | None = None
+        self.db: DBUtil | None = None
+        self.act: ray.actor = None
+
+
         self.logger = ray.get_actor(Actors.LOGGER)
         self.shared_state = ray.get_actor(Actors.GLOBAL_STATE)
 
@@ -64,8 +84,11 @@ class MakeDatasetNBO:
         self.process_pool = Pool(self.num_concurrency)
         self.db = DBUtil()
         self.db.set_select_chunk(name="select_test", array_size=10000, prefetch_row=10000)
-        self.count = 0
-        self.file_count = 1
+
+
+    def set_act(self, act: ray.actor, labels: list, version: str, path: str, ):
+        self.act = act
+        return 0
 
     def set_dataset(self, data: list, information: dict):
         self.dataset += data
@@ -83,7 +106,6 @@ class MakeDatasetNBO:
 
     def done(self):
         self.process_pool.close()
-        # make information file
         max_len = 0
         classes = None
         for information in self.information_total:
@@ -127,6 +149,8 @@ class MakeDatasetNBO:
             df = pd.DataFrame(self.dataset, columns=fields)
             if not os.path.exists(self.path):
                 os.makedirs(self.path)
+            print(self.path)
+            print(df.head(10))
             df.to_csv(self.path + "/" + str(self.file_count) + ".csv", sep=",", na_rep="NaN")
         except Exception as e:
             print(e)
@@ -155,7 +179,7 @@ class MakeDatasetNBO:
                     cur_chunk.insert(0, left_over)
             if i < split_len - 1:
                 left_over = cur_chunk.pop(-1)
-            self.process_pool.apply_async(make_dataset, args=(cur_chunk, self.labels))
+            self.process_pool.apply_async(make_dataset, args=(cur_chunk, self.labels, self.act))
         self.split = []
 
     def fault_handle(self, msg):
@@ -174,86 +198,97 @@ class MakeDatasetNBO:
             self.cur_buffer_size += self.chunk_size
             if self.cur_buffer_size + self.chunk_size < self.file_size_limit:
                 self.process_pool.apply_async(split_chunk,
-                                              args=(chunk, i, self.key_index, self.x_index, False))
+                                              args=(chunk, i, self.key_index, self.x_index, False, self.act))
             else:
                 self.process_pool.apply_async(split_chunk,
-                                              args=(chunk, i, self.key_index, self.x_index, True))
+                                              args=(chunk, i, self.key_index, self.x_index, True, self.act))
                 self.num_chunks = i + 1
                 self.count += i
                 return 1
         self.done()
         return 0
 
+#
+# def split_chunk(chunk: list[tuple], chunk_index: int, key_index: int, x_index: list[int], is_buffer_end: bool):
+#     print("@@@@@@@@@@@@")
+#     split = []
+#     temp = []
+#     before_key = None
+#     for data in chunk:
+#         cur_key = data[key_index]
+#         for i in x_index:
+#             temp.append(data[i])
+#         if before_key != data[key_index]:
+#             split.append([cur_key, temp])
+#             temp = []
+#         before_key = data[key_index]
+#     split.append(chunk_index)
+#     split.append(is_buffer_end)
+#     dataset_maker = ray.get_actor(Actors.DATA_MAKER_NBO)
+#     result = ray.get(dataset_maker.set_split.remote(data=split))
+#     if result != 0:
+#         dataset_maker.fault_handle.remote(msg="failed to send split result")
+#
+#
+# def make_dataset(datas: list, labels: list[str]):
+#     max_len = 0
+#     classes = {}
+#     for label in labels:
+#         classes[label] = 0
+#     dataset = []
+#     information = {}
+#     for data in datas:
+#         cust_id = data[0]
+#         features = data[1]
+#         matched_idx_before = 0
+#         matched = False
+#         for i, feature in enumerate(features):
+#             if matched:
+#                 matched = False
+#                 matched_idx_before += 1
+#                 continue
+#             if feature in labels:
+#                 matched_idx_current = i
+#                 if matched_idx_current <= matched_idx_before + 1:
+#                     matched_idx_before = matched_idx_current
+#                 else:
+#                     dataset.append([cust_id] + features[matched_idx_before:matched_idx_current] + [feature])
+#                     if max_len < (matched_idx_current - matched_idx_before):
+#                         max_len = matched_idx_current - matched_idx_before
+#                     classes[feature] += 1
+#                     matched_idx_before = matched_idx_current
+#                 matched = True
+#
+#     information["max_len"] = max_len
+#     information["classes"] = classes
+#     dataset_maker = ray.get_actor(Actors.DATA_MAKER_NBO)
+#     result = ray.get(dataset_maker.set_dataset.remote(data=dataset, information=information))
+#     if result != 0:
+#         dataset_maker.fault_handle.remote(msg="failed to send make dataset result")
+#
 
-def split_chunk(chunk: list[tuple], chunk_index: int, key_index: int, x_index: list[int], is_buffer_end: bool):
-    split = []
-    temp = []
-    before_key = None
-    for data in chunk:
-        cur_key = data[key_index]
-        for i in x_index:
-            temp.append(data[i])
-        if before_key != data[key_index]:
-            split.append([cur_key, temp])
-            temp = []
-        before_key = data[key_index]
-    split.append(chunk_index)
-    split.append(is_buffer_end)
-    dataset_maker = ray.get_actor("dataset_maker")
-    result = ray.get(dataset_maker.set_split.remote(data=split))
-    if result != 0:
-        dataset_maker.fault_handle.remote(msg="failed to send split result")
-
-
-def make_dataset(datas: list, labels: list[str]):
-    max_len = 0
-    classes = {}
-    for label in labels:
-        classes[label] = 0
-    dataset = []
-    information = {}
-    for data in datas:
-        cust_id = data[0]
-        features = data[1]
-        matched_idx_before = 0
-        matched = False
-        for i, feature in enumerate(features):
-            if matched:
-                matched = False
-                matched_idx_before += 1
-                continue
-            if feature in labels:
-                matched_idx_current = i
-                if matched_idx_current <= matched_idx_before + 1:
-                    matched_idx_before = matched_idx_current
-                else:
-                    dataset.append([cust_id] + features[matched_idx_before:matched_idx_current] + [feature])
-                    if max_len < (matched_idx_current - matched_idx_before):
-                        max_len = matched_idx_current - matched_idx_before
-                    classes[feature] += 1
-                    matched_idx_before = matched_idx_current
-                matched = True
-
-    information["max_len"] = max_len
-    information["classes"] = classes
-    dataset_maker = ray.get_actor("dataset_maker")
-    result = ray.get(dataset_maker.set_dataset.remote(data=dataset, information=information))
-    if result != 0:
-        dataset_maker.fault_handle.remote(msg="failed to send make dataset result")
-
-
-from ray.util import inspect_serializability
-
-inspect_serializability(MakeDatasetNBO, name="dataset_maker")
-inspect_serializability(split_chunk, name="split_chunk")
-inspect_serializability(make_dataset, name="make_dataset")
+# def make_nbo_dataset():
+#     from ray.util import inspect_serializability
+#     inspect_serializability(MakeDatasetNBO, name=Actors.DATA_MAKER_NBO)
+#     inspect_serializability(split_chunk, name="split_chunk")
+#     inspect_serializability(make_dataset, name="make_dataset")
+#
+#     svr2 = MakeDatasetNBO.options(name="dataset_maker").remote()
+#     svr2.operation_data.remote()
+# ray.init()
+#
+# from ray.util import inspect_serializability
+#
+# inspect_serializability(MakeDatasetNBO, name="dataset_maker")
+# inspect_serializability(split_chunk, name="split_chunk")
+# inspect_serializability(make_dataset, name="make_dataset")
 #
 #
 # svr2 = MakeDatasetNBO.options(name="dataset_maker").remote()
 # from timeit import default_timer as timer
 #
 # start = timer()
-# ray.get(svr2.operation_data.remote())
+# svr2.operation_data.remote()
 # end = timer()
 # print(end - start)
 # 20, 30sec, 21
