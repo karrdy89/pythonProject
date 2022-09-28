@@ -24,20 +24,19 @@
 
 
 # r = db.insert_many("INSERT_TEST_DATA", test_data)
-
-
+import configparser
 import sys
 import os
 import json
+import psutil
 from itertools import islice, chain
-from typing import Any
 
 import pandas as pd
 import ray
 from ray.util.multiprocessing import Pool
 
 from db import DBUtil
-from statics import Actors
+from statics import Actors, ROOT_DIR
 from distribution.data_loader_nbo.utils import split_chunk, make_dataset
 
 
@@ -53,14 +52,16 @@ class MakeDatasetNBO:
         self.dataset: list = []
         self.information: list = []
         self.information_total: list = []
+        self.dataset_name = "NBO"
+        self.is_petch_end = False
 
         self.logger: ray.actor = None
         self.shared_state: ray.actor = None
-        self.file_size_limit: int = 10485760
+        self.mem_limit: int = 10485760
         self.num_concurrency: int = 1
         self.labels: list | None = None
         self.key_index: int = 0
-        self.x_index: list | None = None
+        self.x_index: list[int] | None = None
         self.version: str = '0'
         self.dataset_name: str = "NBO"
         self.path: str = ''
@@ -69,25 +70,56 @@ class MakeDatasetNBO:
         self.act: ray.actor = None
 
 
-        self.logger = ray.get_actor(Actors.LOGGER)
-        self.shared_state = ray.get_actor(Actors.GLOBAL_STATE)
-
-        self.file_size_limit = 10485760  # input, deal with percentage
-        self.num_concurrency = 8  # deal with cpu count
-        self.labels = ["EVT000", "EVT100", "EVT200", "EVT300", "EVT400", "EVT500", "EVT600", "EVT700", "EVT800",
-                       "EVT900"]  # input
-        self.key_index = 0  # input
-        self.x_index = [1]  # input
-        self.version = '0'    # input
-        self.dataset_name = "NBO"   #input
-        self.path = os.path.dirname(os.path.abspath(__file__))+"/dataset/"+self.dataset_name+"/"+self.version
-        self.process_pool = Pool(self.num_concurrency)
-        self.db = DBUtil()
-        self.db.set_select_chunk(name="select_test", array_size=10000, prefetch_row=10000)
 
 
-    def set_act(self, act: ray.actor, labels: list, version: str, path: str, ):
+        # self.mem_limit = 10485760  # config, deal with percentage
+        # self.num_concurrency = 8  # config, deal with cpu count
+        # self.labels = ["EVT000", "EVT100", "EVT200", "EVT300", "EVT400", "EVT500", "EVT600", "EVT700", "EVT800",
+        #                "EVT900"]  # input
+        # self.key_index = 0  # input
+        # self.x_index = [1]  # input
+        # self.version = '0'    # input
+        # self.path = os.path.dirname(os.path.abspath(__file__))+"/dataset/"+self.dataset_name+"/"+self.version
+        # self.process_pool = Pool(self.num_concurrency)
+
+    def init(self, act: ray.actor, labels: list, version: str, key_index: int, x_index: list[int]):
         self.act = act
+        self.labels = labels
+        self.version = version
+        self.key_index = key_index
+        self.x_index = x_index
+        try:
+            self.logger = ray.get_actor(Actors.LOGGER)
+            self.shared_state = ray.get_actor(Actors.GLOBAL_STATE)
+        except Exception as exc:
+            print("an error occur when set actors", exc)
+            return -1
+        try:
+            self.db = DBUtil()
+            self.db.set_select_chunk(name="select_test", array_size=10000, prefetch_row=10000)
+        except Exception as exc:
+            print("an error occur when set DBUtil", exc)
+            return -1
+        config_parser = configparser.ConfigParser()
+        try:
+            config_parser.read("config/config.ini")
+            mem_limit_percentage = int(config_parser.get("DATASET_MAKER", "MEM_LIMIT_PERCENTAGE"))
+            mem_limit_percentage = mem_limit_percentage / 100
+            concurrency_percentage = int(config_parser.get("DATASET_MAKER", "CONCURRENCY_PERCENTAGE_CPU"))
+            concurrency_percentage = concurrency_percentage / 100
+            base_path = str(config_parser.get("DATASET_MAKER", "BASE_PATH"))
+        except configparser.Error as exc:
+            print("an error occur when read config", exc)
+            return -1
+        else:
+            mem_total = psutil.virtual_memory().total
+            self.mem_limit = int(mem_total * mem_limit_percentage)
+            cpus = psutil.cpu_count(logical=False)
+            self.num_concurrency = int(cpus * concurrency_percentage)
+            if self.num_concurrency < 1:
+                self.num_concurrency = 1
+            self.process_pool = Pool(self.num_concurrency)
+            self.path = ROOT_DIR + base_path + "/" + self.dataset_name + "/" + self.version
         return 0
 
     def set_dataset(self, data: list, information: dict):
@@ -196,7 +228,7 @@ class MakeDatasetNBO:
             if self.chunk_size == 0:
                 self.chunk_size = sys.getsizeof(chunk) + sys.getsizeof(True)
             self.cur_buffer_size += self.chunk_size
-            if self.cur_buffer_size + self.chunk_size < self.file_size_limit:
+            if self.cur_buffer_size + self.chunk_size < self.mem_limit:
                 self.process_pool.apply_async(split_chunk,
                                               args=(chunk, i, self.key_index, self.x_index, False, self.act))
             else:
@@ -205,7 +237,8 @@ class MakeDatasetNBO:
                 self.num_chunks = i + 1
                 self.count += i
                 return 1
-        self.done()
+        self.done() # if mem enough call this one first
+        self.is_petch_end = True
         return 0
 
 #

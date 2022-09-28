@@ -1,5 +1,6 @@
 import json
 import os
+import logging
 
 import ray
 import httpx
@@ -105,11 +106,26 @@ class AIbeemRouter:
     @router.get("/dataset/make")
     async def make_dataset(self):
         try:
-            a = MakeDatasetNBO.options(name=Actors.DATA_MAKER_NBO).remote()
-            await a.set_act.remote(act=a)
-            a.operation_data.remote()
+            dataset_maker = MakeDatasetNBO.options(name=Actors.DATA_MAKER_NBO).remote()
         except Exception as e:
             print(e)
+            self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="make dataset fail: failed to make actor")
+            return "make dataset fail"
+        else:
+            labels = ["EVT000", "EVT100", "EVT200", "EVT300", "EVT400", "EVT500", "EVT600", "EVT700", "EVT800",
+                      "EVT900"]  # input
+            key_index = 0  # input
+            x_index = [1]  # input
+            version = '0'  # input
+            result = await dataset_maker.init.remote(act=dataset_maker, labels=labels, version=version,
+                                                     key_index=key_index, x_index=x_index)
+            if result == 0:
+                dataset_maker.operation_data.remote()
+                self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="make dataset start")
+                return "make dataset start"
+            else:
+                self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="make dataset fail: failed to init")
+                return "make dataset fail"
 
     @router.get("/dataset/download")
     async def get_train_info(self):

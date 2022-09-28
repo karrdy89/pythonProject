@@ -1,3 +1,7 @@
+import os
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+
 class ErrorCode:
     NOT_FOUND = 4
     DUPLICATED_REQUEST = 5
