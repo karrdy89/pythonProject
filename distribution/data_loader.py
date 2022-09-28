@@ -55,7 +55,8 @@ class MakeDatasetNBO:
         self.key_index = 0  # input
         self.x_index = [1]  # input
         self.version = '0'    # input
-        self.path = os.path.dirname(os.path.abspath(__file__)) + "/dataset/NBO/" + self.version
+        self.dataset_name = "NBO"   #input
+        self.path = os.path.dirname(os.path.abspath(__file__))+"/dataset/"+self.dataset_name+"/"+self.version
         self.process_pool = Pool(self.num_concurrency)
         self.db = DBUtil()
         self.db.set_select_chunk(name="select_test", array_size=10000, prefetch_row=10000)
