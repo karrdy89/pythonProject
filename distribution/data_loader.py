@@ -224,10 +224,10 @@ class MakeDatasetNBO:
         for i in range(max_len-2):
             fields.append("feature" + str(i))
         fields.append("label")
+        with open():
+            pass
         self.information = []
-        print(self.dataset)
-
-
+        self.dataset = []
 
     def merge(self):
         left_over = None
@@ -311,7 +311,13 @@ def make_dataset(datas: list, labels: list[str]):
                     if max_len <= (matched_idx_current - matched_idx_before):
                         max_len = matched_idx_current - matched_idx_before
                     classes[feature] += 1
-    # padding
+    for data in dataset:
+        data_len = len(data[1:-1])
+        if data_len < max_len:
+            label = data.pop(-1)
+            for i in range(max_len-data_len-1):
+                data.append(None)
+            data.append(label)
     information["max_len"] = max_len
     information["classes"] = classes
     dataset_maker = ray.get_actor("dataset_maker")
