@@ -170,7 +170,8 @@ from db import DBUtil
 #     print(c)
 
 import os
-from itertools import islice
+import csv
+from itertools import islice, chain
 
 import ray
 from ray.util.multiprocessing import Pool
@@ -185,18 +186,48 @@ class MakeDatasetNBO:
         self.cur_buffer_size = 0
         self.num_chunks = 0
         self.split = []
+        self.dataset = []
+        self.information = []
+        self.information_total = []
 
         self.labels = ["EVT000", "EVT100", "EVT200", "EVT300", "EVT400", "EVT500", "EVT600", "EVT700", "EVT800",
                        "EVT900"]  # input
         self.key_index = 0  # input
         self.x_index = [1]  # input
+        self.version = '0'    # input
+        self.path = os.path.dirname(os.path.abspath(__file__)) + "/dataset/NBO/" + self.version
         self.process_pool = Pool(self.num_concurrency)
         self.db = DBUtil()
         self.db.set_select_chunk(name="select_test", array_size=10000, prefetch_row=10000)
         self.count = 0
 
     def set_dataset(self, data: list, information: dict):
-        pass
+        self.dataset += data
+        self.information.append(information)
+        if len(self.information) == len(self.split):
+            self.information_total += self.information
+            self.export()
+        return 0
+
+    def set_split(self, data):
+        self.split.append(data)
+        if len(self.split) == self.num_chunks:
+            self.merge()
+        return 0
+
+    def export(self):
+        max_len = 0
+        for info in self.information:
+            if max_len < info.get("max_len"):
+                max_len = info.get("max_len")
+        fields = ["key"]
+        for i in range(max_len-2):
+            fields.append("feature" + str(i))
+        fields.append("label")
+        self.information = []
+        print(self.dataset)
+
+
 
     def merge(self):
         left_over = None
@@ -218,12 +249,6 @@ class MakeDatasetNBO:
             # do dataset stuff
             # count task number, check all done when receive data
             # if done attach all and export to file and do next fetch
-
-    def set_split(self, data):
-        self.split.append(data)
-        if len(self.split) == self.num_chunks:
-            self.merge()
-        return 0
 
     def fault_handle(self, msg):
         raise Exception(msg)
@@ -286,9 +311,13 @@ def make_dataset(datas: list, labels: list[str]):
                     if max_len <= (matched_idx_current - matched_idx_before):
                         max_len = matched_idx_current - matched_idx_before
                     classes[feature] += 1
+    # padding
     information["max_len"] = max_len
     information["classes"] = classes
-    print(information)
+    dataset_maker = ray.get_actor("dataset_maker")
+    result = ray.get(dataset_maker.set_dataset.remote(data=dataset, information=information))
+    if result != 0:
+        dataset_maker.fault_handle.remote(msg="failed to send make dataset result")
 
 
 from ray.util import inspect_serializability
