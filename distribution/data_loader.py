@@ -179,21 +179,24 @@ from ray.util.multiprocessing import Pool
 @ray.remote
 class MakeDatasetNBO:
     def __init__(self):
-        self.file_size_limit = 10485760 # input, deal with percentage
-        self.num_concurrency = 8    # deal with cpu count
+        self.file_size_limit = 10485760  # input, deal with percentage
+        self.num_concurrency = 8  # deal with cpu count
         self.chunk_size = 0
         self.cur_buffer_size = 0
         self.num_chunks = 0
         self.split = []
 
         self.labels = ["EVT000", "EVT100", "EVT200", "EVT300", "EVT400", "EVT500", "EVT600", "EVT700", "EVT800",
-                       "EVT900"]    # input
+                       "EVT900"]  # input
         self.key_index = 0  # input
         self.x_index = [1]  # input
         self.process_pool = Pool(self.num_concurrency)
         self.db = DBUtil()
         self.db.set_select_chunk(name="select_test", array_size=10000, prefetch_row=10000)
         self.count = 0
+
+    def set_dataset(self, data: list, information: dict):
+        pass
 
     def merge(self):
         left_over = None
@@ -209,8 +212,9 @@ class MakeDatasetNBO:
                     cur_chunk[0][1] = left_over[1] + cur_chunk[0][1]
                 else:
                     cur_chunk.insert(0, left_over)
-            if i < split_len-1:
+            if i < split_len - 1:
                 left_over = cur_chunk.pop(-1)
+            self.process_pool.apply_async(make_dataset, args=(cur_chunk, self.labels))
             # do dataset stuff
             # count task number, check all done when receive data
             # if done attach all and export to file and do next fetch
@@ -238,7 +242,7 @@ class MakeDatasetNBO:
                 self.num_chunks = i + 1
                 self.count = i
                 break
-        #end stuff
+        # end stuff
 
 
 def split_chunk(chunk: list[tuple], chunk_index: int, key_index: int, x_index: list[int], is_buffer_end: bool):
@@ -261,14 +265,30 @@ def split_chunk(chunk: list[tuple], chunk_index: int, key_index: int, x_index: l
         dataset_maker.fault_handle.remote(msg="failed to send split result")
 
 
-def make_dataset():
-    # work with split chunk
-    # make data information file (count class, set max len of total data)
-    # for cust_id_data in chunk
-    # for actions in cust_id_data
-    # find indexes of label -> is there efficient way?
-    # naive -> worst : n x j
-    pass
+def make_dataset(datas: list, labels: list[str]):
+    max_len = 0
+    classes = {}
+    for label in labels:
+        classes[label] = 0
+    dataset = []
+    information = {}
+    for data in datas:
+        cust_id = data[0]
+        features = data[1]
+        matched_idx_before = 0
+        for i, feature in enumerate(features):
+            if feature in labels:
+                matched_idx_current = i
+                if matched_idx_current <= matched_idx_before + 1:
+                    matched_idx_before = matched_idx_current
+                else:
+                    dataset.append([cust_id] + features[matched_idx_before:matched_idx_current] + [feature])
+                    if max_len <= (matched_idx_current - matched_idx_before):
+                        max_len = matched_idx_current - matched_idx_before
+                    classes[feature] += 1
+    information["max_len"] = max_len
+    information["classes"] = classes
+    print(information)
 
 
 from ray.util import inspect_serializability
