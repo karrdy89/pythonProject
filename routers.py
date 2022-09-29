@@ -110,7 +110,8 @@ class AIbeemRouter:
             dataset_maker = MakeDatasetNBO.options(name=Actors.DATA_MAKER_NBO).remote()
         except Exception as e:
             print(e)
-            self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="make dataset fail: failed to make actor")
+            self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                    msg="make dataset fail: failed to make actor")
             return "make dataset fail"
         else:
             labels = ["EVT000", "EVT100", "EVT200", "EVT300", "EVT400", "EVT500", "EVT600", "EVT700", "EVT800",
@@ -118,8 +119,10 @@ class AIbeemRouter:
             key_index = 0  # input
             x_index = [1]  # input
             version = '0'  # input
+            num_data_limit = 1000
             result = await dataset_maker.init.remote(act=dataset_maker, labels=labels, version=version,
-                                                     key_index=key_index, x_index=x_index)
+                                                     key_index=key_index, x_index=x_index,
+                                                     num_data_limit=num_data_limit)
             if result == 0:
                 dataset_maker.operation_data.remote()
                 self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="make dataset start")

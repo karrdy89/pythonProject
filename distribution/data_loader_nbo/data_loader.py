@@ -44,6 +44,8 @@ from distribution.data_loader_nbo.utils import split_chunk, make_dataset
 class MakeDatasetNBO:
     def __init__(self):
         self._chunk_size: int = 0
+        self._num_data_limit: int | None = None
+        self._num_data: int = 0
         self._cur_buffer_size: int = 0
         self._num_chunks: int = 0
         self._file_count: int = 1
@@ -70,12 +72,14 @@ class MakeDatasetNBO:
         self._db: DBUtil | None = None
         self._act: ray.actor = None
 
-    def init(self, act: ray.actor, labels: list, version: str, key_index: int, x_index: list[int]):
+    def init(self, act: ray.actor, labels: list, version: str, key_index: int, x_index: list[int],
+             num_data_limit: int | None):
         self._act = act
         self._labels = labels
         self._version = version
         self._key_index = key_index
         self._x_index = x_index
+        self._num_data_limit = num_data_limit
         try:
             self._logger = ray.get_actor(Actors.LOGGER)
             self._shared_state = ray.get_actor(Actors.GLOBAL_STATE)
@@ -174,8 +178,13 @@ class MakeDatasetNBO:
                 data.append(label)
         try:
             df = pd.DataFrame(self._dataset, columns=fields)
+            df_len = len(df.index)
+            if self._num_data_limit is not None:
+                diff_num = self._num_data_limit - self._num_data
+                if df_len > diff_num:
+                    df = df.iloc[0:diff_num]
             df.to_csv(self._path + "/" + str(self._file_count) + ".csv", sep=",", na_rep="NaN")
-            # export until given number
+            self._num_data += df_len
         except Exception as e:
             print(e)
             self._process_pool.close()
