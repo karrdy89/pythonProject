@@ -43,6 +43,7 @@ from distribution.data_loader_nbo.utils import split_chunk, make_dataset
 @ray.remote
 class MakeDatasetNBO:
     def __init__(self):
+        self._worker = type(self).__name__
         self._chunk_size: int = 0
         self._num_data_limit: int | None = None
         self._num_data: int = 0
