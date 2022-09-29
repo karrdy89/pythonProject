@@ -231,12 +231,13 @@ class MakeDatasetNBO:
             if self.cur_buffer_size + self.chunk_size < self.mem_limit:
                 self.process_pool.apply_async(split_chunk,
                                               args=(chunk, i, self.key_index, self.x_index, False, self.act))
+                # if last of generator it will be True(it seems to be not necessary, test it if all fine)
             else:
                 self.process_pool.apply_async(split_chunk,
                                               args=(chunk, i, self.key_index, self.x_index, True, self.act))
                 self.num_chunks = i + 1
                 self.count += i
                 return 1
-        self.done() # if mem enough call this one first
+        self.done() # if mem enough call this one first(direct call from remote, call by export)
         self.is_petch_end = True
         return 0

@@ -1,5 +1,4 @@
 import ray
-from statics import Actors
 
 
 def split_chunk(chunk: list[tuple], chunk_index: int, key_index: int, x_index: list[int], is_buffer_end: bool, act):

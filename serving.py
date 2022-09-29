@@ -199,6 +199,8 @@ class ModelServing:
         self._manager_handle.add_job(self.gc_container, "interval", seconds=self._GC_CHECK_INTERVAL, id="gc_container")
         self._manager_handle.start()
         self._boot_logger.info("(" + self._worker + ") " + "init model_serving actor complete...")
+
+        # read database and run container
         return 0
 
     async def deploy(self, model_id: str, version: str, container_num: int) -> json:
