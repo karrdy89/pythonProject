@@ -184,6 +184,7 @@ class MakeDatasetNBO:
             print(self.path)
             print(df.head(10))
             df.to_csv(self.path + "/" + str(self.file_count) + ".csv", sep=",", na_rep="NaN")
+            # export until given number
         except Exception as e:
             print(e)
             self.process_pool.close()
@@ -238,6 +239,7 @@ class MakeDatasetNBO:
                 self.num_chunks = i + 1
                 self.count += i
                 return 1
-        self.done() # if mem enough call this one first(direct call from remote, call by export)
+        self.done() # direct call from remote, call by export -> can guaranty export end? last export will call this)
+        # certain n-1 is possible.(export end: true, generator end: true = n-1, next export will call it anyway: solved)
         self.is_petch_end = True
         return 0
