@@ -49,6 +49,7 @@ class MakeDatasetNBO:
         self._num_data: int = 0
         self._cur_buffer_size: int = 0
         self._num_chunks: int = 0
+        self._num_merged: int = 0
         self._file_count: int = 1
         self._split: list = []
         self._dataset: list = []
@@ -58,6 +59,7 @@ class MakeDatasetNBO:
         self._is_petch_end = False
         self._is_export_end = False
         self._is_operation_end = False
+        self._is_merge_stop = False
 
         self._logger: ray.actor = None
         self._shared_state: ray.actor = None
@@ -107,6 +109,7 @@ class MakeDatasetNBO:
         else:
             mem_total = psutil.virtual_memory().total
             self._mem_limit = int(mem_total * mem_limit_percentage)
+            self._mem_limit = 2048576
             cpus = psutil.cpu_count(logical=False)
             self._num_concurrency = int(cpus * concurrency_percentage)
             if self._num_concurrency < 1:
@@ -124,7 +127,12 @@ class MakeDatasetNBO:
     def set_dataset(self, data: list, information: dict):
         self._dataset += data
         self._information.append(information)
-        if len(self._information) == self._num_chunks:
+        processed_len = len(self._information)
+        if self._is_merge_stop:
+            self._num_merged += processed_len
+            self._is_merge_stop = False
+        print(processed_len, self._num_merged)
+        if processed_len == self._num_merged:
             self._information_total += self._information
             self._export()
         return 0
@@ -179,13 +187,7 @@ class MakeDatasetNBO:
                 data.append(label)
         try:
             df = pd.DataFrame(self._dataset, columns=fields)
-            df_len = len(df.index)
-            if self._num_data_limit is not None:
-                diff_num = self._num_data_limit - self._num_data
-                if df_len > diff_num:
-                    df = df.iloc[0:diff_num]
             df.to_csv(self._path + "/" + str(self._file_count) + ".csv", sep=",", na_rep="NaN")
-            self._num_data += df_len
         except Exception as e:
             print(e)
             self._process_pool.close()
@@ -200,26 +202,35 @@ class MakeDatasetNBO:
 
     def _merge(self):
         print("merge")
+        self._num_merged = 0
         left_over = None
         split_len = len(self._split)
-        try:
-            for i in range(split_len):
-                cur_chunk = None
-                for chunk in self._split:
-                    if chunk[-1] == i:
-                        cur_chunk = chunk[:-1]
-                if left_over is not None:
-                    left_over_cust_id = left_over[0]
-                    if cur_chunk[0][0] == left_over_cust_id:
-                        cur_chunk[0][1] = left_over[1] + cur_chunk[0][1]
-                    else:
-                        cur_chunk.insert(0, left_over)
-                if i < split_len - 1:
-                    left_over = cur_chunk.pop(-1)
-                # slice num count here
-                self._process_pool.apply_async(make_dataset, args=(cur_chunk, self._labels, self._act))
-        except Exception as e:
-            print(e)
+        for i in range(split_len):
+            cur_chunk = None
+            for chunk in self._split:
+                if chunk[-1] == i:
+                    cur_chunk = chunk[:-1]
+            if left_over is not None:
+                left_over_cust_id = left_over[0]
+                if cur_chunk[0][0] == left_over_cust_id:
+                    cur_chunk[0][1] = left_over[1] + cur_chunk[0][1]
+                else:
+                    cur_chunk.insert(0, left_over)
+            if i < split_len - 1:
+                left_over = cur_chunk.pop(-1)
+            len_chunk = len(cur_chunk)
+            if self._num_data_limit is not None:
+                diff_num = self._num_data_limit - self._num_data
+                if len_chunk > diff_num:
+                    cur_chunk = cur_chunk[0:diff_num]
+                    self._num_merged = i
+                    self._process_pool.apply_async(make_dataset, args=(cur_chunk, self._labels, self._act))
+                    self._is_merge_stop = True
+                    self._is_operation_end = True
+                    break
+            self._num_data += len_chunk
+            self._num_merged = i
+            self._process_pool.apply_async(make_dataset, args=(cur_chunk, self._labels, self._act))
         self._split = []
 
     def fault_handle(self, msg):
@@ -233,24 +244,26 @@ class MakeDatasetNBO:
         print("operate")
         self._cur_buffer_size = 0
         self._num_chunks = 0
-        if not self._is_petch_end:
-            for i, chunk in enumerate(self._db.select_chunk()):
-                if len(chunk) == 0:
-                    self._is_petch_end = True
-                    break
-                if self._chunk_size == 0:
-                    self._chunk_size = sys.getsizeof(chunk) + sys.getsizeof(True)
-                self._cur_buffer_size += self._chunk_size
-                if self._cur_buffer_size + self._chunk_size < self._mem_limit:
-                    self._process_pool.apply_async(split_chunk,
-                                                   args=(chunk, i, self._key_index, self._x_index, self._act))
-                    self._num_chunks = i + 1
-                else:
-                    self._process_pool.apply_async(split_chunk,
-                                                   args=(chunk, i, self._key_index, self._x_index, self._act))
-                    self._num_chunks = i + 1
-                    return 1
-        print(self._is_export_end, self._is_operation_end, self._is_petch_end)
+        try:
+            if not self._is_petch_end:
+                for i, chunk in enumerate(self._db.select_chunk()):
+                    if len(chunk) == 0:
+                        self._is_petch_end = True
+                        break
+                    if self._chunk_size == 0:
+                        self._chunk_size = sys.getsizeof(chunk) + sys.getsizeof(True)
+                    self._cur_buffer_size += self._chunk_size
+                    if self._cur_buffer_size + self._chunk_size < self._mem_limit:
+                        self._process_pool.apply_async(split_chunk,
+                                                       args=(chunk, i, self._key_index, self._x_index, self._act))
+                        self._num_chunks = i + 1
+                    else:
+                        self._process_pool.apply_async(split_chunk,
+                                                       args=(chunk, i, self._key_index, self._x_index, self._act))
+                        self._num_chunks = i + 1
+                        return 1
+        except Exception as e:
+            print(e)
         if self._is_export_end and self._is_operation_end:
             self._done()
         self._is_operation_end = True

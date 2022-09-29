@@ -119,7 +119,7 @@ class AIbeemRouter:
             key_index = 0  # input
             x_index = [1]  # input
             version = '0'  # input
-            num_data_limit = 1000
+            num_data_limit = 100000
             result = await dataset_maker.init.remote(act=dataset_maker, labels=labels, version=version,
                                                      key_index=key_index, x_index=x_index,
                                                      num_data_limit=num_data_limit)
