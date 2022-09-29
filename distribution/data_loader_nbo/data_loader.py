@@ -29,7 +29,7 @@ import sys
 import os
 import json
 import psutil
-from itertools import islice, chain
+from shutil import rmtree
 
 import pandas as pd
 import ray
@@ -102,13 +102,18 @@ class MakeDatasetNBO:
         else:
             mem_total = psutil.virtual_memory().total
             self._mem_limit = int(mem_total * mem_limit_percentage)
-            # self._mem_limit = 10485760
             cpus = psutil.cpu_count(logical=False)
             self._num_concurrency = int(cpus * concurrency_percentage)
             if self._num_concurrency < 1:
                 self._num_concurrency = 1
             self._process_pool = Pool(self._num_concurrency)
             self._path = ROOT_DIR + base_path + "/" + self._dataset_name + "/" + self._version
+        try:
+            rmtree(self._path)
+            os.makedirs(self._path)
+        except Exception as exc:
+            print("an error occur when clean directory", exc)
+            return -1
         return 0
 
     def set_dataset(self, data: list, information: dict):
@@ -169,8 +174,6 @@ class MakeDatasetNBO:
                 data.append(label)
         try:
             df = pd.DataFrame(self._dataset, columns=fields)
-            if not os.path.exists(self._path):
-                os.makedirs(self._path)
             df.to_csv(self._path + "/" + str(self._file_count) + ".csv", sep=",", na_rep="NaN")
             # export until given number
         except Exception as e:
