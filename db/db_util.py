@@ -102,6 +102,7 @@ class DBUtil:
                 self._session_pool.release(self._chunk_conn)
                 self._chunk_cursor = None
                 self._chunk_conn = None
+                yield []
                 break
             yield results
 
