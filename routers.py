@@ -142,7 +142,8 @@ class AIbeemRouter:
             return "make dataset fail"
 
     @router.get("/dataset/download")
-    async def get_train_info(self):
+    async def download_dataset(self):
+        # test with file request
         pass
 
     @router.post("/deploy")
