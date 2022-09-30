@@ -61,10 +61,13 @@ class MakeDatasetNBO:
         self._is_export_end = False
         self._is_operation_end = False
         self._is_merge_stop = False
+        self._early_stopping = False
+
+        self._total_processed_data = 0
 
         self._logger: ray.actor = None
         self._shared_state: ray.actor = None
-        self._mem_limit: int = 10485760
+        self._mem_limit: int = 104857600
         self._num_concurrency: int = 1
         self._labels: list | None = None
         self._key_index: int = 0
@@ -133,10 +136,9 @@ class MakeDatasetNBO:
         self._dataset += data
         self._information.append(information)
         processed_len = len(self._information)
-        if self._is_merge_stop:
+        if self._early_stopping:
             self._num_merged += processed_len
-            self._is_merge_stop = False
-        print(processed_len, self._num_merged)
+            self._early_stopping = False
         if processed_len == self._num_merged:
             self._information_total += self._information
             self._export()
@@ -208,8 +210,8 @@ class MakeDatasetNBO:
             self.fetch_data()
 
     def _merge(self):
-        if self._is_operation_end:
-            return  # need to be tested
+        if self._is_merge_stop:
+            return
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="making nbo dataset: merging chunks")
         self._num_merged = 0
@@ -237,11 +239,15 @@ class MakeDatasetNBO:
                     self._process_pool.apply_async(make_dataset, args=(cur_chunk, self._labels, self._act))
                     self._is_merge_stop = True
                     self._is_operation_end = True
+                    self._early_stopping = True
+                    self._is_petch_end = True
+                    self._total_processed_data += len(cur_chunk)
                     break
             self._num_data += len_chunk
             self._num_merged = i
             self._process_pool.apply_async(make_dataset, args=(cur_chunk, self._labels, self._act))
-            # sum total processed
+            self._total_processed_data += len(cur_chunk)
+        print(self._total_processed_data)
         self._split = []
 
     def fault_handle(self, msg):
@@ -272,7 +278,6 @@ class MakeDatasetNBO:
                                                    args=(chunk, i, self._key_index, self._x_index, self._act))
                     self._num_chunks = i + 1
                     return 1
-
         if self._is_export_end and self._is_operation_end:
             self._done()
         self._is_operation_end = True
