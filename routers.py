@@ -143,7 +143,7 @@ class AIbeemRouter:
 
     @router.get("/dataset/download")
     async def download_dataset(self):
-        # test with file request
+        # test with file response
         pass
 
     @router.post("/deploy")
