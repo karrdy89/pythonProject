@@ -267,6 +267,9 @@ class MakeDatasetNBO:
                     break
                 if self._chunk_size == 0:
                     self._chunk_size = sys.getsizeof(chunk) + sys.getsizeof(True)
+                    if self._chunk_size >= self._mem_limit:
+                        self.fault_handle("the chunk size of data exceed memory limit")
+                        return -1
                 self._cur_buffer_size += self._chunk_size
                 if self._cur_buffer_size + self._chunk_size < self._mem_limit:
                     self._process_pool.apply_async(split_chunk,
