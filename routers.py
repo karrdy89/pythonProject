@@ -142,12 +142,18 @@ class AIbeemRouter:
                                     msg="make dataset: failed to init MakeDatasetNBO")
             return "make dataset fail"
 
+    @router.get("/dataset/download_url")
+    async def get_dataset_url(self):
+        self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                msg="get request: download dataset url")
+        pass
+
     @router.get("/dataset/download")
     async def download_dataset(self):
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="get request: download dataset")
         path = statics.ROOT_DIR # path to datasetname, version
-        # dataset, model is mapped with model_id or name somewhere
+        # dataset, model is mapped with model_id or name somewhere (first define time that insert model information to db)
         return FileResponse("")
         # test with file response
         pass
