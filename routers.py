@@ -146,7 +146,8 @@ class AIbeemRouter:
     async def download_dataset(self):
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="get request: download dataset")
-        path = statics.ROOT_DIR
+        path = statics.ROOT_DIR # path to datasetname, version
+        # dataset, model is mapped with model_id or name somewhere
         return FileResponse("")
         # test with file response
         pass
