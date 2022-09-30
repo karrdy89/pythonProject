@@ -106,30 +106,40 @@ class AIbeemRouter:
 
     @router.get("/dataset/make")
     async def make_dataset(self):
+
+        self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                msg="make dataset: start")
         try:
             dataset_maker = MakeDatasetNBO.options(name=Actors.DATA_MAKER_NBO).remote()
-        except Exception as e:
-            print(e)
+        except Exception as exc:
             self._logger.log.remote(level=logging.INFO, worker=self._worker,
-                                    msg="make dataset fail: failed to make actor")
+                                    msg="make dataset: failed to make actor MakeDatasetNBO: " + exc.__str__())
             return "make dataset fail"
         else:
-            labels = ["EVT000", "EVT100", "EVT200", "EVT300", "EVT400", "EVT500", "EVT600", "EVT700", "EVT800",
-                      "EVT900"]  # input
-            key_index = 0  # input
-            x_index = [1]  # input
-            version = '0'  # input
-            num_data_limit = 100000
-            result = await dataset_maker.init.remote(act=dataset_maker, labels=labels, version=version,
-                                                     key_index=key_index, x_index=x_index,
-                                                     num_data_limit=num_data_limit)
-            if result == 0:
-                dataset_maker.operation_data.remote()
-                self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="make dataset start")
-                return "make dataset start"
-            else:
-                self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="make dataset fail: failed to init")
-                return "make dataset fail"
+            if ray.get(self._shared_state.is_actor_exist.remote(name=Actors.DATA_MAKER_NBO)):
+                return "the task is already running"
+            self._shared_state.set_actor.remote(name=Actors.DATA_MAKER_NBO, act=dataset_maker)
+
+        labels = ["EVT000", "EVT100", "EVT200", "EVT300", "EVT400", "EVT500", "EVT600", "EVT700", "EVT800",
+                  "EVT900"]  # input
+        key_index = 0  # input
+        x_index = [1]  # input
+        version = '0'  # input
+        num_data_limit = 100000
+        self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                msg="make dataset: init MakeDatasetNBO")
+        result = await dataset_maker.init.remote(act=dataset_maker, labels=labels, version=version,
+                                                 key_index=key_index, x_index=x_index,
+                                                 num_data_limit=num_data_limit)
+        if result == 0:
+            dataset_maker.fetch_data.remote()
+            self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                    msg="make dataset: running")
+            return "make dataset start"
+        else:
+            self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                    msg="make dataset: failed to init MakeDatasetNBO")
+            return "make dataset fail"
 
     @router.get("/dataset/download")
     async def get_train_info(self):

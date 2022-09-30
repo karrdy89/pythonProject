@@ -53,7 +53,7 @@ def make_dataset(datas: list, labels: list[str], act):
                         matched_idx_before = matched_idx_current
                     matched = True
     except Exception as e:
-        act.fault_handle.remote(msg="failed to split:" + e.__str__())
+        act.fault_handle.remote(msg="failed to make_dataset:" + e.__str__())
         raise (e.__str__())
     information["max_len"] = max_len
     information["classes"] = classes

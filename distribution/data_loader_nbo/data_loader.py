@@ -29,6 +29,7 @@ import sys
 import os
 import json
 import psutil
+import logging
 from shutil import rmtree
 
 import pandas as pd
@@ -93,7 +94,8 @@ class MakeDatasetNBO:
             self._db = DBUtil()
             self._db.set_select_chunk(name="select_test", array_size=10000, prefetch_row=10000)
         except Exception as exc:
-            print("an error occur when set DBUtil", exc)
+            self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                    msg="an error occur when set DBUtil: " + exc.__str__())
             return -1
         config_parser = configparser.ConfigParser()
         try:
@@ -104,7 +106,8 @@ class MakeDatasetNBO:
             concurrency_percentage = concurrency_percentage / 100
             base_path = str(config_parser.get("DATASET_MAKER", "BASE_PATH"))
         except configparser.Error as exc:
-            print("an error occur when read config", exc)
+            self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                    msg="an error occur when read config: " + exc.__str__())
             return -1
         else:
             mem_total = psutil.virtual_memory().total
@@ -120,7 +123,8 @@ class MakeDatasetNBO:
             rmtree(self._path)
             os.makedirs(self._path)
         except Exception as exc:
-            print("an error occur when clean directory", exc)
+            self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                    msg="an error occur when clean directory: " + exc.__str__())
             return -1
         return 0
 
@@ -144,6 +148,8 @@ class MakeDatasetNBO:
         return 0
 
     def _done(self):
+        self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                msg="making nbo dataset: start finishing")
         self._process_pool.close()
         max_len = 0
         classes = None
@@ -161,13 +167,13 @@ class MakeDatasetNBO:
         with open(self._path + "/information.json", 'w', encoding="utf-8") as f:
             json.dump(information, f, ensure_ascii=False, indent=4)
 
-        # log to logger
-        print("done")
-        # request kill to global state
-        ray.kill(ray.get_actor("dataset_maker"))
+        self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                msg="making nbo dataset: finished")
+        self._shared_state.kill_actor.remote(Actors.DATA_MAKER_NBO)
 
     def _export(self):
-        print("exp")
+        self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                msg="making nbo dataset: export csv")
         max_len = 0
         for info in self._information:
             if max_len < info.get("max_len"):
@@ -188,20 +194,23 @@ class MakeDatasetNBO:
         try:
             df = pd.DataFrame(self._dataset, columns=fields)
             df.to_csv(self._path + "/" + str(self._file_count) + ".csv", sep=",", na_rep="NaN")
-        except Exception as e:
-            print(e)
+        except Exception as exc:
             self._process_pool.close()
-            # request kill to global state
-            # kill actor
+            self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                    msg="an error occur when export csv: " + exc.__str__())
+            self._shared_state.kill_actor.remote(Actors.DATA_MAKER_NBO)
         else:
             self._information = []
             self._dataset = []
             self._file_count += 1
             self._is_export_end = True
-            self.operation_data()
+            self.fetch_data()
 
     def _merge(self):
-        print("merge")
+        if self._is_operation_end:
+            return  # need to be tested
+        self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                msg="making nbo dataset: merging chunks")
         self._num_merged = 0
         left_over = None
         split_len = len(self._split)
@@ -235,35 +244,33 @@ class MakeDatasetNBO:
 
     def fault_handle(self, msg):
         self._process_pool.close()
-        # send to logger
-        # request kill to global state
-        # kill actor
-        raise Exception(msg)
+        self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                msg="making nbo dataset: an error occur when processing data: " + msg)
+        self._shared_state.kill_actor.remote(Actors.DATA_MAKER_NBO)
 
-    def operation_data(self):
-        print("operate")
+    def fetch_data(self):
+        self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                msg="making nbo dataset: fetch data from db")
         self._cur_buffer_size = 0
         self._num_chunks = 0
-        try:
-            if not self._is_petch_end:
-                for i, chunk in enumerate(self._db.select_chunk()):
-                    if len(chunk) == 0:
-                        self._is_petch_end = True
-                        break
-                    if self._chunk_size == 0:
-                        self._chunk_size = sys.getsizeof(chunk) + sys.getsizeof(True)
-                    self._cur_buffer_size += self._chunk_size
-                    if self._cur_buffer_size + self._chunk_size < self._mem_limit:
-                        self._process_pool.apply_async(split_chunk,
-                                                       args=(chunk, i, self._key_index, self._x_index, self._act))
-                        self._num_chunks = i + 1
-                    else:
-                        self._process_pool.apply_async(split_chunk,
-                                                       args=(chunk, i, self._key_index, self._x_index, self._act))
-                        self._num_chunks = i + 1
-                        return 1
-        except Exception as e:
-            print(e)
+        if not self._is_petch_end:
+            for i, chunk in enumerate(self._db.select_chunk()):
+                if len(chunk) == 0:
+                    self._is_petch_end = True
+                    break
+                if self._chunk_size == 0:
+                    self._chunk_size = sys.getsizeof(chunk) + sys.getsizeof(True)
+                self._cur_buffer_size += self._chunk_size
+                if self._cur_buffer_size + self._chunk_size < self._mem_limit:
+                    self._process_pool.apply_async(split_chunk,
+                                                   args=(chunk, i, self._key_index, self._x_index, self._act))
+                    self._num_chunks = i + 1
+                else:
+                    self._process_pool.apply_async(split_chunk,
+                                                   args=(chunk, i, self._key_index, self._x_index, self._act))
+                    self._num_chunks = i + 1
+                    return 1
+
         if self._is_export_end and self._is_operation_end:
             self._done()
         self._is_operation_end = True
