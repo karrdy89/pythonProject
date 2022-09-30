@@ -21,9 +21,9 @@
 #                       "T_EVNT" + str(random.randint(0, 250)).zfill(3), "C03-EVT" + str(random.randint(0, 250)).zfill(3),
 #                       "T_CH" + str(random.randint(0, 50)).zfill(2) + "-T_EVNT" + str(random.randint(0, 250)).zfill(3)))
 # print(test_data[:1])
-
-
 # r = db.insert_many("INSERT_TEST_DATA", test_data)
+
+
 import configparser
 import sys
 import os
@@ -115,7 +115,6 @@ class MakeDatasetNBO:
         else:
             mem_total = psutil.virtual_memory().total
             self._mem_limit = int(mem_total * mem_limit_percentage)
-            self._mem_limit = 2048576
             cpus = psutil.cpu_count(logical=False)
             self._num_concurrency = int(cpus * concurrency_percentage)
             if self._num_concurrency < 1:
