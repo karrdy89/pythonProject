@@ -146,6 +146,8 @@ class AIbeemRouter:
     async def get_dataset_url(self):
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="get request: download dataset url")
+        # create with uuid, if download->expire,
+        # id download check valid path, if valid download if not reject
         pass
 
     @router.get("/dataset/download/{dataset_name}/{version}")
