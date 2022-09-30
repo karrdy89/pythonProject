@@ -8,6 +8,7 @@ import tensorflow
 from fastapi import FastAPI
 from fastapi_utils.cbv import cbv
 from fastapi_utils.inferring_router import InferringRouter
+from fastapi.responses import FileResponse
 from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
 from starlette.middleware.cors import CORSMiddleware
 from starlette.requests import Request
@@ -144,6 +145,7 @@ class AIbeemRouter:
     async def download_dataset(self):
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="get request: download dataset")
+        return FileResponse("")
         # test with file response
         pass
 

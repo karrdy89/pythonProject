@@ -166,8 +166,18 @@ class MakeDatasetNBO:
             else:
                 classes = information.get("classes")
         information = {"max_len": max_len, "class": classes}
-        with open(self._path + "/information.json", 'w', encoding="utf-8") as f:
-            json.dump(information, f, ensure_ascii=False, indent=4)
+        try:
+            with open(self._path + "/information.json", 'w', encoding="utf-8") as f:
+                json.dump(information, f, ensure_ascii=False, indent=4)
+        except Exception as exc:
+            self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                    msg="an error occur when export information: " + exc.__str__())
+            if os.path.exists(self._path):
+                rmtree(self._path)
+            self._shared_state.kill_actor.remote(Actors.DATA_MAKER_NBO)
+            return -1
+
+        # make zipfile in dir, name is dataset_nbo_version.zip
 
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="making nbo dataset: finished")
