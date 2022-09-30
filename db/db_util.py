@@ -60,7 +60,7 @@ class DBUtil:
             test_connection = self._session_pool.acquire()
             self._session_pool.release(test_connection)
         except Exception as exc:
-            return exc
+            raise exc
 
     def select(self, name: str, param: Optional[dict] = None) -> concurrent.futures.Future | Any:
         query = self._mapper.get(name)

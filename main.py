@@ -7,6 +7,7 @@ import ray
 import uvicorn
 
 from serving import ModelServing
+from db import DBUtil
 from logger import Logger, BootLogger
 from shared_state import SharedState
 from statics import Actors
@@ -24,7 +25,8 @@ except configparser.Error as e:
     sys.exit()
 
 boot_logger.info("(Main Server) init ray...")
-ray.init(dashboard_host="127.0.0.1", dashboard_port=8265)
+# ray.init(dashboard_host="127.0.0.1", dashboard_port=8265)
+ray.init(dashboard_host="127.0.0.1", dashboard_port=8265, log_to_driver=False)
 
 
 @ray.remote
@@ -71,11 +73,17 @@ init_processes = ray.get([model_serving.init.remote(), shared_state.init.remote(
 api_service = None
 try:
     api_service = UvicornServer.options(name=Actors.SERVER).remote(config=config)
-except Exception as e:
-    exc_str = ''.join(traceback.format_exception(None, e, e.__traceback__))
+except Exception as exc:
+    exc_str = ''.join(traceback.format_exception(None, exc, exc.__traceback__))
     init_processes.append(-1)
 
-# plus check db connection
+boot_logger.info("(Main Server) check database connection...")
+try:
+    db = DBUtil()
+    result = db.connection_test()
+except Exception as exc:
+    boot_logger.error("(Main Server) can not connect to database...: " + exc.__str__())
+    init_processes.append(-1)
 
 if -1 in init_processes:
     boot_logger.error("(Main Server) failed to init services")
