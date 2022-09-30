@@ -241,6 +241,7 @@ class MakeDatasetNBO:
             self._num_data += len_chunk
             self._num_merged = i
             self._process_pool.apply_async(make_dataset, args=(cur_chunk, self._labels, self._act))
+            # sum total processed
         self._split = []
 
     def fault_handle(self, msg):
