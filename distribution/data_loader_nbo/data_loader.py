@@ -120,7 +120,8 @@ class MakeDatasetNBO:
             self._process_pool = Pool(self._num_concurrency)
             self._path = ROOT_DIR + base_path + "/" + self._dataset_name + "/" + self._version
         try:
-            rmtree(self._path)
+            if os.path.exists(self._path):
+                rmtree(self._path)
             os.makedirs(self._path)
         except Exception as exc:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
