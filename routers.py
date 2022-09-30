@@ -148,15 +148,15 @@ class AIbeemRouter:
                                 msg="get request: download dataset url")
         pass
 
-    @router.get("/dataset/download")
-    async def download_dataset(self):
+    @router.get("/dataset/download/{dataset_name}/{version}")
+    async def download_dataset(self, dataset_name: str, version: str):
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="get request: download dataset")
-        path = statics.ROOT_DIR # path to datasetname, version
-        # dataset, model is mapped with model_id or name somewhere (first define time that insert model information to db)
-        return FileResponse("")
-        # test with file response
-        pass
+        path = statics.ROOT_DIR+"/dataset/"+dataset_name+"/"+version+"/"+"dataset_"+dataset_name+"_"+version+".zip"
+        if os.path.exists(path):
+            return FileResponse(path)
+        else:
+            return "file not exist"
 
     @router.post("/deploy")
     async def deploy(self, request_body: rvo.Deploy):

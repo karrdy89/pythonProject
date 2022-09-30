@@ -31,6 +31,8 @@ import json
 import psutil
 import logging
 from shutil import rmtree
+from zipfile import ZipFile
+from os.path import basename
 
 import pandas as pd
 import ray
@@ -107,7 +109,6 @@ class MakeDatasetNBO:
             mem_limit_percentage = mem_limit_percentage / 100
             concurrency_percentage = int(config_parser.get("DATASET_MAKER", "CONCURRENCY_PERCENTAGE_CPU"))
             concurrency_percentage = concurrency_percentage / 100
-            base_path = str(config_parser.get("DATASET_MAKER", "BASE_PATH"))
         except configparser.Error as exc:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                     msg="an error occur when read config: " + exc.__str__())
@@ -120,7 +121,7 @@ class MakeDatasetNBO:
             if self._num_concurrency < 1:
                 self._num_concurrency = 1
             self._process_pool = Pool(self._num_concurrency)
-            self._path = ROOT_DIR + base_path + "/" + self._dataset_name + "/" + self._version
+            self._path = ROOT_DIR + "/dataset/" + self._dataset_name + "/" + self._version
         try:
             if os.path.exists(self._path):
                 rmtree(self._path)
@@ -177,7 +178,23 @@ class MakeDatasetNBO:
             self._shared_state.kill_actor.remote(Actors.DATA_MAKER_NBO)
             return -1
 
-        # make zipfile in dir, name is dataset_nbo_version.zip
+        zip_name = "dataset_NBO_"+self._version+".zip"
+        try:
+            with ZipFile(self._path+"/"+zip_name, 'w') as zipObj:
+                for folderName, subfolders, filenames in os.walk(self._path):
+                    for filename in filenames:
+                        if filename == zip_name:
+                            continue
+                        else:
+                            file_path = os.path.join(folderName, filename)
+                            zipObj.write(file_path, basename(file_path))
+        except Exception as exc:
+            self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                    msg="an error occur when create zip archive: " + exc.__str__())
+            if os.path.exists(self._path):
+                rmtree(self._path)
+            self._shared_state.kill_actor.remote(Actors.DATA_MAKER_NBO)
+            return -1
 
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="making nbo dataset: finished")
@@ -266,11 +283,11 @@ class MakeDatasetNBO:
         self._shared_state.kill_actor.remote(Actors.DATA_MAKER_NBO)
 
     def fetch_data(self):
-        self._logger.log.remote(level=logging.INFO, worker=self._worker,
-                                msg="making nbo dataset: fetch data from db")
         self._cur_buffer_size = 0
         self._num_chunks = 0
         if not self._is_petch_end:
+            self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                    msg="making nbo dataset: fetch data from db")
             for i, chunk in enumerate(self._db.select_chunk()):
                 if len(chunk) == 0:
                     self._is_petch_end = True
