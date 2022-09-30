@@ -106,9 +106,8 @@ class AIbeemRouter:
 
     @router.get("/dataset/make")
     async def make_dataset(self):
-
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
-                                msg="make dataset: start")
+                                msg="get request: make dataset")
         try:
             dataset_maker = MakeDatasetNBO.options(name=Actors.DATA_MAKER_NBO).remote()
         except Exception as exc:
@@ -143,6 +142,8 @@ class AIbeemRouter:
 
     @router.get("/dataset/download")
     async def download_dataset(self):
+        self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                msg="get request: download dataset")
         # test with file response
         pass
 
