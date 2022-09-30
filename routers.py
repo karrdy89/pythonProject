@@ -16,6 +16,7 @@ from starlette.responses import StreamingResponse
 from starlette.background import BackgroundTask
 
 import VO.request_vo as rvo
+import statics
 from distribution.data_loader_nbo.data_loader import MakeDatasetNBO
 from pipeline import Pipeline
 from tensorboard_service import TensorBoardTool
@@ -145,6 +146,7 @@ class AIbeemRouter:
     async def download_dataset(self):
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="get request: download dataset")
+        path = statics.ROOT_DIR
         return FileResponse("")
         # test with file response
         pass
