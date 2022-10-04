@@ -2,6 +2,7 @@ import json
 import os
 import logging
 import uuid
+from datetime import datetime, timedelta
 
 import ray
 import httpx
@@ -15,6 +16,8 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.requests import Request
 from starlette.responses import StreamingResponse
 from starlette.background import BackgroundTask
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.job import Job
 
 import VO.request_vo as rvo
 import statics
@@ -63,8 +66,11 @@ class AIbeemRouter:
         self._logger: ray.actor = ray.get_actor(Actors.LOGGER)
         self._shared_state: ray.actor = ray.get_actor(Actors.GLOBAL_STATE)
         self._tensorboard_tool: TensorBoardTool = TensorBoardTool()
-        self._timer = None
-        self._dataset_url: dict = {}
+        # self._EXPIRE_TIME: int = 3600
+        self._EXPIRE_TIME: int = 60
+        self._dataset_url: dict[str, str] = {}
+        self._scheduler = BackgroundScheduler()
+        self._scheduler.start()
 
     @router.post("/train/run")
     async def train(self, request_body: rvo.Train):
@@ -153,6 +159,8 @@ class AIbeemRouter:
         if not os.path.exists(path):
             return "file not exist"
         uid = str(uuid.uuid4())
+        run_date = datetime.now() + timedelta(seconds=self._EXPIRE_TIME)
+        self._scheduler.add_job(self.expire_dataset_url, "date", run_date=run_date, args=[uid])
         self._dataset_url[uid] = path
         return "/dataset/"+uid
 
@@ -167,7 +175,7 @@ class AIbeemRouter:
             else:
                 return "file not exist"
         else:
-            return "url is not valid"
+            return "invalid url"
 
     @router.post("/deploy")
     async def deploy(self, request_body: rvo.Deploy):
@@ -231,6 +239,10 @@ class AIbeemRouter:
         else:
             path = "log file not exist"
         return path
+
+    def expire_dataset_url(self, uid) -> None:
+        print(uid)
+        pass
 
 
 async def _reverse_proxy(request: Request):
