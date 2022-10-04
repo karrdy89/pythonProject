@@ -180,7 +180,7 @@ class AIbeemRouter:
     @router.delete("/dataset/download/{dataset_name}/{version}")
     async def delete_dataset(self, dataset_name: str, version: str):
         self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="get request: delete dataset")
-        path = statics.ROOT_DIR+"/dataset/"+dataset_name+"/"+version+"/"
+        path = statics.ROOT_DIR+"/dataset/"+dataset_name+"/"+version
         if not os.path.exists(path):
             return "file not exist"
         else:
