@@ -19,7 +19,7 @@ from starlette.responses import StreamingResponse
 from starlette.background import BackgroundTask
 from apscheduler.schedulers.background import BackgroundScheduler
 
-import VO.request_vo as rvo
+import VO.request_vo as req_vo
 import statics
 from distribution.data_loader_nbo.data_loader import MakeDatasetNBO
 from pipeline import Pipeline
@@ -94,7 +94,7 @@ class AIbeemRouter:
         return "train started"
 
     @router.post("/train/stop")
-    async def stop_train(self, request_body: rvo.BasicModelInfo):
+    async def stop_train(self, request_body: req_vo.BasicModelInfo):
         model = request_body.model_id
         version = request_body.version
         pipeline_name = model + ":" + version
@@ -104,13 +104,16 @@ class AIbeemRouter:
         else:
             return "fail"
 
-    @router.post("/train/state")
-    async def get_train_state(self, request_body: rvo.BasicModelInfo):
-        model = request_body.model_id
-        version = request_body.version
+    @router.post("/train/progress")
+    async def get_train_progress(self, request_body: req_vo.CheckTrainProgress):
+        model = request_body.MDL_ID
+        main_version = request_body.MN_VER
+        sub_version = request_body.N_VER
+        version = str(main_version) + '.' + str(sub_version)
         pipeline_name = model + ":" + version
         pipeline_state = await self._shared_state.get_pipeline_result.remote(name=pipeline_name)
         train_result = await self._shared_state.get_train_result.remote(name=pipeline_name)
+
         result = {"pipeline_state": pipeline_state, "train_result": train_result}
         result = json.dumps(result)
         return result

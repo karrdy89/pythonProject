@@ -1,10 +1,10 @@
 from pydantic import BaseModel, Extra
 
 
-class BasicModelInfo(BaseModel):
-    model_id: str
-    # model_name: str
-    version: str
+class CheckTrainProgress(BaseModel):
+    MDL_ID: str
+    MN_VER: int
+    N_VER: int
 
     class Config:
         extra = Extra.forbid
