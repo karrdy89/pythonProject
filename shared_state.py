@@ -2,6 +2,7 @@ import configparser
 import logging
 from collections import OrderedDict
 from dataclasses import dataclass
+from threading import Lock
 
 import ray
 from ray import actor
@@ -68,6 +69,7 @@ class SharedState:
         self._pipline_result: OrderedDict[str, dict] = OrderedDict()
         self._train_result: OrderedDict[str, TrainResult] = OrderedDict()
         self._PIPELINE_MAX = 1
+        self._lock = Lock()
 
     def init(self) -> int:
         self._boot_logger.info("(" + self._worker + ") " + "init shared_state actor...")
@@ -85,14 +87,17 @@ class SharedState:
         return 0
 
     def set_actor(self, name: str, act: actor, state: int) -> None | int:
+        self._lock.acquire()
         self._actors[name] = Actor(name=name, act=act, state=state)
         self._train_result[name] = TrainResult()
-        if len(self._actors) >= self._PIPELINE_MAX:
+        self._lock.release()
+        if len(self._actors) > self._PIPELINE_MAX:
             self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="max piepline exceeded")
             return -1
         if len(self._pipline_result) >= self._PIPELINE_MAX:
             self._pipline_result.popitem(last=False)
             self._train_result.popitem(last=False)
+        return 0
 
     def update_actor_state(self, name: str, state: int):
         if name in self._actors:

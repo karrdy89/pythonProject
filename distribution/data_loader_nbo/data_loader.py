@@ -276,7 +276,8 @@ class MakeDatasetNBO:
             self._num_merged = i
             self._process_pool.apply_async(make_dataset, args=(cur_chunk, self._labels, self._act))
             self._total_processed_data += len(cur_chunk)
-        print(self._total_processed_data)
+        self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                msg="total processed data: " + str(self._total_processed_data))
         self._split = []
 
     def fault_handle(self, msg):

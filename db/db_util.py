@@ -91,7 +91,6 @@ class DBUtil:
         query = self._mapper.get(name)
         if param is not None:
             query = self._parameter_mapping(query, param)
-        print(query)
         self._chunk_cursor.execute(query)
 
     def select_chunk(self) -> list:

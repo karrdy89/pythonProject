@@ -62,6 +62,7 @@ class AIbeemRouter:
     @router:
         API endpoints of server
     """
+
     def __init__(self):
         self._worker = type(self).__name__
         self._server: ray.actor = ray.get_actor(Actors.MODEL_SERVER)
@@ -162,11 +163,15 @@ class AIbeemRouter:
                                                      num_data_limit=num_data_limit,
                                                      start_dtm=start_dtm, end_dtm=end_dtm)
             if result == 0:
-                self._shared_state.set_actor.remote(name=name, act=dataset_maker, state=TrainStateCode.MAKING_DATASET)
-                dataset_maker.fetch_data.remote()
-                self._logger.log.remote(level=logging.INFO, worker=self._worker,
-                                        msg="make dataset: running")
-                return json.dumps({"CODE": "SUCCESS", "ERROR_MSG": ""})
+                set_shared_result = await self._shared_state.set_actor.remote(name=name, act=dataset_maker,
+                                                                              state=TrainStateCode.MAKING_DATASET)
+                if set_shared_result == 0:
+                    dataset_maker.fetch_data.remote()
+                    self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                            msg="make dataset: running")
+                    return json.dumps({"CODE": "SUCCESS", "ERROR_MSG": ""})
+                else:
+                    return json.dumps({"CODE": "FAIL", "ERROR_MSG": "max concurrent exceeded"})
             else:
                 self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                         msg="make dataset: failed to init MakeDatasetNBO")
@@ -176,14 +181,14 @@ class AIbeemRouter:
     async def get_dataset_url(self, dataset_name: str, version: str):
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="get request: download dataset url")
-        path = statics.ROOT_DIR+"/dataset/"+dataset_name+"/"+version+"/"+"dataset_"+dataset_name+"_"+version+".zip"
+        path = statics.ROOT_DIR + "/dataset/" + dataset_name + "/" + version + "/" + "dataset_" + dataset_name + "_" + version + ".zip"
         if not os.path.exists(path):
             return "file not exist"
         uid = str(uuid.uuid4())
         run_date = datetime.now() + timedelta(seconds=self._EXPIRE_TIME)
         self._scheduler.add_job(self.expire_dataset_url, "date", run_date=run_date, args=[uid])
         self._dataset_url[uid] = path
-        return "/dataset/"+uid
+        return "/dataset/" + uid
 
     @router.get("/dataset/{uid}")
     async def download_dataset(self, uid: str):
@@ -202,7 +207,7 @@ class AIbeemRouter:
     @router.delete("/dataset/download/{dataset_name}/{version}")
     async def delete_dataset(self, dataset_name: str, version: str):
         self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="get request: delete dataset")
-        path = statics.ROOT_DIR+"/dataset/"+dataset_name+"/"+version
+        path = statics.ROOT_DIR + "/dataset/" + dataset_name + "/" + version
         if not os.path.exists(path):
             return "file not exist"
         else:
