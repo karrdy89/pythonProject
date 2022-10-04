@@ -39,7 +39,7 @@ import ray
 from ray.util.multiprocessing import Pool
 
 from db import DBUtil
-from statics import Actors, ROOT_DIR
+from statics import Actors, ROOT_DIR, TrainStateCode
 from distribution.data_loader_nbo.utils import split_chunk, make_dataset
 
 
@@ -178,6 +178,7 @@ class MakeDatasetNBO:
                                     msg="an error occur when export information: " + exc.__str__())
             if os.path.exists(self._path):
                 rmtree(self._path)
+            self._shared_state.update_actor_state.remote(self._name, TrainStateCode.MAKING_DATASET_FAIL)
             self._shared_state.kill_actor.remote(self._name)
             return -1
 
@@ -196,11 +197,13 @@ class MakeDatasetNBO:
                                     msg="an error occur when create zip archive: " + exc.__str__())
             if os.path.exists(self._path):
                 rmtree(self._path)
+            self._shared_state.update_actor_state.remote(self._name, TrainStateCode.MAKING_DATASET_FAIL)
             self._shared_state.kill_actor.remote(self._name)
             return -1
 
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="making nbo dataset: finished")
+        self._shared_state.update_actor_state.remote(self._name, TrainStateCode.MAKING_DATASET_DONE)
         self._shared_state.kill_actor.remote(self._name)
 
     def _export(self):
@@ -230,6 +233,7 @@ class MakeDatasetNBO:
             self._process_pool.close()
             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                     msg="an error occur when export csv: " + exc.__str__())
+            self._shared_state.update_actor_state.remote(self._name, TrainStateCode.MAKING_DATASET_FAIL)
             self._shared_state.kill_actor.remote(self._name)
         else:
             self._information = []
@@ -284,6 +288,7 @@ class MakeDatasetNBO:
         self._process_pool.close()
         self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                 msg="making nbo dataset: an error occur when processing data: " + msg)
+        self._shared_state.update_actor_state.remote(self._name, TrainStateCode.MAKING_DATASET_FAIL)
         self._shared_state.kill_actor.remote(self._name)
 
     def fetch_data(self):
