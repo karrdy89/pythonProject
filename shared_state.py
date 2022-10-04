@@ -92,6 +92,8 @@ class SharedState:
         self._train_result[name] = TrainResult()
         self._lock.release()
         # split concurrency max, pipeline max
+        # actors is only manage actor
+        # result is only manage result and each max, pop last
         if len(self._actors) > self._PIPELINE_MAX:
             self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="max piepline exceeded")
             return -1
