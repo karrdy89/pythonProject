@@ -3,6 +3,7 @@ import os
 import logging
 import uuid
 from datetime import datetime, timedelta
+from shutil import rmtree
 
 import ray
 import httpx
@@ -17,7 +18,6 @@ from starlette.requests import Request
 from starlette.responses import StreamingResponse
 from starlette.background import BackgroundTask
 from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.job import Job
 
 import VO.request_vo as rvo
 import statics
@@ -176,6 +176,22 @@ class AIbeemRouter:
                 return "file not exist"
         else:
             return "invalid url"
+
+    @router.delete("/dataset/download/{dataset_name}/{version}")
+    async def delete_dataset(self, dataset_name: str, version: str):
+        self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="get request: delete dataset")
+        path = statics.ROOT_DIR+"/dataset/"+dataset_name+"/"+version+"/"
+        if not os.path.exists(path):
+            return "file not exist"
+        else:
+            try:
+                rmtree(path)
+            except Exception as exc:
+                self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                        msg="an error occur when delete dataset: " + exc.__str__())
+                return "failed to delete dataset"
+            else:
+                return "deleted"
 
     @router.post("/deploy")
     async def deploy(self, request_body: rvo.Deploy):
