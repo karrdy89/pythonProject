@@ -28,7 +28,7 @@ from pipeline import Pipeline
 from tensorboard_service import TensorBoardTool
 from utils.common import version_encode
 from pipeline import TrainInfo
-from statics import Actors
+from statics import Actors, TrainStateCode
 
 project_path = os.path.dirname(os.path.abspath(__file__))
 app = FastAPI()
@@ -148,14 +148,14 @@ class AIbeemRouter:
             else:
                 if ray.get(self._shared_state.is_actor_exist.remote(name=name)):
                     return json.dumps({"CODE": "FAIL", "ERROR_MSG": "same task is already running"})
-                self._shared_state.set_actor.remote(name=name, act=dataset_maker)
+                self._shared_state.set_actor.remote(name=name, act=dataset_maker, state=TrainStateCode.MAKING_DATASET)
 
             labels = ["EVT000", "EVT100", "EVT200", "EVT300", "EVT400", "EVT500", "EVT600", "EVT700", "EVT800",
                       "EVT900"]
             key_index = 0
             x_index = [1]
             version = sub_version
-            num_data_limit = request_body.LRNG_DATA_TGT_NCNT
+            num_data_limit = int(request_body.LRNG_DATA_TGT_NCNT)
             self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                     msg="make dataset: init MakeDatasetNBO")
             result = await dataset_maker.init.remote(name=name, act=dataset_maker, labels=labels, version=version,
