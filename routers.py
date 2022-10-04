@@ -171,6 +171,7 @@ class AIbeemRouter:
         if uid in self._dataset_url:
             path = self._dataset_url[uid]
             if os.path.exists(path):
+                self.expire_dataset_url(uid)
                 return FileResponse(path)
             else:
                 return "file not exist"
@@ -257,8 +258,10 @@ class AIbeemRouter:
         return path
 
     def expire_dataset_url(self, uid) -> None:
-        print(uid)
-        pass
+        if uid in self._dataset_url:
+            del self._dataset_url[uid]
+            self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                    msg="dataset url has expired: " + uid)
 
 
 async def _reverse_proxy(request: Request):
