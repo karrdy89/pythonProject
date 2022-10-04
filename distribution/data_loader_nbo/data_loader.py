@@ -59,6 +59,7 @@ class MakeDatasetNBO:
         self._information: list = []
         self._information_total: list = []
         self._dataset_name = "NBO"
+        self._name = ''
         self._is_petch_end = False
         self._is_export_end = False
         self._is_operation_end = False
@@ -81,8 +82,9 @@ class MakeDatasetNBO:
         self._db: DBUtil | None = None
         self._act: ray.actor = None
 
-    def init(self, act: ray.actor, labels: list, version: str, key_index: int, x_index: list[int],
-             num_data_limit: int | None):
+    def init(self, name: str, act: ray.actor, labels: list, version: str, key_index: int, x_index: list[int],
+             num_data_limit: int | None, start_dtm: str, end_dtm: str):
+        self._name = name
         self._act = act
         self._labels = labels
         self._version = version
@@ -175,7 +177,7 @@ class MakeDatasetNBO:
                                     msg="an error occur when export information: " + exc.__str__())
             if os.path.exists(self._path):
                 rmtree(self._path)
-            self._shared_state.kill_actor.remote(Actors.DATA_MAKER_NBO)
+            self._shared_state.kill_actor.remote(self._name)
             return -1
 
         zip_name = "dataset_NBO_"+self._version+".zip"
@@ -193,12 +195,12 @@ class MakeDatasetNBO:
                                     msg="an error occur when create zip archive: " + exc.__str__())
             if os.path.exists(self._path):
                 rmtree(self._path)
-            self._shared_state.kill_actor.remote(Actors.DATA_MAKER_NBO)
+            self._shared_state.kill_actor.remote(self._name)
             return -1
 
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="making nbo dataset: finished")
-        self._shared_state.kill_actor.remote(Actors.DATA_MAKER_NBO)
+        self._shared_state.kill_actor.remote(self._name)
 
     def _export(self):
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
@@ -227,7 +229,7 @@ class MakeDatasetNBO:
             self._process_pool.close()
             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                     msg="an error occur when export csv: " + exc.__str__())
-            self._shared_state.kill_actor.remote(Actors.DATA_MAKER_NBO)
+            self._shared_state.kill_actor.remote(self._name)
         else:
             self._information = []
             self._dataset = []
@@ -280,7 +282,7 @@ class MakeDatasetNBO:
         self._process_pool.close()
         self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                 msg="making nbo dataset: an error occur when processing data: " + msg)
-        self._shared_state.kill_actor.remote(Actors.DATA_MAKER_NBO)
+        self._shared_state.kill_actor.remote(self._name)
 
     def fetch_data(self):
         self._cur_buffer_size = 0

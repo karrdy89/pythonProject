@@ -12,6 +12,7 @@ from fastapi import FastAPI
 from fastapi_utils.cbv import cbv
 from fastapi_utils.inferring_router import InferringRouter
 from fastapi.responses import FileResponse
+from sklearn.utils import resample
 from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
 from starlette.middleware.cors import CORSMiddleware
 from starlette.requests import Request
@@ -20,6 +21,7 @@ from starlette.background import BackgroundTask
 from apscheduler.schedulers.background import BackgroundScheduler
 
 import VO.request_vo as req_vo
+import VO.response_vo as res_vo
 import statics
 from distribution.data_loader_nbo.data_loader import MakeDatasetNBO
 from pipeline import Pipeline
@@ -72,7 +74,7 @@ class AIbeemRouter:
         self._scheduler.start()
 
     @router.post("/train/run")
-    async def train(self, request_body: rvo.Train):
+    async def train(self, request_body: req_vo.Train):
         model = request_body.model_id
         version = request_body.version
         pipeline_name = model + ":" + version
@@ -92,66 +94,83 @@ class AIbeemRouter:
         self._shared_state.set_actor.remote(name=pipeline_name, act=pipeline_actor)
         return "train started"
 
-    @router.post("/train/stop")
-    async def stop_train(self, request_body: req_vo.BasicModelInfo):
-        model = request_body.model_id
-        version = request_body.version
-        pipeline_name = model + ":" + version
-        result = await self._shared_state.kill_actor.remote(name=pipeline_name)
-        if result == 0:
-            return "success"
-        else:
-            return "fail"
+    # @router.post("/train/stop")
+    # async def stop_train(self, request_body: req_vo.BasicModelInfo):
+    #     model = request_body.model_id
+    #     version = request_body.version
+    #     pipeline_name = model + ":" + version
+    #     result = await self._shared_state.kill_actor.remote(name=pipeline_name)
+    #     if result == 0:
+    #         return "success"
+    #     else:
+    #         return "fail"
 
     @router.post("/train/progress")
     async def get_train_progress(self, request_body: req_vo.CheckTrainProgress):
+        self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                msg="get request: train progress")
         model = request_body.MDL_NM
         main_version = request_body.MN_VER
         sub_version = request_body.N_VER
         version = str(main_version) + '.' + str(sub_version)
-        pipeline_name = model + ":" + version
-        pipeline_state = await self._shared_state.get_pipeline_result.remote(name=pipeline_name)
-        train_result = await self._shared_state.get_train_result.remote(name=pipeline_name)
-        result = {"MDL_LRNG_ST_CD": "UK", "CODE": "SUCCESS",
-                  "TRAIN_INFO": {"pipeline_state": pipeline_state, "train_result": train_result}}
-        result = json.dumps(result)
-        return result
+        name = model + ":" + version
+        actor_state = await self._shared_state.get_actor_state.remote(name=name)
+        if actor_state is None:
+            return json.dumps({"CODE": "FAIL", "ERROR_MSG": "model not found"})
+        pipeline_state = await self._shared_state.get_pipeline_result.remote(name=name)
+        train_result = await self._shared_state.get_train_result.remote(name=name)
+        result = res_vo.RstCheckTrainProgress(MDL_LRNG_ST_CD=actor_state,
+                                              CODE="SUCCESS",
+                                              ERROR_MSG="",
+                                              TRAIN_INFO={"pipline_state": pipeline_state,
+                                                          "train_result": train_result})
+        return result.json()
 
-    @router.get("/dataset/make")
-    async def make_dataset(self):
+    @router.post("/dataset/make")
+    async def make_dataset(self, request_body: req_vo.MakeDataset):
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="get request: make dataset")
-        try:
-            dataset_maker = MakeDatasetNBO.options(name=Actors.DATA_MAKER_NBO).remote()
-        except Exception as exc:
-            self._logger.log.remote(level=logging.INFO, worker=self._worker,
-                                    msg="make dataset: failed to make actor MakeDatasetNBO: " + exc.__str__())
-            return "make dataset fail"
-        else:
-            if ray.get(self._shared_state.is_actor_exist.remote(name=Actors.DATA_MAKER_NBO)):
-                return "the task is already running"
-            self._shared_state.set_actor.remote(name=Actors.DATA_MAKER_NBO, act=dataset_maker)
+        model = request_body.MDL_NM
+        if model not in statics.MODELS:
+            return json.dumps({"CODE": "FAIL", "ERROR_MSG": "MODEL NOT FOUND"})
+        main_version = str(request_body.MN_VER)
+        sub_version = str(request_body.N_VER)
+        name = model + ":" + main_version + '.' + sub_version
+        start_dtm = request_body.STYMD
+        end_dtm = request_body.EDYMD
+        if model == "NBO":
+            try:
+                dataset_maker = MakeDatasetNBO.options(name=name).remote()
+            except Exception as exc:
+                self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                        msg="make dataset: failed to make actor MakeDatasetNBO: " + exc.__str__())
+                return json.dumps({"CODE": "FAIL", "ERROR_MSG": "failed to create process"})
+            else:
+                if ray.get(self._shared_state.is_actor_exist.remote(name=name)):
+                    return json.dumps({"CODE": "FAIL", "ERROR_MSG": "same task is already running"})
+                self._shared_state.set_actor.remote(name=name, act=dataset_maker)
 
-        labels = ["EVT000", "EVT100", "EVT200", "EVT300", "EVT400", "EVT500", "EVT600", "EVT700", "EVT800",
-                  "EVT900"]  # input
-        key_index = 0  # input
-        x_index = [1]  # input
-        version = '0'  # input
-        num_data_limit = 100000
-        self._logger.log.remote(level=logging.INFO, worker=self._worker,
-                                msg="make dataset: init MakeDatasetNBO")
-        result = await dataset_maker.init.remote(act=dataset_maker, labels=labels, version=version,
-                                                 key_index=key_index, x_index=x_index,
-                                                 num_data_limit=num_data_limit)
-        if result == 0:
-            dataset_maker.fetch_data.remote()
+            labels = ["EVT000", "EVT100", "EVT200", "EVT300", "EVT400", "EVT500", "EVT600", "EVT700", "EVT800",
+                      "EVT900"]
+            key_index = 0
+            x_index = [1]
+            version = sub_version
+            num_data_limit = request_body.LRNG_DATA_TGT_NCNT
             self._logger.log.remote(level=logging.INFO, worker=self._worker,
-                                    msg="make dataset: running")
-            return "make dataset start"
-        else:
-            self._logger.log.remote(level=logging.INFO, worker=self._worker,
-                                    msg="make dataset: failed to init MakeDatasetNBO")
-            return "make dataset fail"
+                                    msg="make dataset: init MakeDatasetNBO")
+            result = await dataset_maker.init.remote(name=name, act=dataset_maker, labels=labels, version=version,
+                                                     key_index=key_index, x_index=x_index,
+                                                     num_data_limit=num_data_limit,
+                                                     start_dtm=start_dtm, end_dtm=end_dtm)
+            if result == 0:
+                dataset_maker.fetch_data.remote()
+                self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                        msg="make dataset: running")
+                return json.dumps({"CODE": "SUCCESS", "ERROR_MSG": ""})
+            else:
+                self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                        msg="make dataset: failed to init MakeDatasetNBO")
+                return json.dumps({"CODE": "FAIL", "ERROR_MSG": "failed to init process"})
 
     @router.get("/dataset/download/{dataset_name}/{version}")
     async def get_dataset_url(self, dataset_name: str, version: str):
@@ -197,7 +216,7 @@ class AIbeemRouter:
                 return "deleted"
 
     @router.post("/deploy")
-    async def deploy(self, request_body: rvo.Deploy):
+    async def deploy(self, request_body: req_vo.Deploy):
         print("accept deploy request")
         remote_job_obj = self._server.deploy.remote(model_id=request_body.model_id,
                                                     version=request_body.version,
@@ -219,14 +238,14 @@ class AIbeemRouter:
         return result
 
     @router.post("/deploy/add_container")
-    async def add_container(self, request_body: rvo.AddContainer):
+    async def add_container(self, request_body: req_vo.AddContainer):
         remote_job_obj = self._server.add_container.remote(model_id=request_body.model_id, version=request_body.version,
                                                            container_num=request_body.container_num)
         result = await remote_job_obj
         return result
 
     @router.post("/deploy/remove_container")
-    async def remove_container(self, request_body: rvo.RemoveContainer):
+    async def remove_container(self, request_body: req_vo.RemoveContainer):
         remote_job_obj = self._server.remove_container.remote(model_id=request_body.model_id,
                                                               version=request_body.version,
                                                               container_num=request_body.container_num)
@@ -234,30 +253,30 @@ class AIbeemRouter:
         return result
 
     @router.post("/deploy/end_deploy")
-    async def end_deploy(self, request_body: rvo.EndDeploy):
+    async def end_deploy(self, request_body: req_vo.EndDeploy):
         remote_job_obj = self._server.end_deploy.remote(model_id=request_body.model_id, version=request_body.version)
         result = await remote_job_obj
         return result
 
     @router.post("/predict")
-    async def predict(self, request_body: rvo.Predict):
+    async def predict(self, request_body: req_vo.Predict):
         remote_job_obj = self._server.predict.remote(model_id=request_body.model_id, version=request_body.version,
                                                      data=request_body.feature)
         result = await remote_job_obj
         return result
 
-    @router.post("/tensorboard")
-    async def create_tensorboard(self, request_body: rvo.BasicModelInfo):
-        version = request_body.version
-        encoded_version = version_encode(version)
-        model = request_body.model_id
-        log_path = project_path + "/train_logs/" + model + "/" + str(encoded_version)
-        if os.path.isdir(log_path):
-            port = self._tensorboard_tool.run(dir_path=log_path)
-            path = "/tensorboard/" + str(port)
-        else:
-            path = "log file not exist"
-        return path
+    # @router.post("/tensorboard")
+    # async def create_tensorboard(self, request_body: req_vo.BasicModelInfo):
+    #     version = request_body.version
+    #     encoded_version = version_encode(version)
+    #     model = request_body.model_id
+    #     log_path = project_path + "/train_logs/" + model + "/" + str(encoded_version)
+    #     if os.path.isdir(log_path):
+    #         port = self._tensorboard_tool.run(dir_path=log_path)
+    #         path = "/tensorboard/" + str(port)
+    #     else:
+    #         path = "log file not exist"
+    #     return path
 
     def expire_dataset_url(self, uid) -> None:
         if uid in self._dataset_url:

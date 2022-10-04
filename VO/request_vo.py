@@ -11,6 +11,19 @@ class CheckTrainProgress(BaseModel):
         extra = Extra.forbid
 
 
+class MakeDataset(BaseModel):
+    MDL_ID: str
+    MDL_NM: str
+    MN_VER: int
+    N_VER: int
+    STYMD: str
+    EDYMD: str
+    LRNG_DATA_TGT_NCNT: str
+
+    class Config:
+        extra = Extra.forbid
+
+
 class Deploy(BaseModel):
     model_id: str
     version: str
