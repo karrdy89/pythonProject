@@ -146,7 +146,7 @@ class AIbeemRouter:
                                         msg="make dataset: failed to make actor MakeDatasetNBO: " + exc.__str__())
                 return json.dumps({"CODE": "FAIL", "ERROR_MSG": "failed to create process"})
             else:
-                if ray.get(self._shared_state.is_actor_exist.remote(name=name)):
+                if await self._shared_state.is_actor_exist.remote(name=name):
                     return json.dumps({"CODE": "FAIL", "ERROR_MSG": "same task is already running"})
                 self._shared_state.set_actor.remote(name=name, act=dataset_maker, state=TrainStateCode.MAKING_DATASET)
 

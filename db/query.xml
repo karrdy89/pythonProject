@@ -3,7 +3,7 @@
                 SELECT CUST_NO, EVNT_ID
                 FROM TEST
                 WHERE 1=1
-                AND ORGN_DTM BETWEEN #{START} || '999999' AND #{END} || '999999'
+                AND ORGN_DTM BETWEEN TO_DATE(#{START}, 'YYYYMMDD') AND TO_DATE(#{END}, 'YYYYMMDD')
                 ORDER BY CUST_NO ASC, ORGN_DTM ASC
         </select>
         <insert name="insert_test">
