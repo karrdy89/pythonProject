@@ -18,3 +18,11 @@ class Actors:
     MODEL_SERVER = "model_serving"
     DATA_MAKER_NBO = "datamaker_nbo"
 
+
+class TrainStateCode:
+    MAKING_DATASET = "11"
+    MAKING_DATASET_DONE = "12"
+    MAKING_DATASET_FAIL = "13"
+    TRAINING = "21"
+    TRAINING_DONE = "22"
+    TRAINING_FAIL = "23"

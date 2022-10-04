@@ -66,8 +66,7 @@ class AIbeemRouter:
         self._logger: ray.actor = ray.get_actor(Actors.LOGGER)
         self._shared_state: ray.actor = ray.get_actor(Actors.GLOBAL_STATE)
         self._tensorboard_tool: TensorBoardTool = TensorBoardTool()
-        # self._EXPIRE_TIME: int = 3600
-        self._EXPIRE_TIME: int = 60
+        self._EXPIRE_TIME: int = 3600
         self._dataset_url: dict[str, str] = {}
         self._scheduler = BackgroundScheduler()
         self._scheduler.start()
@@ -106,15 +105,15 @@ class AIbeemRouter:
 
     @router.post("/train/progress")
     async def get_train_progress(self, request_body: req_vo.CheckTrainProgress):
-        model = request_body.MDL_ID
+        model = request_body.MDL_NM
         main_version = request_body.MN_VER
         sub_version = request_body.N_VER
         version = str(main_version) + '.' + str(sub_version)
         pipeline_name = model + ":" + version
         pipeline_state = await self._shared_state.get_pipeline_result.remote(name=pipeline_name)
         train_result = await self._shared_state.get_train_result.remote(name=pipeline_name)
-
-        result = {"pipeline_state": pipeline_state, "train_result": train_result}
+        result = {"MDL_LRNG_ST_CD": "UK", "CODE": "SUCCESS",
+                  "TRAIN_INFO": {"pipeline_state": pipeline_state, "train_result": train_result}}
         result = json.dumps(result)
         return result
 

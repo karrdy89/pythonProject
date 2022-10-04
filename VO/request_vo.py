@@ -3,6 +3,7 @@ from pydantic import BaseModel, Extra
 
 class CheckTrainProgress(BaseModel):
     MDL_ID: str
+    MDL_NM: str
     MN_VER: int
     N_VER: int
 
