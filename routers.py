@@ -148,7 +148,6 @@ class AIbeemRouter:
             else:
                 if await self._shared_state.is_actor_exist.remote(name=name):
                     return json.dumps({"CODE": "FAIL", "ERROR_MSG": "same task is already running"})
-                self._shared_state.set_actor.remote(name=name, act=dataset_maker, state=TrainStateCode.MAKING_DATASET)
 
             labels = ["EVT000", "EVT100", "EVT200", "EVT300", "EVT400", "EVT500", "EVT600", "EVT700", "EVT800",
                       "EVT900"]
@@ -163,6 +162,7 @@ class AIbeemRouter:
                                                      num_data_limit=num_data_limit,
                                                      start_dtm=start_dtm, end_dtm=end_dtm)
             if result == 0:
+                self._shared_state.set_actor.remote(name=name, act=dataset_maker, state=TrainStateCode.MAKING_DATASET)
                 dataset_maker.fetch_data.remote()
                 self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                         msg="make dataset: running")
