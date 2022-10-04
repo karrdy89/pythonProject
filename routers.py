@@ -1,6 +1,7 @@
 import json
 import os
 import logging
+import uuid
 
 import ray
 import httpx
@@ -62,6 +63,8 @@ class AIbeemRouter:
         self._logger: ray.actor = ray.get_actor(Actors.LOGGER)
         self._shared_state: ray.actor = ray.get_actor(Actors.GLOBAL_STATE)
         self._tensorboard_tool: TensorBoardTool = TensorBoardTool()
+        self._timer = None
+        self._dataset_url: dict = {}
 
     @router.post("/train/run")
     async def train(self, request_body: rvo.Train):
@@ -142,23 +145,29 @@ class AIbeemRouter:
                                     msg="make dataset: failed to init MakeDatasetNBO")
             return "make dataset fail"
 
-    @router.get("/dataset/download_url")
-    async def get_dataset_url(self):
+    @router.get("/dataset/download/{dataset_name}/{version}")
+    async def get_dataset_url(self, dataset_name: str, version: str):
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="get request: download dataset url")
-        # create with uuid, if download->expire,
-        # id download check valid path, if valid download if not reject
-        pass
+        path = statics.ROOT_DIR+"/dataset/"+dataset_name+"/"+version+"/"+"dataset_"+dataset_name+"_"+version+".zip"
+        if not os.path.exists(path):
+            return "file not exist"
+        uid = str(uuid.uuid4())
+        self._dataset_url[uid] = path
+        return "/dataset/"+uid
 
-    @router.get("/dataset/download/{dataset_name}/{version}")
-    async def download_dataset(self, dataset_name: str, version: str):
+    @router.get("/dataset/{uid}")
+    async def download_dataset(self, uid: str):
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="get request: download dataset")
-        path = statics.ROOT_DIR+"/dataset/"+dataset_name+"/"+version+"/"+"dataset_"+dataset_name+"_"+version+".zip"
-        if os.path.exists(path):
-            return FileResponse(path)
+        if uid in self._dataset_url:
+            path = self._dataset_url[uid]
+            if os.path.exists(path):
+                return FileResponse(path)
+            else:
+                return "file not exist"
         else:
-            return "file not exist"
+            return "url is not valid"
 
     @router.post("/deploy")
     async def deploy(self, request_body: rvo.Deploy):
