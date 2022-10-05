@@ -241,21 +241,27 @@ class AIbeemRouter:
                                         msg="make dataset: failed to init MakeDatasetNBO")
                 return json.dumps({"CODE": "FAIL", "ERROR_MSG": "failed to init process"})
 
-    @router.get("/dataset/download/{dataset_name}/{version}")
-    async def get_dataset_url(self, dataset_name: str, version: str):
+    @router.post("/dataset/download")
+    async def get_dataset_url(self, request_body: req_vo.BasicModelInfo):
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="get request: download dataset url")
-        path = statics.ROOT_DIR + "/dataset/" + dataset_name + "/" + version + "/" + "dataset_" + dataset_name + "_" + version + ".zip"
+        dataset_name = request_body.MDL_NM
+        version = str(request_body.N_VER)
+        path = statics.ROOT_DIR+"/dataset/"+dataset_name+"/"+version+"/"+"dataset_"+dataset_name+"_"+version+".zip"
         if not os.path.exists(path):
-            return "file not exist"
+            return json.dumps({"CODE": "FAIL", "ERROR_MSG": "dataset not exist", "PATH": ""})
         uid = str(uuid.uuid4())
         run_date = datetime.now() + timedelta(seconds=self._EXPIRE_TIME)
+        print(run_date)
         self._scheduler.add_job(self.expire_dataset_url, "date", run_date=run_date, args=[uid])
         self._dataset_url[uid] = path
-        return "/dataset/" + uid
+        print(self._dataset_url)
+        return json.dumps({"CODE": "SUCCESS", "ERROR_MSG": "", "PATH": "/dataset/" + uid})
 
     @router.get("/dataset/{uid}")
     async def download_dataset(self, uid: str):
+        print(uid)
+        print(self._dataset_url)
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="get request: download dataset")
         if uid in self._dataset_url:
