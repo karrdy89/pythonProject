@@ -142,6 +142,8 @@ class AIbeemRouter:
         if model == "NBO":
             try:
                 dataset_maker = MakeDatasetNBO.options(name=name).remote()
+            except ValueError:
+                return json.dumps({"CODE": "FAIL", "ERROR_MSG": "same process is already running"})
             except Exception as exc:
                 self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                         msg="make dataset: failed to make actor MakeDatasetNBO: " + exc.__str__())
@@ -180,7 +182,7 @@ class AIbeemRouter:
     async def get_dataset_url(self, dataset_name: str, version: str):
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="get request: download dataset url")
-        path = statics.ROOT_DIR + "/dataset/" + dataset_name + "/" + version + "/" + "dataset_" + dataset_name + "_" + version + ".zip"
+        path = statics.ROOT_DIR+"/dataset/"+dataset_name+"/"+version+"/"+"dataset_"+dataset_name+"_"+version+".zip"
         if not os.path.exists(path):
             return "file not exist"
         uid = str(uuid.uuid4())

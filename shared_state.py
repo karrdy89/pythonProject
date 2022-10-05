@@ -100,8 +100,6 @@ class SharedState:
         if len(self._pipline_result) > self._PIPELINE_MAX:
             self._pipline_result.popitem(last=False)
             self._train_result.popitem(last=False)
-        if len(self._make_dataset_result) > self._DATASET_CONCURRENCY_MAX:
-            self._make_dataset_result.popitem(last=False)
         return 0
 
     def get_actor_state(self, name: str):
@@ -133,6 +131,9 @@ class SharedState:
             return -1
 
     def set_pipeline_result(self, name: str, pipe_result: dict) -> None:
+        if name not in self._pipline_result:
+            if len(self._pipline_result) > self._PIPELINE_MAX:
+                self._pipline_result.popitem(last=False)
         self._pipline_result[name] = pipe_result
 
     def delete_pipeline_result(self, name: str) -> None:
@@ -149,15 +150,27 @@ class SharedState:
             return {}
 
     def set_train_progress(self, name: str, epoch: str, progress: str) -> None:
+        if name not in self._train_result:
+            if len(self._train_result) > self._PIPELINE_MAX:
+                self._train_result.popitem(last=False)
         self._train_result[name].set_train_progress(epoch=epoch, progress=progress)
 
     def set_test_progress(self, name: str, progress: str) -> None:
+        if name not in self._train_result:
+            if len(self._train_result) > self._PIPELINE_MAX:
+                self._train_result.popitem(last=False)
         self._train_result[name].set_test_progress(progress=progress)
 
     def set_train_result(self, name: str, train_result: dict) -> None:
+        if name not in self._train_result:
+            if len(self._train_result) > self._PIPELINE_MAX:
+                self._train_result.popitem(last=False)
         self._train_result[name].set_train_result(train_result)
 
     def set_test_result(self, name: str, test_result: dict) -> None:
+        if name not in self._train_result:
+            if len(self._train_result) > self._PIPELINE_MAX:
+                self._train_result.popitem(last=False)
         self._train_result[name].set_test_result(test_result)
 
     def get_train_result(self, name: str) -> dict:
@@ -175,6 +188,9 @@ class SharedState:
             self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="pipeline not exist: " + name)
 
     def set_make_dataset_result(self, name: str, state_code: int) -> None:
+        if name not in self._make_dataset_result:
+            if len(self._make_dataset_result) > self._DATASET_CONCURRENCY_MAX:
+                self._make_dataset_result.popitem(last=False)
         self._make_dataset_result[name] = state_code
 
     def get_make_dataset_result(self, name: str) -> int:
