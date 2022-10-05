@@ -318,16 +318,24 @@ class AIbeemRouter:
         return result
 
     @router.post("/deploy/end_deploy")
-    async def end_deploy(self, request_body: req_vo.EndDeploy):
-        remote_job_obj = self._server.end_deploy.remote(model_id=request_body.model_id, version=request_body.version)
-        result = await remote_job_obj
+    async def end_deploy(self, request_body: req_vo.BasicModelInfo):
+        model = request_body.MDL_NM
+        main_version = request_body.MN_VER
+        sub_version = request_body.N_VER
+        version = str(main_version) + '.' + str(sub_version)
+        result = await self._server.end_deploy.remote(model_id=model, version=version)
         return result
 
     @router.post("/predict")
     async def predict(self, request_body: req_vo.Predict):
-        remote_job_obj = self._server.predict.remote(model_id=request_body.model_id, version=request_body.version,
-                                                     data=request_body.feature)
-        result = await remote_job_obj
+        model = request_body.MDL_NM
+        main_version = request_body.MN_VER
+        sub_version = request_body.N_VER
+        version = str(main_version) + "." + str(sub_version)
+        data = [request_body.EVNT_THRU_PATH]
+        data = {"inputs": data}
+        result = await self._server.predict.remote(model_id=model, version=version,
+                                                   data=data)
         return result
 
     @router.post("/tensorboard")

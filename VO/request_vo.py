@@ -36,9 +36,11 @@ class Deploy(BaseModel):
 
 
 class Predict(BaseModel):
-    model_id: str
-    version: str
-    feature: dict
+    MDL_ID: str
+    MDL_NM: str
+    MN_VER: int
+    N_VER: str
+    EVNT_THRU_PATH: list
 
     class Config:
         extra = Extra.forbid

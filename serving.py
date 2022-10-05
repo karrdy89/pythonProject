@@ -137,6 +137,7 @@ class ModelServing:
     get_container_names():
         Get a name of list that currently running containers from the docker client.
     """
+
     def __init__(self):
         self._logger: ray.actor = None
         self._boot_logger: logger = BootLogger().logger
@@ -228,33 +229,39 @@ class ModelServing:
                     result = await self.remove_container(model_id, version, abs(diff))
                     return result
                 else:
-                    result = json.dumps({"msg": "nothing to change",
-                                         "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode(
-                        'utf8')
+                    result = json.dumps({"CODE": "SUCCESS", "ERROR_MSG": "", "MSG": "nothing to change"})
                     return result
 
         if container_num <= 0:
             self._deploy_requests.remove((model_id, version))
-            result = json.dumps({"msg": "nothing to change",
-                                 "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode(
-                'utf8')
+            # result = json.dumps({"msg": "nothing to change",
+            #                      "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode(
+            #     'utf8')
+            result = json.dumps({"CODE": "SUCCESS", "ERROR_MSG": "", "MSG": "nothing to change"})
             return result
 
         if (self._current_container_num + container_num) > self._CONTAINER_MAX:
             self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="max container number exceeded : "
                                                                                  + model_id + ":" + version)
-            result = json.dumps({"code": ErrorCode.EXCEED_LIMITATION, "msg": "max container number exceeded",
-                                 "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode(
-                'utf8')
+            result = json.dumps({"CODE": "FAIL", "ERROR_MSG": "max container number exceeded", "MSG": ""})
+            # result = json.dumps({"code": ErrorCode.EXCEED_LIMITATION, "msg": "max container number exceeded",
+            #                      "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode(
+            #     'utf8')
             return result
 
         cp_result = self.copy_to_deploy(model_id, encoded_version)
         if cp_result == -1:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                     msg="an error occur when copying model file :" + model_id + ":" + version)
-            result = json.dumps({"code": ErrorCode.FILE_IO, "msg": "an error occur when copying model file",
-                                 "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode(
-                'utf8')
+            result = json.dumps({"CODE": "FAIL", "ERROR_MSG": "model not found", "MSG": ""})
+            # result = json.dumps({"code": ErrorCode.FILE_IO, "msg": "an error occur when copying model file",
+            #                      "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode(
+            #     'utf8')
+            async with self._lock:
+                self._current_container_num -= container_num
+            return result
+        if cp_result == -2:
+            result = json.dumps({"CODE": "FAIL", "ERROR_MSG": "an error occur when copying model file", "MSG": ""})
             async with self._lock:
                 self._current_container_num -= container_num
             return result
@@ -274,15 +281,17 @@ class ModelServing:
             container_num = len(model_deploy_state.containers)
             deploy_state = {"model_id": model_id, "version": version, "container_num": container_num}
             deploy_states.append(deploy_state)
-        return json.dumps({"deploy_states": deploy_states,
-                           "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode('utf8')
+        return json.dumps({"CODE": "SUCCESS", "ERROR_MSG": "", "DEPLOY_STATE": deploy_states})
+        # return json.dumps({"deploy_states": deploy_states,
+        #                    "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode('utf8')
 
     async def add_container(self, model_id: str, version: str, container_num: int) -> json:
         if (self._current_container_num + container_num) > self._CONTAINER_MAX:
             self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="max container number exceeded : "
                                                                                  + model_id + ":" + version)
-            result = json.dumps({"code": ErrorCode.EXCEED_LIMITATION, "msg": "max container number exceeded",
-                                 "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode('utf8')
+            result = json.dumps({"CODE": "FAIL", "ERROR_MSG": "max container number exceeded", "MSG": ""})
+            # result = json.dumps({"code": ErrorCode.EXCEED_LIMITATION, "msg": "max container number exceeded",
+            #                      "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode('utf8')
             return result
 
         model_key = model_id + "_" + version
@@ -290,8 +299,9 @@ class ModelServing:
         if model_deploy_state is None:
             self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="the model is not deployed : "
                                                                                  + model_id + ":" + version)
-            result = json.dumps({"code": ErrorCode.NOT_FOUND, "msg": "the model is not deployed",
-                                 "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode('utf8')
+            # result = json.dumps({"code": ErrorCode.NOT_FOUND, "msg": "the model is not deployed",
+            #                      "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode('utf8')
+            result = json.dumps({"CODE": "FAIL", "ERROR_MSG": "the model is not deployed", "MSG": ""})
             return result
 
         result = await self.deploy_containers(model_id, version, container_num, model_deploy_state)
@@ -308,8 +318,9 @@ class ModelServing:
         if model_deploy_state is None:
             self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="the model is not deployed : "
                                                                                  + model_id + ":" + version)
-            result = json.dumps({"code": ErrorCode.NOT_FOUND, "msg": "the model is not deployed",
-                                 "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode('utf8')
+            # result = json.dumps({"code": ErrorCode.NOT_FOUND, "msg": "the model is not deployed",
+            #                      "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode('utf8')
+            result = json.dumps({"CODE": "FAIL", "ERROR_MSG": "the model is not deployed", "MSG": ""})
             return result
 
         if container_num >= len(model_deploy_state.containers):
@@ -332,8 +343,13 @@ class ModelServing:
             self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                     msg="shutdown pending on " + str(container_num) + " containers : " + model_id + ":"
                                         + version)
-            result = json.dumps({"code": 200, "msg": "shutdown pending on " + str(container_num) + " containers",
-                                 "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode('utf8')
+            result = json.dumps({"CODE": "SUCCESS", "ERROR_MSG": "",
+                                 "MSG": "shutdown pending on " + str(container_num) + " containers"})
+            # result = json.dumps({"code": 200, "msg": "shutdown pending on " + str(container_num) + " containers",
+            #                      "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode('utf8')
+            return result
+        else:
+            result = json.dumps({"CODE": "FAIL", "ERROR_MSG": "failed to remove container", "MSG": ""})
             return result
 
     async def end_deploy(self, model_id: str, version: str) -> json:
@@ -343,8 +359,9 @@ class ModelServing:
         if model_deploy_state is None:
             self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="model not deployed : "
                                                                                  + model_id + ":" + version)
-            result = json.dumps({"code": ErrorCode.NOT_FOUND, "msg": "model not deployed",
-                                 "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode('utf8')
+            result = json.dumps({"CODE": "FAIL", "ERROR_MSG": "the model is not deployed", "MSG": ""})
+            # result = json.dumps({"code": ErrorCode.NOT_FOUND, "msg": "model not deployed",
+            #                      "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode('utf8')
             return result
 
         model_deploy_state.state = StateCode.SHUTDOWN
@@ -352,8 +369,9 @@ class ModelServing:
         self.delete_deployed_model(model_id, encoded_version)
         self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="end deploy : "
                                                                              + model_id + ":" + version)
-        result = json.dumps({"code": 200, "msg": "end_deploy accepted",
-                             "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode('utf8')
+        # result = json.dumps({"code": 200, "msg": "end_deploy accepted",
+        #                      "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode('utf8')
+        result = json.dumps({"CODE": "SUCCESS", "ERROR_MSG": "", "MSG": "end deploy accepted"})
         return result
 
     async def predict(self, model_id: str, version: str, data: dict) -> json:
@@ -361,15 +379,17 @@ class ModelServing:
         if (model_deploy_state is None) or (model_deploy_state.cycle_iterator is None):
             self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="model not deployed : "
                                                                                  + model_id + ":" + version)
-            result = json.dumps({"code": ErrorCode.NOT_FOUND, "msg": "the model not deployed",
-                                 "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode('utf8')
+            result = json.dumps({"CODE": "FAIL", "ERROR_MSG": "the model is not deployed", "MSG": ""})
+            # result = json.dumps({"code": ErrorCode.NOT_FOUND, "msg": "the model not deployed",
+            #                      "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode('utf8')
             return result
 
         if model_deploy_state.state == StateCode.SHUTDOWN:
             self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="model not deployed : "
                                                                                  + model_id + ":" + version)
-            result = json.dumps({"code": ErrorCode.NOT_FOUND, "msg": "the model not deployed",
-                                 "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode('utf8')
+            # result = json.dumps({"code": ErrorCode.NOT_FOUND, "msg": "the model not deployed",
+            #                      "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode('utf8')
+            result = json.dumps({"CODE": "FAIL", "ERROR_MSG": "the model is not deployed", "MSG": ""})
             return result
 
         deploy_info = next(model_deploy_state.cycle_iterator)
@@ -381,18 +401,26 @@ class ModelServing:
             async with Http() as http:
                 async with self._lock:
                     container.ref_count += 1
-                result = await http.post_json(url, data)
-                if result is None:
+                predict_result = await http.post_json(url, data)
+                result = {"CODE": "", "ERROR_MSG": "", "EVNT_ID": None, "PRBT": None}
+                if predict_result is None:
                     self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg="http request error : "
                                                                                           + model_id + ":" + version)
-                    result = json.dumps({"code": ErrorCode.HTTP_REQUEST, "msg": "http request error"}).encode('utf8')
-                elif result == -1:
+                    # result = json.dumps({"code": ErrorCode.HTTP_REQUEST, "msg": "http request error"}).encode('utf8')
+                    result["CODE"] = "FAIL"
+                    result["ERROR_MSG"] = "http request error"
+                elif predict_result == -1:
                     self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg="connection error : "
                                                                                           + model_id + ":" + version)
                     await self.fail_back(model_id, version, container_name)
                     result = await self.predict(model_id, version, data)
                 async with self._lock:
                     container.ref_count -= 1
+                    result["CODE"] = "SUCCESS"
+                    result["ERROR_MSG"] = ""
+                    outputs = predict_result["outputs"]
+                    result["EVNT_ID"] = outputs["result"]
+                    result["PRBT"] = outputs["result_1"]
                 return result
         else:
             result = await self.predict(model_id, version, data)
@@ -439,12 +467,14 @@ class ModelServing:
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="deploy finished. " + str(deploy_count) + "/" + str(container_num)
                                     + " is deployed: " + model_id + ":" + version)
-        result = json.dumps({"code": 200,
-                             "msg": "deploy finished. " + str(deploy_count) + "/" + str(container_num) + "deployed",
-                             "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode('utf8')
+        result = json.dumps({"CODE": "SUCCESS", "ERROR_MSG": "",
+                             "MSG": "deploy finished. " + str(deploy_count) + "/" + str(container_num) + " deployed"})
+        # result = json.dumps({"code": 200,
+        #                      "msg": "deploy finished. " + str(deploy_count) + "/" + str(container_num) + " deployed",
+        #                      "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode('utf8')
         return result
 
-    def run_container(self, model_id: str, container_name: str, http_port: int, grpc_port: int, deploy_path: str)\
+    def run_container(self, model_id: str, container_name: str, http_port: int, grpc_port: int, deploy_path: str) \
             -> Container | None:
         try:
             container = self._client.containers.run(image=self._CONTAINER_IMAGE, detach=True, name=container_name,
@@ -546,10 +576,11 @@ class ModelServing:
             if result == -1:
                 return -1
             for container_name, serving_container in model_deploy_state.containers.items():
-                result = self.reset_version_config(host=serving_container.grpc_url[0] +":" + str(serving_container.grpc_url[1]),
-                                                   name=serving_container.name,
-                                                   base_path="/models/" + model_id, model_platform="tensorflow",
-                                                   model_version_policy=[version_encode(version)])
+                result = self.reset_version_config(
+                    host=serving_container.grpc_url[0] + ":" + str(serving_container.grpc_url[1]),
+                    name=serving_container.name,
+                    base_path="/models/" + model_id, model_platform="tensorflow",
+                    model_version_policy=[version_encode(version)])
                 if result != 0:
                     self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                             msg="an error occur when reset config :" + model_id)
@@ -581,7 +612,7 @@ class ModelServing:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                     msg="an error occur when copy model file. "
                                         "src:" + src + " target: " + dist + " | error: " + msg)
-            return -1
+            return -2
         else:
             return 0
 

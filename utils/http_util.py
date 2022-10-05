@@ -1,6 +1,7 @@
 import aiohttp
 import ray
 import logging
+import json
 
 
 class Http:
@@ -44,11 +45,11 @@ class Http:
                               msg="http connection error :" + str(e))
             return -1
 
-    async def post_json(self, url, data: dict = None) -> int | str | None:
+    async def post_json(self, url, data: dict = None) -> int | str | dict | None:
         try:
             async with self._session.post(url=url, json=data, timeout=60) as resp:
                 if resp.status == 200:
-                    return await resp.text()
+                    return json.loads(await resp.text())
                 else:
                     logger = ray.get_actor("logging_service")
                     logger.log.remote(level=logging.ERROR, worker=type(self).__name__,
