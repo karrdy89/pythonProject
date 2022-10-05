@@ -39,6 +39,7 @@ class TrainResult:
         self._test_progress: dict[str, str] = {}
         self._train_result: dict = {}
         self._test_result: dict = {}
+        self._status_code: int = 0
 
     def set_train_progress(self, epoch: str, progress: str) -> None:
         self._train_progress["epoch"] = epoch
@@ -64,3 +65,9 @@ class TrainResult:
 
     def get_test_result(self) -> dict:
         return self._test_result
+
+    def set_train_status(self, status: int) -> None:
+        self._status_code = status
+
+    def get_train_status(self) -> int:
+        return self._status_code

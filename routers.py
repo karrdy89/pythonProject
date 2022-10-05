@@ -115,12 +115,10 @@ class AIbeemRouter:
         sub_version = request_body.N_VER
         version = str(main_version) + '.' + str(sub_version)
         name = model + ":" + version
-        actor_state = await self._shared_state.get_actor_state.remote(name=name)
-        if actor_state is None:
-            return json.dumps({"CODE": "FAIL", "ERROR_MSG": "model not found"})
+        train_state = await self._shared_state.get_status_code.remote(name=name)
         pipeline_state = await self._shared_state.get_pipeline_result.remote(name=name)
         train_result = await self._shared_state.get_train_result.remote(name=name)
-        result = res_vo.RstCheckTrainProgress(MDL_LRNG_ST_CD=actor_state,
+        result = res_vo.RstCheckTrainProgress(MDL_LRNG_ST_CD=train_state,
                                               CODE="SUCCESS",
                                               ERROR_MSG="",
                                               TRAIN_INFO={"pipline_state": pipeline_state,

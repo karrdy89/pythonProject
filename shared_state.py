@@ -1,7 +1,6 @@
 import configparser
 import logging
 from collections import OrderedDict
-from dataclasses import dataclass
 from threading import Lock
 
 import ray
@@ -65,7 +64,7 @@ class SharedState:
         self._worker = type(self).__name__
         self._logger: actor = None
         self._boot_logger: logging.Logger = BootLogger().logger
-        self._actors: OrderedDict[str, Actor] = OrderedDict()
+        self._actors: OrderedDict[str, actor] = OrderedDict()
         self._pipline_result: OrderedDict[str, dict] = OrderedDict()
         self._train_result: OrderedDict[str, TrainResult] = OrderedDict()
         self._make_dataset_result: OrderedDict[str, int] = OrderedDict()
@@ -97,17 +96,7 @@ class SharedState:
         if len(self._actors) > self._PIPELINE_MAX:
             self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="max piepline exceeded")
             return -1
-        if len(self._pipline_result) > self._PIPELINE_MAX:
-            self._pipline_result.popitem(last=False)
-            self._train_result.popitem(last=False)
         return 0
-
-    def get_actor_state(self, name: str):
-        if name in self._actors:
-            act = self._actors[name]
-            return act.state
-        else:
-            return None
 
     def is_actor_exist(self, name) -> bool:
         if name in self._actors:
@@ -206,3 +195,11 @@ class SharedState:
         else:
             self._logger.log.remote(level=logging.WARN, worker=self._worker,
                                     msg="make dataset result not exist: " + name)
+
+    def get_status_code(self, name: str) -> dict:
+        result = {"DATASET": "", "TRAIN": ""}
+        if name in self._train_result:
+            result["TRAIN"] = self._train_result[name].get_train_status()
+        if name in self._make_dataset_result:
+            result["DATASET"] = self._make_dataset_result[name]
+        return result
