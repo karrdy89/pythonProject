@@ -85,15 +85,6 @@ class AIbeemRouter:
         if ray.get(self._shared_state.is_actor_exist.remote(name=pipeline_name)):
             return json.dumps({"CODE": "FAIL", "ERROR_MSG": "same model is already running"})
 
-        train_info = TrainInfo()
-        train_info.name = pipeline_name
-        train_info.epoch = request_body.EPOCH
-        train_info.early_stop = request_body.EARLY_STOP
-        train_info.data_split = request_body.DATA_SPLIT
-        train_info.batch_size = request_body.BATCH_SIZE
-        tmp_path = model + "/" + str(version_encode(version))
-        train_info.save_path = project_path + '/saved_models/' + tmp_path
-        train_info.log_path = project_path + '/train_logs/' + tmp_path
         try:
             pipeline_actor = Pipeline.options(name="pipeline_name").remote()
         except ValueError as exc:
@@ -107,11 +98,31 @@ class AIbeemRouter:
 
         set_shared_result = await self._shared_state.set_actor.remote(name=pipeline_name, act=pipeline_actor)
         if set_shared_result == 0:
-            self._shared_state.set_train_status.remote(name=pipeline_name,
-                                                       state_code=TrainStateCode.TRAINING)
-            pipeline_actor.run_pipeline.remote(name=model, version=version, train_info=train_info)
-            return json.dumps({"CODE": "SUCCESS", "ERROR_MSG": ""})
+            set_pipe_result = await pipeline_actor.set_pipeline.remote(name=model, version=version)
+            if set_pipe_result == 0:
+                train_info = TrainInfo()
+                train_info.name = pipeline_name
+                train_info.epoch = request_body.EPOCH
+                train_info.early_stop = request_body.EARLY_STOP
+                train_info.data_split = request_body.DATA_SPLIT
+                train_info.batch_size = request_body.BATCH_SIZE
+                tmp_path = model + "/" + str(version_encode(version))
+                train_info.save_path = project_path + '/saved_models/' + tmp_path
+                train_info.log_path = project_path + '/train_logs/' + tmp_path
+
+                pipeline_actor.trigger_pipeline.remote(train_info=train_info)
+                self._shared_state.set_train_status.remote(name=pipeline_name,
+                                                           state_code=TrainStateCode.TRAINING)
+                self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                        msg="train run: pipeline stated: " + pipeline_name)
+                return json.dumps({"CODE": "SUCCESS", "ERROR_MSG": ""})
+            else:
+                self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                        msg="train run: failed to set pipeline: " + pipeline_name)
+                return json.dumps({"CODE": "FAIL", "ERROR_MSG": "failed to set train process"})
         else:
+            self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                    msg="train run: max concurrent exceeded: " + pipeline_name)
             return json.dumps({"CODE": "FAIL", "ERROR_MSG": "max concurrent exceeded"})
 
     # @router.post("/train/stop")

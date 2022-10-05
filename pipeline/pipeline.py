@@ -73,50 +73,65 @@ class Pipeline:
                 self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg=str(fe))
                 return {"error": fe}
 
-    def run_pipeline(self, name: str, version: str, train_info: TrainInfo) -> dict:
+    def set_pipeline(self, name: str, version: str) -> int:
         self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="set pipeline..." + self._name)
         self._name = name + ":" + version
         pipeline_list = self._get_piepline_definition()
         if "error" in pipeline_list:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                     msg="an error occur when parsing yaml file")
-            return {"error": "an error occur when parsing yaml file"}
+            return -1
         pipeline_list = pipeline_list.get("pipelines", '')
         if pipeline_list == '':
             self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg="there is no pipeline: " + self._name)
-            return {"result": "there is no pipeline: " + name}
+            return -1
         sequences = []
         for pipeline in pipeline_list:
             if pipeline.get("name") == name:
                 sequences = pipeline.get("sequence")
                 break
-        for i, seq in enumerate(sequences):
-            self._sequence_names.append(seq.get("name"))
-            self._pipeline_state[seq.get("name")] = StateCode.WAITING
-            task = seq.get("task")
-            task_split = task.rsplit('.', 1)
-            module = importlib.import_module(task_split[0])
-            component = getattr(module, task_split[1])
-            self._components[i] = component
-        pipeline_result = self.trigger_pipeline(train_info=train_info)
-        if pipeline_result == 0:
-            self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="training done: " + self._name)
-            self._shared_state.set_train_status.remote(name=self._name,
-                                                       state_code=TrainStateCode.TRAINING_DONE)
+        if len(sequences) == 0:
+            self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                    msg="there is no sequence in pipeline: " + self._name)
+            return -1
+        try:
+            for i, seq in enumerate(sequences):
+                self._sequence_names.append(seq.get("name"))
+                self._pipeline_state[seq.get("name")] = StateCode.WAITING
+                task = seq.get("task")
+                task_split = task.rsplit('.', 1)
+                module = importlib.import_module(task_split[0])
+                component = getattr(module, task_split[1])
+                self._components[i] = component
+        except Exception as exc:
+            self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                    msg="there is no sequence in pipeline: " + self._name + ": " + exc.__str__())
+            return -1
         else:
-            self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg="training fail: " + self._name)
-            self._shared_state.set_train_status.remote(name=self._name,
-                                                       state_code=TrainStateCode.TRAINING_FAIL)
+            return 0
 
-    def trigger_pipeline(self, train_info) -> int:
+        # pipeline_result = self.trigger_pipeline(train_info=train_info)
+        # if pipeline_result == 0:
+        #     self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="training done: " + self._name)
+        #     self._shared_state.set_train_status.remote(name=self._name,
+        #                                                state_code=TrainStateCode.TRAINING_DONE)
+        # else:
+        #     self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg="training fail: " + self._name)
+        #     self._shared_state.set_train_status.remote(name=self._name,
+        #                                                state_code=TrainStateCode.TRAINING_FAIL)
+
+    def trigger_pipeline(self, train_info) -> None:
         if not self._components:
             self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="there is no component: " + self._name)
-            return -1
+            self._shared_state.set_train_status.remote(name=self._name,
+                                                       state_code=TrainStateCode.TRAINING_FAIL)
         if self._component_idx >= len(self._components):
             self._component_idx = 0
             self.on_pipeline_end()
-            self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="end pipeline..." + self._name)
-            return 0
+            self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="pipeline done: " + self._name)
+            self._shared_state.set_train_status.remote(name=self._name,
+                                                       state_code=TrainStateCode.TRAINING_DONE)
+
         self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="run pipeline..." + self._name)
         current_task_name = self._sequence_names[self._component_idx]
         ray.get(self._logger.log.remote(level=logging.INFO, worker=self._worker,
@@ -154,8 +169,9 @@ class Pipeline:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                     msg=exc_str)
             self._shared_state.set_pipeline_result.remote(self._name, self._pipeline_state)
+            self._shared_state.set_train_status.remote(name=self._name,
+                                                       state_code=TrainStateCode.TRAINING_FAIL)
             self.on_pipeline_end()
-            return -1
         else:
             self._pipeline_state[current_task_name] = StateCode.DONE
             self._shared_state.set_pipeline_result.remote(self._name, self._pipeline_state)
