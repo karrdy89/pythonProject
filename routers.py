@@ -253,18 +253,15 @@ class AIbeemRouter:
         uid = str(uuid.uuid4())
         run_date = datetime.now() + timedelta(seconds=self._EXPIRE_TIME)
         self._scheduler.add_job(self.expire_dataset_url, "date", run_date=run_date, args=[uid])
-        self._dataset_url[uid] = path
-        print(self._dataset_url)
+        await self._shared_state.set_dataset_url.remote(uid=uid, path=path)
         return json.dumps({"CODE": "SUCCESS", "ERROR_MSG": "", "PATH": "/dataset/" + uid})
 
     @router.get("/dataset/{uid}")
     async def download_dataset(self, uid: str):
-        print(uid)
-        print(self._dataset_url)
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="get request: download dataset")
-        if uid in self._dataset_url:
-            path = self._dataset_url[uid]
+        path = await self._shared_state.get_dataset_path.remote(uid=uid)
+        if path is not None:
             if os.path.exists(path):
                 self.expire_dataset_url(uid)
                 return FileResponse(path)
@@ -360,8 +357,8 @@ class AIbeemRouter:
             return json.dumps({"CODE": "FAIL", "ERROR_MSG": "log file not exist", "PATH": ""})
 
     def expire_dataset_url(self, uid) -> None:
-        if uid in self._dataset_url:
-            del self._dataset_url[uid]
+        result = ray.get(self._shared_state.delete_dataset_url.remote(uid=uid))
+        if result == 0:
             self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                     msg="dataset url has expired: " + uid)
 
