@@ -173,3 +173,20 @@ class SharedState:
             del self._train_result[name]
         else:
             self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="pipeline not exist: " + name)
+
+    def set_make_dataset_result(self, name: str, state_code: int) -> None:
+        self._make_dataset_result[name] = state_code
+
+    def get_make_dataset_result(self, name: str) -> int:
+        if name in self._make_dataset_result:
+            return self._make_dataset_result[name]
+        else:
+            self._logger.log.remote(level=logging.WARN, worker=self._worker,
+                                    msg="make dataset result not exist: " + name)
+
+    def delete_make_dataset_result(self, name: str) -> None:
+        if name in self._make_dataset_result:
+            del self._make_dataset_result[name]
+        else:
+            self._logger.log.remote(level=logging.WARN, worker=self._worker,
+                                    msg="make dataset result not exist: " + name)
