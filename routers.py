@@ -99,7 +99,9 @@ class AIbeemRouter:
         train_info.log_path = project_path + '/train_logs/' + tmp_path
         pipeline_actor = Pipeline.options(name="pipeline_name").remote()
         pipeline_actor.run_pipeline.remote(name=model, version=version, train_info=train_info)
-        self._shared_state.set_actor.remote(name=pipeline_name, act=pipeline_actor)
+        result = await self._shared_state.set_actor.remote(name=pipeline_name, act=pipeline_actor)
+        # validation
+
         return "train started"
 
     # @router.post("/train/stop")
