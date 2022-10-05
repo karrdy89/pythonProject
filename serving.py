@@ -209,8 +209,7 @@ class ModelServing:
         if (model_id, version) in self._deploy_requests:
             self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="same deploy request is in progress : "
                                                                                  + model_id + ":" + version)
-            result = json.dumps({"code": ErrorCode.DUPLICATED_REQUEST, "msg": "same deploy request is in progress",
-                                 "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
+            result = json.dumps({"CODE": "FAIL", "ERROR_MSG": "same deploy request is in progress"})
             return result
 
         self._deploy_requests.append((model_id, version))

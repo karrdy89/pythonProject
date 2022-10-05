@@ -137,11 +137,11 @@ class AIbeemRouter:
         kill_actor_result = await self._shared_state.kill_actor.remote(name=pipeline_name)
         if kill_actor_result == 0:
             self._logger.log.remote(level=logging.INFO, worker=self._worker,
-                                    msg="get request: train stopped : "+pipeline_name)
+                                    msg="get request: train stopped : " + pipeline_name)
             return json.dumps({"CODE": "SUCCESS", "ERROR_MSG": ""})
         else:
             self._logger.log.remote(level=logging.WARN, worker=self._worker,
-                                    msg="train stopped fail: model not exist: "+pipeline_name)
+                                    msg="train stopped fail: model not exist: " + pipeline_name)
             return json.dumps({"CODE": "FAIL", "ERROR_MSG": "training process not exist"})
 
     @router.post("/train/progress")
@@ -245,7 +245,7 @@ class AIbeemRouter:
     async def get_dataset_url(self, dataset_name: str, version: str):
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="get request: download dataset url")
-        path = statics.ROOT_DIR+"/dataset/"+dataset_name+"/"+version+"/"+"dataset_"+dataset_name+"_"+version+".zip"
+        path = statics.ROOT_DIR + "/dataset/" + dataset_name + "/" + version + "/" + "dataset_" + dataset_name + "_" + version + ".zip"
         if not os.path.exists(path):
             return "file not exist"
         uid = str(uuid.uuid4())
@@ -286,11 +286,14 @@ class AIbeemRouter:
 
     @router.post("/deploy")
     async def deploy(self, request_body: req_vo.Deploy):
-        print("accept deploy request")
-        remote_job_obj = self._server.deploy.remote(model_id=request_body.model_id,
-                                                    version=request_body.version,
-                                                    container_num=request_body.container_num)
-        result = await remote_job_obj
+        self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="get request: deploy")
+        model = request_body.MDL_NM
+        main_version = request_body.MN_VER
+        sub_version = request_body.N_VER
+        version = str(main_version) + '.' + str(sub_version)
+        result = await self._server.deploy.remote(model_id=model,
+                                                  version=version,
+                                                  container_num=request_body.WDTB_SRVR_NCNT)
         return result
 
     @router.get("/deploy/state")

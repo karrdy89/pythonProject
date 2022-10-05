@@ -25,9 +25,11 @@ class MakeDataset(BaseModel):
 
 
 class Deploy(BaseModel):
-    model_id: str
-    version: str
-    container_num: int
+    MDL_ID: str
+    MDL_NM: str
+    MN_VER: int
+    N_VER: int
+    WDTB_SRVR_NCNT: int
 
     class Config:
         extra = Extra.forbid
