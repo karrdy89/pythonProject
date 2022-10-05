@@ -167,6 +167,8 @@ class AIbeemRouter:
             if result == 0:
                 set_shared_result = await self._shared_state.set_actor.remote(name=name, act=dataset_maker)
                 if set_shared_result == 0:
+                    self._shared_state.set_make_dataset_result.remote(name=name,
+                                                                      state_code=TrainStateCode.MAKING_DATASET)
                     dataset_maker.fetch_data.remote()
                     self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                             msg="make dataset: running")
