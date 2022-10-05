@@ -252,7 +252,6 @@ class AIbeemRouter:
             return json.dumps({"CODE": "FAIL", "ERROR_MSG": "dataset not exist", "PATH": ""})
         uid = str(uuid.uuid4())
         run_date = datetime.now() + timedelta(seconds=self._EXPIRE_TIME)
-        print(run_date)
         self._scheduler.add_job(self.expire_dataset_url, "date", run_date=run_date, args=[uid])
         self._dataset_url[uid] = path
         print(self._dataset_url)
