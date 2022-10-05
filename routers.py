@@ -130,7 +130,7 @@ class AIbeemRouter:
         self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="get request: train stop")
         model = request_body.MDL_NM
         main_version = request_body.MN_VER
-        sub_version = request_body.V_VER
+        sub_version = request_body.N_VER
         version = str(main_version) + "." + str(sub_version)
         pipeline_name = model + ":" + version
         await self._shared_state.set_train_status.remote(name=pipeline_name, status_code=TrainStateCode.TRAINING_FAIL)
@@ -162,6 +162,29 @@ class AIbeemRouter:
                                               TRAIN_INFO={"pipline_state": pipeline_state,
                                                           "train_result": train_result})
         return result.json()
+
+    @router.post("/train/result")
+    async def get_train_result(self, request_body: req_vo.BasicModelInfo):
+        self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                msg="get request: get train result")
+        model = request_body.MDL_NM
+        main_version = request_body.MN_VER
+        sub_version = request_body.N_VER
+        version = str(main_version) + '.' + str(sub_version)
+        name = model + ":" + version
+        try:
+            train_result = await self._shared_state.get_train_result.remote(name=name)
+        except Exception as exc:
+            self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                    msg="get request: an error occur while get train result: " + exc.__str__())
+            return json.dumps({"CODE": "FAIL", "ERROR_MSG": "INTERNAL ERROR", "RSLT_MSG": ""})
+        else:
+            if len(train_result) == 0:
+                return json.dumps({"CODE": "FAIL", "ERROR_MSG": "model not exist", "RSLT_MSG": ""})
+            else:
+                total_result = {"train_result": train_result["train_result"],
+                                "test_result": train_result["test_result"]}
+                return json.dumps({"CODE": "SUCCESS", "ERROR_MSG": "", "RSLT_MSG": total_result})
 
     @router.post("/dataset/make")
     async def make_dataset(self, request_body: req_vo.MakeDataset):
@@ -222,7 +245,7 @@ class AIbeemRouter:
     async def get_dataset_url(self, dataset_name: str, version: str):
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="get request: download dataset url")
-        path = statics.ROOT_DIR + "/dataset/" + dataset_name + "/" + version + "/" + "dataset_" + dataset_name + "_" + version + ".zip"
+        path = statics.ROOT_DIR+"/dataset/"+dataset_name+"/"+version+"/"+"dataset_"+dataset_name+"_"+version+".zip"
         if not os.path.exists(path):
             return "file not exist"
         uid = str(uuid.uuid4())
@@ -276,13 +299,6 @@ class AIbeemRouter:
         result = await remote_job_obj
         return result
 
-    @router.get("/db")
-    async def db_test(self):
-        from db.db_util import DBUtil
-        db = DBUtil()
-        result = db.select("test")
-        return result
-
     @router.post("/deploy/add_container")
     async def add_container(self, request_body: req_vo.AddContainer):
         remote_job_obj = self._server.add_container.remote(model_id=request_body.model_id, version=request_body.version,
@@ -311,18 +327,21 @@ class AIbeemRouter:
         result = await remote_job_obj
         return result
 
-    # @router.post("/tensorboard")
-    # async def create_tensorboard(self, request_body: req_vo.BasicModelInfo):
-    #     version = request_body.version
-    #     encoded_version = version_encode(version)
-    #     model = request_body.model_id
-    #     log_path = project_path + "/train_logs/" + model + "/" + str(encoded_version)
-    #     if os.path.isdir(log_path):
-    #         port = self._tensorboard_tool.run(dir_path=log_path)
-    #         path = "/tensorboard/" + str(port)
-    #     else:
-    #         path = "log file not exist"
-    #     return path
+    @router.post("/tensorboard")
+    async def create_tensorboard(self, request_body: req_vo.BasicModelInfo):
+        self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="get request: create tensorboard")
+        model = request_body.MDL_NM
+        main_version = request_body.MN_VER
+        sub_version = request_body.N_VER
+        version = str(main_version) + "." + str(sub_version)
+        encoded_version = version_encode(version)
+        log_path = project_path + "/train_logs/" + model + "/" + str(encoded_version)
+        if os.path.isdir(log_path):
+            port = self._tensorboard_tool.run(dir_path=log_path)
+            path = "/tensorboard/" + str(port)
+            return json.dumps({"CODE": "SUCCESS", "ERROR_MSG": "", "PATH": path})
+        else:
+            return json.dumps({"CODE": "FAIL", "ERROR_MSG": "log file not exist", "PATH": ""})
 
     def expire_dataset_url(self, uid) -> None:
         if uid in self._dataset_url:

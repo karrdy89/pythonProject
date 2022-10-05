@@ -86,7 +86,17 @@ class StopTrain(BaseModel):
     MDL_ID: str
     MDL_NM: str
     MN_VER: int
-    V_VER: int
+    N_VER: int
+
+    class Config:
+        extra = Extra.forbid
+
+
+class BasicModelInfo(BaseModel):
+    MDL_ID: str
+    MDL_NM: str
+    MN_VER: int
+    N_VER: int
 
     class Config:
         extra = Extra.forbid
