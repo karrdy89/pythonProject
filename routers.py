@@ -87,6 +87,7 @@ class AIbeemRouter:
 
         if ray.get(self._shared_state.is_actor_exist.remote(name=pipeline_name)):
             return "same model is training"
+
         train_info = TrainInfo()
         train_info.name = pipeline_name
         train_info.epoch = request_body.EPOCH
