@@ -76,17 +76,14 @@ class AIbeemRouter:
 
     @router.post("/train/run")
     async def train(self, request_body: req_vo.Train):
+        self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="get request: train run")
         model = request_body.MDL_NM
         main_version = str(request_body.MN_VER)
         sub_version = str(request_body.N_VER)
-        version = main_version+'.'+sub_version
+        version = main_version + '.' + sub_version
         pipeline_name = model + ":" + version
-
-
-
-
         if ray.get(self._shared_state.is_actor_exist.remote(name=pipeline_name)):
-            return "same model is training"
+            return json.dumps({"CODE": "FAIL", "ERROR_MSG": "same model is already running"})
 
         train_info = TrainInfo()
         train_info.name = pipeline_name
@@ -97,12 +94,25 @@ class AIbeemRouter:
         tmp_path = model + "/" + str(version_encode(version))
         train_info.save_path = project_path + '/saved_models/' + tmp_path
         train_info.log_path = project_path + '/train_logs/' + tmp_path
-        pipeline_actor = Pipeline.options(name="pipeline_name").remote()
-        pipeline_actor.run_pipeline.remote(name=model, version=version, train_info=train_info)
-        result = await self._shared_state.set_actor.remote(name=pipeline_name, act=pipeline_actor)
-        # validation
+        try:
+            pipeline_actor = Pipeline.options(name="pipeline_name").remote()
+        except ValueError as exc:
+            self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                    msg="train run: failed to make actor: " + exc.__str__())
+            return json.dumps({"CODE": "FAIL", "ERROR_MSG": "same process is already running"})
+        except Exception as exc:
+            self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                    msg="train run: failed to make actor: " + exc.__str__())
+            return json.dumps({"CODE": "FAIL", "ERROR_MSG": "failed to create process"})
 
-        return "train started"
+        set_shared_result = await self._shared_state.set_actor.remote(name=pipeline_name, act=pipeline_actor)
+        if set_shared_result == 0:
+            self._shared_state.set_train_status.remote(name=pipeline_name,
+                                                       state_code=TrainStateCode.TRAINING)
+            pipeline_actor.run_pipeline.remote(name=model, version=version, train_info=train_info)
+            return json.dumps({"CODE": "SUCCESS", "ERROR_MSG": ""})
+        else:
+            return json.dumps({"CODE": "FAIL", "ERROR_MSG": "max concurrent exceeded"})
 
     # @router.post("/train/stop")
     # async def stop_train(self, request_body: req_vo.BasicModelInfo):
@@ -149,10 +159,12 @@ class AIbeemRouter:
         if model == "NBO":
             try:
                 dataset_maker = MakeDatasetNBO.options(name=name).remote()
-            except ValueError:
+            except ValueError as exc:
+                self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                        msg="make dataset: failed to make actor MakeDatasetNBO: " + exc.__str__())
                 return json.dumps({"CODE": "FAIL", "ERROR_MSG": "same process is already running"})
             except Exception as exc:
-                self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                         msg="make dataset: failed to make actor MakeDatasetNBO: " + exc.__str__())
                 return json.dumps({"CODE": "FAIL", "ERROR_MSG": "failed to create process"})
             else:
@@ -191,7 +203,7 @@ class AIbeemRouter:
     async def get_dataset_url(self, dataset_name: str, version: str):
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="get request: download dataset url")
-        path = statics.ROOT_DIR+"/dataset/"+dataset_name+"/"+version+"/"+"dataset_"+dataset_name+"_"+version+".zip"
+        path = statics.ROOT_DIR + "/dataset/" + dataset_name + "/" + version + "/" + "dataset_" + dataset_name + "_" + version + ".zip"
         if not os.path.exists(path):
             return "file not exist"
         uid = str(uuid.uuid4())

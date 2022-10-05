@@ -91,7 +91,6 @@ class SharedState:
     def set_actor(self, name: str, act: actor) -> None | int:
         self._lock.acquire()
         self._actors[name] = act
-        self._train_result[name] = TrainResult()
         self._lock.release()
         if len(self._actors) > self._PIPELINE_MAX:
             self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="max piepline exceeded")
@@ -138,28 +137,39 @@ class SharedState:
         else:
             return {}
 
+    def set_train_status(self, name: str, status_code: int) -> None:
+        if name not in self._train_result:
+            if len(self._train_result) > self._PIPELINE_MAX:
+                self._train_result.popitem(last=False)
+            self._train_result[name] = TrainResult()
+        self._train_result[name].set_train_status(status=status_code)
+
     def set_train_progress(self, name: str, epoch: str, progress: str) -> None:
         if name not in self._train_result:
             if len(self._train_result) > self._PIPELINE_MAX:
                 self._train_result.popitem(last=False)
+            self._train_result[name] = TrainResult()
         self._train_result[name].set_train_progress(epoch=epoch, progress=progress)
 
     def set_test_progress(self, name: str, progress: str) -> None:
         if name not in self._train_result:
             if len(self._train_result) > self._PIPELINE_MAX:
                 self._train_result.popitem(last=False)
+            self._train_result[name] = TrainResult()
         self._train_result[name].set_test_progress(progress=progress)
 
     def set_train_result(self, name: str, train_result: dict) -> None:
         if name not in self._train_result:
             if len(self._train_result) > self._PIPELINE_MAX:
                 self._train_result.popitem(last=False)
+            self._train_result[name] = TrainResult()
         self._train_result[name].set_train_result(train_result)
 
     def set_test_result(self, name: str, test_result: dict) -> None:
         if name not in self._train_result:
             if len(self._train_result) > self._PIPELINE_MAX:
                 self._train_result.popitem(last=False)
+            self._train_result[name] = TrainResult()
         self._train_result[name].set_test_result(test_result)
 
     def get_train_result(self, name: str) -> dict:

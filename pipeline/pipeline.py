@@ -7,7 +7,7 @@ import traceback
 import ray
 
 from pipeline import TrainInfo, PipelineComponent
-from statics import Actors
+from statics import Actors, TrainStateCode
 
 
 @ray.remote
@@ -100,9 +100,13 @@ class Pipeline:
             self._components[i] = component
         pipeline_result = self.trigger_pipeline(train_info=train_info)
         if pipeline_result == 0:
-            return {"result": "pipeline finished successfully : " + name}
+            self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="training done: " + self._name)
+            self._shared_state.set_train_status.remote(name=self._name,
+                                                       state_code=TrainStateCode.TRAINING_DONE)
         else:
-            return {"result": "pipeline fail : " + name}
+            self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg="training fail: " + self._name)
+            self._shared_state.set_train_status.remote(name=self._name,
+                                                       state_code=TrainStateCode.TRAINING_FAIL)
 
     def trigger_pipeline(self, train_info) -> int:
         if not self._components:
@@ -150,6 +154,7 @@ class Pipeline:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                     msg=exc_str)
             self._shared_state.set_pipeline_result.remote(self._name, self._pipeline_state)
+            self.on_pipeline_end()
             return -1
         else:
             self._pipeline_state[current_task_name] = StateCode.DONE
@@ -158,7 +163,7 @@ class Pipeline:
             self.trigger_pipeline(train_info)
 
     def on_pipeline_end(self) -> None:
-        ray.get(self._shared_state.kill_actor.remote(self._name))
+        self._shared_state.kill_actor.remote(self._name)
 
 
 class StateCode:
