@@ -80,3 +80,13 @@ class Train(BaseModel):
 
     class Config:
         extra = Extra.forbid
+
+
+class StopTrain(BaseModel):
+    MDL_ID: str
+    MDL_NM: str
+    MN_VER: int
+    V_VER: int
+
+    class Config:
+        extra = Extra.forbid

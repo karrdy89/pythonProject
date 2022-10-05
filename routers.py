@@ -125,16 +125,24 @@ class AIbeemRouter:
                                     msg="train run: max concurrent exceeded: " + pipeline_name)
             return json.dumps({"CODE": "FAIL", "ERROR_MSG": "max concurrent exceeded"})
 
-    # @router.post("/train/stop")
-    # async def stop_train(self, request_body: req_vo.BasicModelInfo):
-    #     model = request_body.model_id
-    #     version = request_body.version
-    #     pipeline_name = model + ":" + version
-    #     result = await self._shared_state.kill_actor.remote(name=pipeline_name)
-    #     if result == 0:
-    #         return "success"
-    #     else:
-    #         return "fail"
+    @router.post("/train/stop")
+    async def stop_train(self, request_body: req_vo.StopTrain):
+        self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="get request: train stop")
+        model = request_body.MDL_NM
+        main_version = request_body.MN_VER
+        sub_version = request_body.V_VER
+        version = str(main_version) + "." + str(sub_version)
+        pipeline_name = model + ":" + version
+        await self._shared_state.set_train_status.remote(name=pipeline_name, status_code=TrainStateCode.TRAINING_FAIL)
+        kill_actor_result = await self._shared_state.kill_actor.remote(name=pipeline_name)
+        if kill_actor_result == 0:
+            self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                    msg="get request: train stopped : "+pipeline_name)
+            return json.dumps({"CODE": "SUCCESS", "ERROR_MSG": ""})
+        else:
+            self._logger.log.remote(level=logging.WARN, worker=self._worker,
+                                    msg="train stopped fail: model not exist: "+pipeline_name)
+            return json.dumps({"CODE": "FAIL", "ERROR_MSG": "training process not exist"})
 
     @router.post("/train/progress")
     async def get_train_progress(self, request_body: req_vo.CheckTrainProgress):
