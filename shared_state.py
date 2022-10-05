@@ -68,7 +68,9 @@ class SharedState:
         self._actors: OrderedDict[str, Actor] = OrderedDict()
         self._pipline_result: OrderedDict[str, dict] = OrderedDict()
         self._train_result: OrderedDict[str, TrainResult] = OrderedDict()
+        self._make_dataset_result: OrderedDict[str, int] = OrderedDict()
         self._PIPELINE_MAX = 1
+        self._CONCURRENCY_MAX = 1
         self._lock = Lock()
 
     def init(self) -> int:
@@ -80,6 +82,7 @@ class SharedState:
         try:
             config_parser.read("config/config.ini")
             self._PIPELINE_MAX = int(config_parser.get("PIPELINE", "PIPELINE_MAX"))
+            self._CONCURRENCY_MAX = int(config_parser.get("DATASET_MAKER", "MAX_CONCURRENCY"))
         except configparser.Error as e:
             self._boot_logger.error("(" + self._worker + ") " + "an error occur when set config...: " + str(e))
             return -1
