@@ -70,7 +70,7 @@ class SharedState:
         self._train_result: OrderedDict[str, TrainResult] = OrderedDict()
         self._make_dataset_result: OrderedDict[str, int] = OrderedDict()
         self._PIPELINE_MAX = 1
-        self._CONCURRENCY_MAX = 1
+        self._DATASET_CONCURRENCY_MAX = 1
         self._lock = Lock()
 
     def init(self) -> int:
@@ -82,33 +82,27 @@ class SharedState:
         try:
             config_parser.read("config/config.ini")
             self._PIPELINE_MAX = int(config_parser.get("PIPELINE", "PIPELINE_MAX"))
-            self._CONCURRENCY_MAX = int(config_parser.get("DATASET_MAKER", "MAX_CONCURRENCY"))
+            self._DATASET_CONCURRENCY_MAX = int(config_parser.get("DATASET_MAKER", "MAX_CONCURRENCY"))
         except configparser.Error as e:
             self._boot_logger.error("(" + self._worker + ") " + "an error occur when set config...: " + str(e))
             return -1
         self._boot_logger.info("(" + self._worker + ") " + "init shared_state actor complete...")
         return 0
 
-    def set_actor(self, name: str, act: actor, state: int) -> None | int:
+    def set_actor(self, name: str, act: actor) -> None | int:
         self._lock.acquire()
-        self._actors[name] = Actor(name=name, act=act, state=state)
+        self._actors[name] = act
         self._train_result[name] = TrainResult()
         self._lock.release()
-        # split concurrency max, pipeline max
-        # actors is only manage actor
-        # result is only manage result and each max, pop last
         if len(self._actors) > self._PIPELINE_MAX:
             self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="max piepline exceeded")
             return -1
-        if len(self._pipline_result) >= self._PIPELINE_MAX:
+        if len(self._pipline_result) > self._PIPELINE_MAX:
             self._pipline_result.popitem(last=False)
             self._train_result.popitem(last=False)
+        if len(self._make_dataset_result) > self._DATASET_CONCURRENCY_MAX:
+            self._make_dataset_result.popitem(last=False)
         return 0
-
-    def update_actor_state(self, name: str, state: int):
-        if name in self._actors:
-            act = self._actors[name]
-            act.state = state
 
     def get_actor_state(self, name: str):
         if name in self._actors:
@@ -179,10 +173,3 @@ class SharedState:
             del self._train_result[name]
         else:
             self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="pipeline not exist: " + name)
-
-
-@dataclass
-class Actor:
-    name: str
-    act: actor
-    state: int
