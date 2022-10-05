@@ -76,17 +76,23 @@ class AIbeemRouter:
 
     @router.post("/train/run")
     async def train(self, request_body: req_vo.Train):
-        model = request_body.model_id
-        version = request_body.version
+        model = request_body.MDL_NM
+        main_version = str(request_body.MN_VER)
+        sub_version = str(request_body.N_VER)
+        version = main_version+'.'+sub_version
         pipeline_name = model + ":" + version
+
+
+
+
         if ray.get(self._shared_state.is_actor_exist.remote(name=pipeline_name)):
             return "same model is training"
         train_info = TrainInfo()
         train_info.name = pipeline_name
-        train_info.epoch = request_body.epoch
-        train_info.early_stop = request_body.early_stop
-        train_info.data_split = request_body.data_split
-        train_info.batch_size = request_body.batch_size
+        train_info.epoch = request_body.EPOCH
+        train_info.early_stop = request_body.EARLY_STOP
+        train_info.data_split = request_body.DATA_SPLIT
+        train_info.batch_size = request_body.BATCH_SIZE
         tmp_path = model + "/" + str(version_encode(version))
         train_info.save_path = project_path + '/saved_models/' + tmp_path
         train_info.log_path = project_path + '/train_logs/' + tmp_path

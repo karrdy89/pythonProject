@@ -69,12 +69,14 @@ class EndDeploy(BaseModel):
 
 
 class Train(BaseModel):
-    model_id: str
-    version: str
-    epoch: int
-    data_split: str
-    early_stop: str
-    batch_size: int
+    MDL_ID: str
+    MDL_NM: str
+    MN_VER: int
+    N_VER: int
+    EPOCH: int
+    DATA_SPLIT: str
+    EARLY_STOP: str
+    BATCH_SIZE: int
 
     class Config:
         extra = Extra.forbid
