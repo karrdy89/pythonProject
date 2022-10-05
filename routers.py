@@ -82,7 +82,7 @@ class AIbeemRouter:
         sub_version = str(request_body.N_VER)
         version = main_version + '.' + sub_version
         pipeline_name = model + ":" + version
-        if ray.get(self._shared_state.is_actor_exist.remote(name=pipeline_name)):
+        if await self._shared_state.is_actor_exist.remote(name=pipeline_name):
             return json.dumps({"CODE": "FAIL", "ERROR_MSG": "same model is already running"})
 
         try:
@@ -112,7 +112,7 @@ class AIbeemRouter:
 
                 pipeline_actor.trigger_pipeline.remote(train_info=train_info)
                 self._shared_state.set_train_status.remote(name=pipeline_name,
-                                                           state_code=TrainStateCode.TRAINING)
+                                                           status_code=TrainStateCode.TRAINING)
                 self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                         msg="train run: pipeline stated: " + pipeline_name)
                 return json.dumps({"CODE": "SUCCESS", "ERROR_MSG": ""})

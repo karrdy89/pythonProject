@@ -110,27 +110,17 @@ class Pipeline:
         else:
             return 0
 
-        # pipeline_result = self.trigger_pipeline(train_info=train_info)
-        # if pipeline_result == 0:
-        #     self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="training done: " + self._name)
-        #     self._shared_state.set_train_status.remote(name=self._name,
-        #                                                state_code=TrainStateCode.TRAINING_DONE)
-        # else:
-        #     self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg="training fail: " + self._name)
-        #     self._shared_state.set_train_status.remote(name=self._name,
-        #                                                state_code=TrainStateCode.TRAINING_FAIL)
-
     def trigger_pipeline(self, train_info) -> None:
         if not self._components:
             self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="there is no component: " + self._name)
             self._shared_state.set_train_status.remote(name=self._name,
-                                                       state_code=TrainStateCode.TRAINING_FAIL)
+                                                       status_code=TrainStateCode.TRAINING_FAIL)
         if self._component_idx >= len(self._components):
             self._component_idx = 0
             self.on_pipeline_end()
             self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="pipeline done: " + self._name)
             self._shared_state.set_train_status.remote(name=self._name,
-                                                       state_code=TrainStateCode.TRAINING_DONE)
+                                                       status_code=TrainStateCode.TRAINING_DONE)
 
         self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="run pipeline..." + self._name)
         current_task_name = self._sequence_names[self._component_idx]
@@ -170,7 +160,7 @@ class Pipeline:
                                     msg=exc_str)
             self._shared_state.set_pipeline_result.remote(self._name, self._pipeline_state)
             self._shared_state.set_train_status.remote(name=self._name,
-                                                       state_code=TrainStateCode.TRAINING_FAIL)
+                                                       status_code=TrainStateCode.TRAINING_FAIL)
             self.on_pipeline_end()
         else:
             self._pipeline_state[current_task_name] = StateCode.DONE

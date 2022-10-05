@@ -106,16 +106,17 @@ class SharedState:
         if name in self._actors:
             del self._actors[name]
         else:
-            self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="actor not exist: " + name)
+            self._logger.log.remote(level=logging.WARN, worker=self._worker,
+                                    msg="delete actor: actor not exist: " + name)
 
     def kill_actor(self, name: str) -> int:
         if name in self._actors:
             act = self._actors[name]
-            ray.kill(act.act)
+            ray.kill(act)
             self.delete_actor(name)
             return 0
         else:
-            self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="actor not exist: " + name)
+            self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="kill actor: actor not exist: " + name)
             return -1
 
     def set_pipeline_result(self, name: str, pipe_result: dict) -> None:

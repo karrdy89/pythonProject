@@ -179,7 +179,7 @@ class MakeDatasetNBO:
             if os.path.exists(self._path):
                 rmtree(self._path)
             ray.get(self._shared_state.set_make_dataset_result.remote(self._name, TrainStateCode.MAKING_DATASET_FAIL))
-            ray.get(self._shared_state.kill_actor.remote(self._name))
+            self._shared_state.kill_actor.remote(self._name)
             return -1
 
         zip_name = "dataset_NBO_"+self._version+".zip"
@@ -198,13 +198,13 @@ class MakeDatasetNBO:
             if os.path.exists(self._path):
                 rmtree(self._path)
             ray.get(self._shared_state.set_make_dataset_result.remote(self._name, TrainStateCode.MAKING_DATASET_FAIL))
-            ray.get(self._shared_state.kill_actor.remote(self._name))
+            self._shared_state.kill_actor.remote(self._name)
             return -1
 
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="making nbo dataset: finished")
         ray.get(self._shared_state.set_make_dataset_result.remote(self._name, TrainStateCode.MAKING_DATASET_DONE))
-        ray.get(self._shared_state.kill_actor.remote(self._name))
+        self._shared_state.kill_actor.remote(self._name)
 
     def _export(self):
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
@@ -234,7 +234,7 @@ class MakeDatasetNBO:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                     msg="an error occur when export csv: " + exc.__str__())
             ray.get(self._shared_state.set_make_dataset_result.remote(self._name, TrainStateCode.MAKING_DATASET_FAIL))
-            ray.get(self._shared_state.kill_actor.remote(self._name))
+            self._shared_state.kill_actor.remote(self._name)
         else:
             self._information = []
             self._dataset = []
@@ -289,7 +289,7 @@ class MakeDatasetNBO:
         self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                 msg="making nbo dataset: an error occur when processing data: " + msg)
         ray.get(self._shared_state.set_make_dataset_result.remote(self._name, TrainStateCode.MAKING_DATASET_FAIL))
-        ray.get(self._shared_state.kill_actor.remote(self._name))
+        self._shared_state.kill_actor.remote(self._name)
 
     def fetch_data(self):
         self._cur_buffer_size = 0
