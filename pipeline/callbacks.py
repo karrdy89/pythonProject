@@ -125,7 +125,7 @@ def base_callbacks(train_info: TrainInfo, monitor: str) -> list:
     callback_list.append(tb_cb)
     if train_info.early_stop == 'Y':
         es_cb = keras.callbacks.EarlyStopping(monitor=monitor, min_delta=0, patience=10, verbose=1, mode="auto",
-                                              baseline=None, restore_best_weight=True)
+                                              baseline=None, restore_best_weights=True)
         callback_list.append(es_cb)
     callback_list.append(BaseCallback(train_info.name))
     return callback_list

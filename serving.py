@@ -254,6 +254,7 @@ class ModelServing:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                     msg="an error occur when copying model file :" + model_id + ":" + version)
             result = json.dumps({"CODE": "FAIL", "ERROR_MSG": "model not found", "MSG": ""})
+            self._deploy_requests.remove((model_id, version))
             # result = json.dumps({"code": ErrorCode.FILE_IO, "msg": "an error occur when copying model file",
             #                      "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode(
             #     'utf8')
