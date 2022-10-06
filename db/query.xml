@@ -1,10 +1,36 @@
 <mapper name="BaseMapper">
-        <select name="select_test">
-                SELECT CUST_NO, EVNT_ID
-                FROM TEST
+        <select name="select_nbo">
+            WITH CCT AS (
+                SELECT
+                    *
+                FROM
+                    S_AIB.TBCHN3001H A
                 WHERE 1=1
-                AND ORGN_DTM BETWEEN TO_DATE(#{START}, 'YYYYMMDD') AND TO_DATE(#{END}, 'YYYYMMDD')
-                ORDER BY CUST_NO ASC, ORGN_DTM ASC
+                AND CUST_NO IS NOT NULL
+                AND ORGN_DTM BETWEEN #{START} || '999999' AND #{END} || '999999'
+            )
+            SELECT
+                A.CUST_NO
+                , A.ORGN_DTM
+                , A.CHNL_ID
+                , A.EVNT_ID
+                , B.EVNT_NM
+            FROM
+                CCT A
+                , S_AIB.TBCHN2002M B
+                , S_AIB.TBCHN2004M C
+            WHERE 1=1
+                AND A.CHNL_ID = C.CHNL_ID
+                AND A.EVNT_ID = B.EVNT_ID
+                AND C.EVNT_ID = B.EVNT_ID
+                AND B.USE_YN = 'Y'
+        </select>
+        <select name="select_test">
+            SELECT CUST_NO, EVNT_ID
+            FROM TEST
+            WHERE 1=1
+            AND ORGN_DTM BETWEEN TO_DATE(#{START}, 'YYYYMMDD') AND TO_DATE(#{END}, 'YYYYMMDD')
+            ORDER BY CUST_NO ASC, ORGN_DTM ASC
         </select>
         <insert name="insert_test">
                 INSERT INTO TEST
