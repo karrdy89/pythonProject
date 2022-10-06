@@ -175,7 +175,7 @@ class ModelServing:
             self._GRPC_PORT_START = int(config_parser.get("DEPLOY", "GRPC_PORT_START"))
             self._CONTAINER_MAX = int(config_parser.get("DEPLOY", "CONTAINER_MAX"))
             self._GC_CHECK_INTERVAL = int(config_parser.get("DEPLOY", "GC_CHECK_INTERVAL"))
-            self._DEPLOY_PATH = self._project_path + str(config_parser.get("DEPLOY", "DEPLOY_PATH"))
+            self._DEPLOY_PATH = str(config_parser.get("DEPLOY", "DEPLOY_PATH"))
             self._CONTAINER_IMAGE = str(config_parser.get("DEPLOY", "CONTAINER_IMAGE"))
             self._CONTAINER_SERVER_IP = str(config_parser.get("DEPLOY", "CONTAINER_SERVER_IP"))
         except configparser.Error as e:
