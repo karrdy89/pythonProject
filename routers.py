@@ -8,7 +8,7 @@ from shutil import rmtree
 import ray
 import httpx
 import tensorflow
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi_utils.cbv import cbv
 from fastapi_utils.inferring_router import InferringRouter
 from fastapi.responses import FileResponse
@@ -35,6 +35,14 @@ app = FastAPI()
 app.add_middleware(HTTPSRedirectMiddleware)
 app.add_middleware(CORSMiddleware)
 router = InferringRouter()
+
+
+class TensorboardDepends:
+    def __init__(self):
+        self._tensorboard_tool: TensorBoardTool = TensorBoardTool()
+
+    def run(self, dir_path: str):
+        return self._tensorboard_tool.run(dir_path=dir_path)
 
 
 @cbv(router)
@@ -68,7 +76,6 @@ class AIbeemRouter:
         self._server: ray.actor = ray.get_actor(Actors.MODEL_SERVER)
         self._logger: ray.actor = ray.get_actor(Actors.LOGGER)
         self._shared_state: ray.actor = ray.get_actor(Actors.GLOBAL_STATE)
-        self._tensorboard_tool: TensorBoardTool = TensorBoardTool()
         self._EXPIRE_TIME: int = 3600
         self._dataset_url: dict[str, str] = {}
         self._scheduler = BackgroundScheduler()
@@ -350,9 +357,12 @@ class AIbeemRouter:
         encoded_version = version_encode(version)
         log_path = project_path + "/train_logs/" + model + "/" + str(encoded_version)
         if os.path.isdir(log_path):
-            port = self._tensorboard_tool.run(dir_path=log_path)
-            path = "/tensorboard/" + str(port)
-            return json.dumps({"CODE": "SUCCESS", "ERROR_MSG": "", "PATH": path})
+            port = await self._shared_state.get_tensorboard_port.remote(dir_path=log_path)
+            if port == -1:
+                return json.dumps({"CODE": "FAIL", "ERROR_MSG": "launch tensorboard failed", "PATH": ""})
+            else:
+                path = "/tensorboard/" + str(port)
+                return json.dumps({"CODE": "SUCCESS", "ERROR_MSG": "", "PATH": path})
         else:
             return json.dumps({"CODE": "FAIL", "ERROR_MSG": "log file not exist", "PATH": ""})
 

@@ -9,6 +9,7 @@ from ray import actor
 from pipeline import TrainResult
 from logger import BootLogger
 from statics import Actors
+from tensorboard_service import TensorBoardTool
 
 
 @ray.remote
@@ -69,6 +70,7 @@ class SharedState:
         self._train_result: OrderedDict[str, TrainResult] = OrderedDict()
         self._make_dataset_result: OrderedDict[str, int] = OrderedDict()
         self._dataset_url: dict[str, str] = {}
+        self._tensorboard_tool = TensorBoardTool()
         self._PIPELINE_MAX = 1
         self._DATASET_CONCURRENCY_MAX = 1
         self._lock = Lock()
@@ -232,3 +234,9 @@ class SharedState:
         if uid in self._dataset_url:
             del self._dataset_url[uid]
         return 0
+
+    def get_tensorboard_port(self, dir_path: str) -> int:
+        self._lock.acquire()
+        port = self._tensorboard_tool.run(dir_path=dir_path)
+        self._lock.release()
+        return port
