@@ -66,10 +66,6 @@ class AIbeemRouter:
         self._server: ray.actor = ray.get_actor(Actors.MODEL_SERVER)
         self._logger: ray.actor = ray.get_actor(Actors.LOGGER)
         self._shared_state: ray.actor = ray.get_actor(Actors.GLOBAL_STATE)
-        self._EXPIRE_TIME: int = 3600
-        self._dataset_url: dict[str, str] = {}
-        self._scheduler = BackgroundScheduler()
-        self._scheduler.start()
 
     @router.post("/train/run")
     async def train(self, request_body: req_vo.Train):
@@ -248,8 +244,6 @@ class AIbeemRouter:
         if not os.path.exists(path):
             return json.dumps({"CODE": "FAIL", "ERROR_MSG": "dataset not exist", "PATH": ""})
         uid = str(uuid.uuid4())
-        run_date = datetime.now() + timedelta(seconds=self._EXPIRE_TIME)
-        self._scheduler.add_job(self.expire_dataset_url, "date", run_date=run_date, args=[uid])
         await self._shared_state.set_dataset_url.remote(uid=uid, path=path)
         return json.dumps({"CODE": "SUCCESS", "ERROR_MSG": "", "PATH": "/dataset/" + uid})
 
@@ -260,7 +254,6 @@ class AIbeemRouter:
         path = await self._shared_state.get_dataset_path.remote(uid=uid)
         if path is not None:
             if os.path.exists(path):
-                self.expire_dataset_url(uid)
                 return FileResponse(path)
             else:
                 return "file not exist"
@@ -355,12 +348,6 @@ class AIbeemRouter:
                 return json.dumps({"CODE": "SUCCESS", "ERROR_MSG": "", "PATH": path})
         else:
             return json.dumps({"CODE": "FAIL", "ERROR_MSG": "log file not exist", "PATH": ""})
-
-    def expire_dataset_url(self, uid) -> None:
-        result = ray.get(self._shared_state.delete_dataset_url.remote(uid=uid))
-        if result == 0:
-            self._logger.log.remote(level=logging.INFO, worker=self._worker,
-                                    msg="dataset url has expired: " + uid)
 
 
 async def _reverse_proxy(request: Request):

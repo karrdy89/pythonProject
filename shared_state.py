@@ -2,9 +2,11 @@ import configparser
 import logging
 from collections import OrderedDict
 from threading import Lock
+from datetime import datetime, timedelta
 
 import ray
 from ray import actor
+from apscheduler.schedulers.background import BackgroundScheduler
 
 from pipeline import TrainResult
 from logger import BootLogger
@@ -70,10 +72,13 @@ class SharedState:
         self._train_result: OrderedDict[str, TrainResult] = OrderedDict()
         self._make_dataset_result: OrderedDict[str, int] = OrderedDict()
         self._dataset_url: dict[str, str] = {}
+        self._EXPIRE_TIME: int = 30
         self._tensorboard_tool = TensorBoardTool()
         self._PIPELINE_MAX = 1
         self._DATASET_CONCURRENCY_MAX = 1
         self._lock = Lock()
+        self._scheduler = BackgroundScheduler()
+        self._scheduler.start()
 
     def init(self) -> int:
         self._boot_logger.info("(" + self._worker + ") " + "init shared_state actor...")
@@ -219,21 +224,27 @@ class SharedState:
         return result
 
     def set_dataset_url(self, uid: str, path: str) -> None:
-        print(self._dataset_url)
+        run_date = datetime.now() + timedelta(seconds=self._EXPIRE_TIME)
+        self._lock.acquire()
         self._dataset_url[uid] = path
+        self._lock.release()
+        self._scheduler.add_job(self.delete_dataset_url, "date", run_date=run_date, args=[uid])
 
     def get_dataset_path(self, uid) -> str | None:
+        self._lock.acquire()
+        path = None
         if uid in self._dataset_url:
             path = self._dataset_url[uid]
             del self._dataset_url[uid]
-            return path
-        else:
-            return None
+        self._lock.release()
+        return path
 
-    def delete_dataset_url(self, uid: str) -> int:
+    def delete_dataset_url(self, uid: str) -> None:
+        self._lock.acquire()
         if uid in self._dataset_url:
             del self._dataset_url[uid]
-        return 0
+        self._lock.release()
+        print(self._dataset_url)
 
     def get_tensorboard_port(self, dir_path: str) -> int:
         self._lock.acquire()
