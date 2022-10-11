@@ -27,7 +27,6 @@ def version_decode(version: int) -> str:
     """
     decimal = version // 10 ** 0 % 10
     decoded = str(version)[:-1]
-    decimal = len(decoded) - decimal
-    if decimal > 0:
-        decoded = decoded[:decimal] + "." + decoded[decimal:]
-    return decoded
+    if decoded == '':
+        return '0.0'
+    return str(int(decoded) / 10**decimal)
