@@ -7,12 +7,10 @@ from shutil import rmtree
 
 import ray
 import httpx
-import tensorflow
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI
 from fastapi_utils.cbv import cbv
 from fastapi_utils.inferring_router import InferringRouter
 from fastapi.responses import FileResponse
-from sklearn.utils import resample
 from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
 from starlette.middleware.cors import CORSMiddleware
 from starlette.requests import Request
@@ -35,14 +33,6 @@ app = FastAPI()
 app.add_middleware(HTTPSRedirectMiddleware)
 app.add_middleware(CORSMiddleware)
 router = InferringRouter()
-
-
-class TensorboardDepends:
-    def __init__(self):
-        self._tensorboard_tool: TensorBoardTool = TensorBoardTool()
-
-    def run(self, dir_path: str):
-        return self._tensorboard_tool.run(dir_path=dir_path)
 
 
 @cbv(router)

@@ -229,6 +229,7 @@ class ModelServing:
                     result = await self.remove_container(model_id, version, abs(diff))
                     return result
                 else:
+                    self._deploy_requests.remove((model_id, version))
                     result = json.dumps({"CODE": "SUCCESS", "ERROR_MSG": "", "MSG": "nothing to change"})
                     return result
 
@@ -244,6 +245,7 @@ class ModelServing:
             self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="max container number exceeded : "
                                                                                  + model_id + ":" + version)
             result = json.dumps({"CODE": "FAIL", "ERROR_MSG": "max container number exceeded", "MSG": ""})
+            self._deploy_requests.remove((model_id, version))
             # result = json.dumps({"code": ErrorCode.EXCEED_LIMITATION, "msg": "max container number exceeded",
             #                      "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode(
             #     'utf8')
@@ -263,10 +265,10 @@ class ModelServing:
             return result
         if cp_result == -2:
             result = json.dumps({"CODE": "FAIL", "ERROR_MSG": "an error occur when copying model file", "MSG": ""})
+            self._deploy_requests.remove((model_id, version))
             async with self._lock:
                 self._current_container_num -= container_num
             return result
-
         model_deploy_state = ModelDeployState(model=(model_id, encoded_version), state=StateCode.AVAILABLE)
         result = await self.deploy_containers(model_id, version, container_num, model_deploy_state)
         return result
