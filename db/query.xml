@@ -2,6 +2,7 @@
         <select name="select_nbo">
             WITH CCT AS (
                 SELECT
+                    /*+ INDEX_DESC(A IXTBCHN3001H03) */
                     *
                 FROM
                     S_AIB.TBCHN3001H A
@@ -20,9 +21,9 @@
                 , S_AIB.TBCHN2002M B
                 , S_AIB.TBCHN2004M C
             WHERE 1=1
-                AND A.CHNL_ID = C.CHNL_ID
+                AND A.SYS_ID = C.SYS_ID
                 AND A.EVNT_ID = B.EVNT_ID
-                AND C.EVNT_ID = B.EVNT_ID
+                AND A.SYS_EVNT_ID = C.SYS_EVNT_ID
                 AND B.USE_YN = 'Y'
         </select>
         <select name="select_test">
