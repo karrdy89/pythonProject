@@ -72,7 +72,7 @@ class SharedState:
         self._train_result: OrderedDict[str, TrainResult] = OrderedDict()
         self._make_dataset_result: OrderedDict[str, int] = OrderedDict()
         self._dataset_url: dict[str, str] = {}
-        self._EXPIRE_TIME: int = 30
+        self._EXPIRE_TIME: int = 3600
         self._tensorboard_tool = TensorBoardTool()
         self._PIPELINE_MAX = 1
         self._DATASET_CONCURRENCY_MAX = 1
