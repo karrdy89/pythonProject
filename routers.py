@@ -255,7 +255,6 @@ class AIbeemRouter:
         if path is not None:
             if os.path.exists(path):
                 filename = path.split("/")[-1]
-                print(filename)
                 return FileResponse(path, filename=filename)
             else:
                 return "file not exist"
