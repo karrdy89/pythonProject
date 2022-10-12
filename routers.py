@@ -254,7 +254,9 @@ class AIbeemRouter:
         path = await self._shared_state.get_dataset_path.remote(uid=uid)
         if path is not None:
             if os.path.exists(path):
-                return FileResponse(path)
+                filename = path.split("/")[-1]
+                print(filename)
+                return FileResponse(path, filename=filename)
             else:
                 return "file not exist"
         else:
