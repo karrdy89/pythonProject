@@ -121,6 +121,7 @@ class Pipeline:
             self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="pipeline done: " + self._name)
             self._shared_state.set_train_status.remote(name=self._name,
                                                        status_code=TrainStateCode.TRAINING_DONE)
+            return
 
         self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="run pipeline..." + self._name)
         current_task_name = self._sequence_names[self._component_idx]

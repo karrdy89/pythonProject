@@ -112,6 +112,7 @@ class AIbeemRouter:
             else:
                 self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                         msg="train run: failed to set pipeline: " + pipeline_name)
+                await self._shared_state.kill_actor.remote(name=pipeline_name)
                 return json.dumps({"CODE": "FAIL", "ERROR_MSG": "failed to set train process"})
         else:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker,

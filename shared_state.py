@@ -97,13 +97,14 @@ class SharedState:
         return 0
 
     def set_actor(self, name: str, act: actor) -> None | int:
-        self._lock.acquire()
-        self._actors[name] = act
-        self._lock.release()
-        if len(self._actors) > self._PIPELINE_MAX:
+        if len(self._actors) + 1 > self._PIPELINE_MAX:
             self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="max piepline exceeded")
             return -1
-        return 0
+        else:
+            self._lock.acquire()
+            self._actors[name] = act
+            self._lock.release()
+            return 0
 
     def is_actor_exist(self, name) -> bool:
         if name in self._actors:
