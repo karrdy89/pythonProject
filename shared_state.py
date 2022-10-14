@@ -214,7 +214,8 @@ class SharedState:
             n_ver = sp_version[1]
             try:
                 data = {"MDL_ID": mdl_id, "MN_VER": mn_ver, "N_VER": n_ver, "MDL_LRNG_ST_CD": str(state_code)}
-                res = requests.post(self._URL_UPDATE_STATE_LRN, data=json.dumps(data))
+                headers = {'Content-Type': 'application/json; charset=utf-8'}
+                res = requests.post(self._URL_UPDATE_STATE_LRN, data=json.dumps(data), headers=headers)
             except Exception as e:
                 self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                         msg="http request fail: update make dataset state" + e.__str__())
