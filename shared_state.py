@@ -208,12 +208,12 @@ class SharedState:
         self._make_dataset_result[name] = state_code
         if state_code is TrainStateCode.TRAINING_DONE or TrainStateCode.TRAINING_FAIL:
             sp_nm = name.split(':')
-            mdl_nm = sp_nm[0]
+            mdl_id = sp_nm[0]
             sp_version = sp_nm[-1].split('.')
             mn_ver = sp_version[0]
             n_ver = sp_version[1]
             try:
-                data = {"MDL_ID": mdl_nm, "MN_VER": mn_ver, "N_VER": n_ver, "MDL_LRNG_ST_CD": str(state_code)}
+                data = {"MDL_ID": mdl_id, "MN_VER": mn_ver, "N_VER": n_ver, "MDL_LRNG_ST_CD": str(state_code)}
                 res = requests.post(self._URL_UPDATE_STATE_LRN, data=json.dumps(data))
             except Exception as e:
                 self._logger.log.remote(level=logging.ERROR, worker=self._worker,
