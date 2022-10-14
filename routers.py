@@ -2,7 +2,6 @@ import json
 import os
 import logging
 import uuid
-from datetime import datetime, timedelta
 from shutil import rmtree
 
 import ray
@@ -16,7 +15,6 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.requests import Request
 from starlette.responses import StreamingResponse
 from starlette.background import BackgroundTask
-from apscheduler.schedulers.background import BackgroundScheduler
 
 import VO.request_vo as req_vo
 import VO.response_vo as res_vo
@@ -26,7 +24,7 @@ from pipeline import Pipeline
 from tensorboard_service import TensorBoardTool
 from utils.common import version_encode
 from pipeline import TrainInfo
-from statics import Actors, TrainStateCode
+from statics import Actors, TrainStateCode, BuiltinModels
 
 project_path = os.path.dirname(os.path.abspath(__file__))
 app = FastAPI()
@@ -70,11 +68,16 @@ class AIbeemRouter:
     @router.post("/train/run")
     async def train(self, request_body: req_vo.Train):
         self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="get request: train run")
-        model = request_body.MDL_NM
-        main_version = str(request_body.MN_VER)
-        sub_version = str(request_body.N_VER)
+        model_id = request_body.MDL_ID
+        if hasattr(BuiltinModels, model_id):
+            model_name = getattr(BuiltinModels, model_id)
+        else:
+            self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg="train run: model not found")
+            return json.dumps({"CODE": "FAIL", "ERROR_MSG": "model not found"})
+        main_version = request_body.MN_VER
+        sub_version = request_body.N_VER
         version = main_version + '.' + sub_version
-        pipeline_name = model + ":" + version
+        pipeline_name = model_id + ":" + version
         if await self._shared_state.is_actor_exist.remote(name=pipeline_name):
             return json.dumps({"CODE": "FAIL", "ERROR_MSG": "same model is already running"})
 
@@ -91,7 +94,8 @@ class AIbeemRouter:
 
         set_shared_result = await self._shared_state.set_actor.remote(name=pipeline_name, act=pipeline_actor)
         if set_shared_result == 0:
-            set_pipe_result = await pipeline_actor.set_pipeline.remote(name=model, version=version)
+            set_pipe_result = await pipeline_actor.set_pipeline.remote(name=model_id,
+                                                                       model_name=model_name, version=version)
             if set_pipe_result == 0:
                 train_info = TrainInfo()
                 train_info.name = pipeline_name
@@ -99,7 +103,7 @@ class AIbeemRouter:
                 train_info.early_stop = request_body.EARLY_STOP
                 train_info.data_split = request_body.DATA_SPLIT
                 train_info.batch_size = request_body.BATCH_SIZE
-                tmp_path = model + "/" + str(version_encode(version))
+                tmp_path = model_id + "/" + str(version_encode(version))
                 train_info.save_path = project_path + '/saved_models/' + tmp_path
                 train_info.log_path = project_path + '/train_logs/' + tmp_path
 
@@ -122,11 +126,11 @@ class AIbeemRouter:
     @router.post("/train/stop")
     async def stop_train(self, request_body: req_vo.StopTrain):
         self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="get request: train stop")
-        model = request_body.MDL_NM
+        model_id = request_body.MDL_ID
         main_version = request_body.MN_VER
         sub_version = request_body.N_VER
-        version = str(main_version) + "." + str(sub_version)
-        pipeline_name = model + ":" + version
+        version = main_version + "." + sub_version
+        pipeline_name = model_id + ":" + version
         await self._shared_state.set_train_status.remote(name=pipeline_name, status_code=TrainStateCode.TRAINING_FAIL)
         kill_actor_result = await self._shared_state.kill_actor.remote(name=pipeline_name)
         if kill_actor_result == 0:
@@ -142,11 +146,11 @@ class AIbeemRouter:
     async def get_train_progress(self, request_body: req_vo.CheckTrainProgress):
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="get request: train progress")
-        model = request_body.MDL_NM
+        model_id = request_body.MDL_ID
         main_version = request_body.MN_VER
         sub_version = request_body.N_VER
-        version = str(main_version) + '.' + str(sub_version)
-        name = model + ":" + version
+        version = main_version + '.' + sub_version
+        name = model_id + ":" + version
         train_state = await self._shared_state.get_status_code.remote(name=name)
         pipeline_state = await self._shared_state.get_pipeline_result.remote(name=name)
         train_result = await self._shared_state.get_train_result.remote(name=name)
@@ -161,11 +165,11 @@ class AIbeemRouter:
     async def get_train_result(self, request_body: req_vo.BasicModelInfo):
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="get request: get train result")
-        model = request_body.MDL_NM
+        model_id = request_body.MDL_ID
         main_version = request_body.MN_VER
         sub_version = request_body.N_VER
-        version = str(main_version) + '.' + str(sub_version)
-        name = model + ":" + version
+        version = main_version + '.' + sub_version
+        name = model_id + ":" + version
         try:
             train_result = await self._shared_state.get_train_result.remote(name=name)
         except Exception as exc:
@@ -184,15 +188,19 @@ class AIbeemRouter:
     async def make_dataset(self, request_body: req_vo.MakeDataset):
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="get request: make dataset")
-        model = request_body.MDL_NM
-        if model not in statics.MODELS:
-            return json.dumps({"CODE": "FAIL", "ERROR_MSG": "MODEL NOT FOUND"})
-        main_version = str(request_body.MN_VER)
-        sub_version = str(request_body.N_VER)
-        name = model + ":" + main_version + '.' + sub_version
+        model_id = request_body.MDL_ID
+        if hasattr(BuiltinModels, model_id):
+            model_name = getattr(BuiltinModels, model_id)
+        else:
+            self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg="make dataset: model not found")
+            return json.dumps({"CODE": "FAIL", "ERROR_MSG": "model not found"})
+
+        main_version = request_body.MN_VER
+        sub_version = request_body.N_VER
+        name = model_id + ":" + main_version + '.' + sub_version
         start_dtm = request_body.STYMD
         end_dtm = request_body.EDYMD
-        if model == "NBO":
+        if model_name == "NBO":
             try:
                 dataset_maker = MakeDatasetNBO.options(name=name).remote()
             except ValueError as exc:
@@ -215,8 +223,8 @@ class AIbeemRouter:
             num_data_limit = int(request_body.LRNG_DATA_TGT_NCNT)
             self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                     msg="make dataset: init MakeDatasetNBO")
-            result = await dataset_maker.init.remote(name=name, act=dataset_maker, labels=labels, version=version,
-                                                     key_index=key_index, x_index=x_index,
+            result = await dataset_maker.init.remote(name=name, dataset_name=model_id, act=dataset_maker, labels=labels,
+                                                     version=version, key_index=key_index, x_index=x_index,
                                                      num_data_limit=num_data_limit,
                                                      start_dtm=start_dtm, end_dtm=end_dtm)
             if result == 0:
@@ -239,9 +247,9 @@ class AIbeemRouter:
     async def get_dataset_url(self, request_body: req_vo.BasicModelInfo):
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="get request: download dataset url")
-        dataset_name = request_body.MDL_NM
-        version = str(request_body.N_VER)
-        path = statics.ROOT_DIR+"/dataset/"+dataset_name+"/"+version+"/"+"dataset_"+dataset_name+"_"+version+".zip"
+        dataset_name = request_body.MDL_ID
+        version = request_body.N_VER
+        path = statics.ROOT_DIR+"/dataset/"+dataset_name+"/"+version+"/"+dataset_name+"_"+version+".zip"
         if not os.path.exists(path):
             return json.dumps({"CODE": "FAIL", "ERROR_MSG": "dataset not exist", "PATH": ""})
         uid = str(uuid.uuid4())
@@ -281,11 +289,11 @@ class AIbeemRouter:
     @router.post("/deploy")
     async def deploy(self, request_body: req_vo.Deploy):
         self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="get request: deploy")
-        model = request_body.MDL_NM
+        model_id = request_body.MDL_ID
         main_version = request_body.MN_VER
         sub_version = request_body.N_VER
-        version = str(main_version) + '.' + str(sub_version)
-        result = await self._server.deploy.remote(model_id=model,
+        version = main_version + '.' + sub_version
+        result = await self._server.deploy.remote(model_id=model_id,
                                                   version=version,
                                                   container_num=request_body.WDTB_SRVR_NCNT)
         return result
@@ -313,34 +321,34 @@ class AIbeemRouter:
 
     @router.post("/deploy/end_deploy")
     async def end_deploy(self, request_body: req_vo.BasicModelInfo):
-        model = request_body.MDL_NM
+        model_id = request_body.MDL_ID
         main_version = request_body.MN_VER
         sub_version = request_body.N_VER
-        version = str(main_version) + '.' + str(sub_version)
-        result = await self._server.end_deploy.remote(model_id=model, version=version)
+        version = main_version + '.' + sub_version
+        result = await self._server.end_deploy.remote(model_id=model_id, version=version)
         return result
 
     @router.post("/predict")
     async def predict(self, request_body: req_vo.Predict):
-        model = request_body.MDL_NM
+        model_ID = request_body.MDL_ID
         main_version = request_body.MN_VER
         sub_version = request_body.N_VER
-        version = str(main_version) + "." + str(sub_version)
+        version = main_version + "." + sub_version
         data = [request_body.EVNT_THRU_PATH]
         data = {"inputs": data}
-        result = await self._server.predict.remote(model_id=model, version=version,
+        result = await self._server.predict.remote(model_id=model_ID, version=version,
                                                    data=data)
         return result
 
     @router.post("/tensorboard")
     async def create_tensorboard(self, request_body: req_vo.BasicModelInfo):
         self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="get request: create tensorboard")
-        model = request_body.MDL_NM
+        model_id = request_body.MDL_ID
         main_version = request_body.MN_VER
         sub_version = request_body.N_VER
-        version = str(main_version) + "." + str(sub_version)
+        version = main_version + "." + sub_version
         encoded_version = version_encode(version)
-        log_path = project_path + "/train_logs/" + model + "/" + str(encoded_version)
+        log_path = project_path + "/train_logs/" + model_id + "/" + str(encoded_version)
         if os.path.isdir(log_path):
             port = await self._shared_state.get_tensorboard_port.remote(dir_path=log_path)
             if port == -1:

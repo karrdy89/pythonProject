@@ -1,5 +1,8 @@
 import configparser
 import logging
+import requests
+import traceback
+import json
 from collections import OrderedDict
 from threading import Lock
 from datetime import datetime, timedelta
@@ -10,7 +13,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 
 from pipeline import TrainResult
 from logger import BootLogger
-from statics import Actors
+from statics import Actors, TrainStateCode, BuiltinModels
 from tensorboard_service import TensorBoardTool
 
 
@@ -76,6 +79,7 @@ class SharedState:
         self._tensorboard_tool = TensorBoardTool()
         self._PIPELINE_MAX = 1
         self._DATASET_CONCURRENCY_MAX = 1
+        self._URL_UPDATE_STATE_LRN = ''
         self._lock = Lock()
         self._scheduler = BackgroundScheduler()
         self._scheduler.start()
@@ -90,6 +94,7 @@ class SharedState:
             config_parser.read("config/config.ini")
             self._PIPELINE_MAX = int(config_parser.get("PIPELINE", "PIPELINE_MAX"))
             self._DATASET_CONCURRENCY_MAX = int(config_parser.get("DATASET_MAKER", "MAX_CONCURRENCY"))
+            self._URL_UPDATE_STATE_LRN = str(config_parser.get("MANAGE_SERVER", "URL_UPDATE_STATE_LRN"))
         except configparser.Error as e:
             self._boot_logger.error("(" + self._worker + ") " + "an error occur when set config...: " + str(e))
             return -1
@@ -201,6 +206,26 @@ class SharedState:
             if len(self._make_dataset_result) > self._DATASET_CONCURRENCY_MAX:
                 self._make_dataset_result.popitem(last=False)
         self._make_dataset_result[name] = state_code
+        if state_code is TrainStateCode.TRAINING_DONE or TrainStateCode.TRAINING_FAIL:
+            sp_nm = name.split(':')
+            mdl_nm = sp_nm[0]
+            sp_version = sp_nm[-1].split('.')
+            mn_ver = sp_version[0]
+            n_ver = sp_version[1]
+            try:
+                data = {"MDL_ID": mdl_nm, "MN_VER": mn_ver, "N_VER": n_ver, "MDL_LRNG_ST_CD": str(state_code)}
+                res = requests.post(self._URL_UPDATE_STATE_LRN, data=json.dumps(data))
+            except Exception as e:
+                self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                        msg="http request fail: update make dataset state" + e.__str__())
+            else:
+                if res.status_code == 200:
+                    self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                            msg="http request success: update make dataset state")
+                else:
+                    self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                            msg="http request fail: update make dataset state code: "
+                                                + str(res.status_code))
 
     def get_make_dataset_result(self, name: str) -> int:
         if name in self._make_dataset_result:

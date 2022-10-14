@@ -1,6 +1,5 @@
 import os
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
-MODELS = ["NBO"]
 
 
 class ErrorCode:
@@ -27,3 +26,7 @@ class TrainStateCode:
     TRAINING = "21"
     TRAINING_DONE = "22"
     TRAINING_FAIL = "23"
+
+
+class BuiltinModels:
+    MDL0000001 = "NBO"

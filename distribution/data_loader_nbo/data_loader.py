@@ -82,9 +82,10 @@ class MakeDatasetNBO:
         self._db: DBUtil | None = None
         self._act: ray.actor = None
 
-    def init(self, name: str, act: ray.actor, labels: list, version: str, key_index: int, x_index: list[int],
-             num_data_limit: int | None, start_dtm: str, end_dtm: str):
+    def init(self, name: str, dataset_name: str, act: ray.actor, labels: list, version: str, key_index: int,
+             x_index: list[int], num_data_limit: int | None, start_dtm: str, end_dtm: str):
         self._name = name
+        self._dataset_name: str = dataset_name
         self._act = act
         self._labels = labels
         self._version = version
@@ -99,7 +100,7 @@ class MakeDatasetNBO:
             return -1
         try:
             self._db = DBUtil()
-            self._db.set_select_chunk(name="select_nbo", param={"START": start_dtm, "END": end_dtm},
+            self._db.set_select_chunk(name="select_test", param={"START": start_dtm, "END": end_dtm},
                                       array_size=10000, prefetch_row=10000)
         except Exception as exc:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
@@ -182,7 +183,7 @@ class MakeDatasetNBO:
             self._shared_state.kill_actor.remote(self._name)
             return -1
 
-        zip_name = "dataset_NBO_"+self._version+".zip"
+        zip_name = self._dataset_name+'_'+self._version+".zip"
         try:
             with ZipFile(self._path+"/"+zip_name, 'w') as zipObj:
                 for folderName, subfolders, filenames in os.walk(self._path):

@@ -73,7 +73,7 @@ class Pipeline:
                 self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg=str(fe))
                 return {"error": fe}
 
-    def set_pipeline(self, name: str, version: str) -> int:
+    def set_pipeline(self, name: str, model_name: str, version: str) -> int:
         self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="set pipeline..." + self._name)
         self._name = name + ":" + version
         pipeline_list = self._get_piepline_definition()
@@ -87,7 +87,7 @@ class Pipeline:
             return -1
         sequences = []
         for pipeline in pipeline_list:
-            if pipeline.get("name") == name:
+            if pipeline.get("name") == model_name:
                 sequences = pipeline.get("sequence")
                 break
         if len(sequences) == 0:

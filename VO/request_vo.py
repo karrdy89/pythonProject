@@ -4,8 +4,8 @@ from pydantic import BaseModel, Extra
 class CheckTrainProgress(BaseModel):
     MDL_ID: str
     MDL_NM: str
-    MN_VER: int
-    N_VER: int
+    MN_VER: str
+    N_VER: str
 
     class Config:
         extra = Extra.forbid
@@ -14,8 +14,8 @@ class CheckTrainProgress(BaseModel):
 class MakeDataset(BaseModel):
     MDL_ID: str
     MDL_NM: str
-    MN_VER: int
-    N_VER: int
+    MN_VER: str
+    N_VER: str
     STYMD: str
     EDYMD: str
     LRNG_DATA_TGT_NCNT: str
@@ -27,8 +27,8 @@ class MakeDataset(BaseModel):
 class Deploy(BaseModel):
     MDL_ID: str
     MDL_NM: str
-    MN_VER: int
-    N_VER: int
+    MN_VER: str
+    N_VER: str
     WDTB_SRVR_NCNT: int
 
     class Config:
@@ -38,7 +38,7 @@ class Deploy(BaseModel):
 class Predict(BaseModel):
     MDL_ID: str
     MDL_NM: str
-    MN_VER: int
+    MN_VER: str
     N_VER: str
     EVNT_THRU_PATH: list
 
@@ -75,8 +75,8 @@ class EndDeploy(BaseModel):
 class Train(BaseModel):
     MDL_ID: str
     MDL_NM: str
-    MN_VER: int
-    N_VER: int
+    MN_VER: str
+    N_VER: str
     EPOCH: int
     DATA_SPLIT: str
     EARLY_STOP: str
@@ -89,8 +89,8 @@ class Train(BaseModel):
 class StopTrain(BaseModel):
     MDL_ID: str
     MDL_NM: str
-    MN_VER: int
-    N_VER: int
+    MN_VER: str
+    N_VER: str
 
     class Config:
         extra = Extra.forbid
@@ -99,8 +99,8 @@ class StopTrain(BaseModel):
 class BasicModelInfo(BaseModel):
     MDL_ID: str
     MDL_NM: str
-    MN_VER: int
-    N_VER: int
+    MN_VER: str
+    N_VER: str
 
     class Config:
         extra = Extra.forbid
