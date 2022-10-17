@@ -215,7 +215,7 @@ class AIbeemRouter:
                 if await self._shared_state.is_actor_exist.remote(name=name):
                     return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="same task is already running")
 
-            labels = ["EVT000", "EVT010", "EVT020"]
+            labels = ["EVT0000001", "EVT0000100", "EVT0000020"]
             key_index = 0
             x_index = [3]
             version = sub_version
