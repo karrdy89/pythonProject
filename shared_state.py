@@ -111,6 +111,12 @@ class SharedState:
             self._lock.release()
             return 0
 
+    def get_actor(self, name: str) -> actor:
+        if name in self._actors:
+            return self._actors[name]
+        else:
+            return None
+
     def is_actor_exist(self, name) -> bool:
         if name in self._actors:
             return True
@@ -126,12 +132,18 @@ class SharedState:
     def kill_actor(self, name: str) -> int:
         if name in self._actors:
             act = self._actors[name]
-            ray.kill(act)
-            self.delete_actor(name)
-            return 0
+            try:
+                ray.kill(act)
+            except Exception as exc:
+                self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                        msg="kill actor: failed to kill: " + name + ':' + exc.__str__())
+                return -1
+            else:
+                self.delete_actor(name)
+                return 0
         else:
             self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="kill actor: actor not exist: " + name)
-            return -1
+            return -2
 
     def set_pipeline_result(self, name: str, pipe_result: dict) -> None:
         if name not in self._pipline_result:
@@ -206,7 +218,7 @@ class SharedState:
             if len(self._make_dataset_result) > self._DATASET_CONCURRENCY_MAX:
                 self._make_dataset_result.popitem(last=False)
         self._make_dataset_result[name] = state_code
-        if state_code is TrainStateCode.TRAINING_DONE or TrainStateCode.TRAINING_FAIL:
+        if state_code == TrainStateCode.MAKING_DATASET_DONE or state_code == TrainStateCode.MAKING_DATASET_FAIL:
             sp_nm = name.split(':')
             mdl_id = sp_nm[0]
             sp_version = sp_nm[-1].split('.')
@@ -271,7 +283,6 @@ class SharedState:
         if uid in self._dataset_url:
             del self._dataset_url[uid]
         self._lock.release()
-        print(self._dataset_url)
 
     def get_tensorboard_port(self, dir_path: str) -> int:
         self._lock.acquire()

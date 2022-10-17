@@ -65,7 +65,7 @@ class AIbeemRouter:
         self._logger: ray.actor = ray.get_actor(Actors.LOGGER)
         self._shared_state: ray.actor = ray.get_actor(Actors.GLOBAL_STATE)
 
-    @router.post("/train/run")
+    @router.post("/train/run", response_model=res_vo.BaseResponse)
     async def train(self, request_body: req_vo.Train):
         self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="get request: train run")
         model_id = request_body.MDL_ID
@@ -73,24 +73,23 @@ class AIbeemRouter:
             model_name = getattr(BuiltinModels, model_id)
         else:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg="train run: model not found")
-            return json.dumps({"CODE": "FAIL", "ERROR_MSG": "model not found"})
+            return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="model not found")
         main_version = request_body.MN_VER
         sub_version = request_body.N_VER
         version = main_version + '.' + sub_version
         pipeline_name = model_id + ":" + version
         if await self._shared_state.is_actor_exist.remote(name=pipeline_name):
-            return json.dumps({"CODE": "FAIL", "ERROR_MSG": "same model is already running"})
-
+            return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="same model is already running")
         try:
             pipeline_actor = Pipeline.options(name="pipeline_name").remote()
         except ValueError as exc:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                     msg="train run: failed to make actor: " + exc.__str__())
-            return json.dumps({"CODE": "FAIL", "ERROR_MSG": "same process is already running"})
+            return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="same process is already running")
         except Exception as exc:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                     msg="train run: failed to make actor: " + exc.__str__())
-            return json.dumps({"CODE": "FAIL", "ERROR_MSG": "failed to create process"})
+            return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="failed to create process")
 
         set_shared_result = await self._shared_state.set_actor.remote(name=pipeline_name, act=pipeline_actor)
         if set_shared_result == 0:
@@ -112,18 +111,18 @@ class AIbeemRouter:
                                                            status_code=TrainStateCode.TRAINING)
                 self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                         msg="train run: pipeline stated: " + pipeline_name)
-                return json.dumps({"CODE": "SUCCESS", "ERROR_MSG": ""})
+                return res_vo.BaseResponse(CODE="SUCCESS", ERROR_MSG="")
             else:
                 self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                         msg="train run: failed to set pipeline: " + pipeline_name)
                 await self._shared_state.kill_actor.remote(name=pipeline_name)
-                return json.dumps({"CODE": "FAIL", "ERROR_MSG": "failed to set train process"})
+                return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="failed to set train process")
         else:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                     msg="train run: max concurrent exceeded: " + pipeline_name)
-            return json.dumps({"CODE": "FAIL", "ERROR_MSG": "max concurrent exceeded"})
+            return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="max concurrent exceeded")
 
-    @router.post("/train/stop")
+    @router.post("/train/stop", response_model=res_vo.BaseResponse)
     async def stop_train(self, request_body: req_vo.StopTrain):
         self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="get request: train stop")
         model_id = request_body.MDL_ID
@@ -136,13 +135,13 @@ class AIbeemRouter:
         if kill_actor_result == 0:
             self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                     msg="get request: train stopped : " + pipeline_name)
-            return json.dumps({"CODE": "SUCCESS", "ERROR_MSG": ""})
+            return res_vo.BaseResponse(CODE="SUCCESS", ERROR_MSG="")
         else:
             self._logger.log.remote(level=logging.WARN, worker=self._worker,
                                     msg="train stopped fail: model not exist: " + pipeline_name)
-            return json.dumps({"CODE": "FAIL", "ERROR_MSG": "training process not exist"})
+            return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="training process not exist")
 
-    @router.post("/train/progress")
+    @router.post("/train/progress", response_model=res_vo.TrainProgress)
     async def get_train_progress(self, request_body: req_vo.CheckTrainProgress):
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="get request: train progress")
@@ -154,14 +153,14 @@ class AIbeemRouter:
         train_state = await self._shared_state.get_status_code.remote(name=name)
         pipeline_state = await self._shared_state.get_pipeline_result.remote(name=name)
         train_result = await self._shared_state.get_train_result.remote(name=name)
-        result = res_vo.RstCheckTrainProgress(MDL_LRNG_ST_CD=train_state,
-                                              CODE="SUCCESS",
-                                              ERROR_MSG="",
-                                              TRAIN_INFO={"pipline_state": pipeline_state,
-                                                          "train_result": train_result})
-        return result.json()
+        result = res_vo.TrainProgress(MDL_LRNG_ST_CD=train_state,
+                                      CODE="SUCCESS",
+                                      ERROR_MSG="",
+                                      TRAIN_INFO={"pipline_state": pipeline_state,
+                                                  "train_result": train_result})
+        return result
 
-    @router.post("/train/result")
+    @router.post("/train/result", response_model=res_vo.TrainResult)
     async def get_train_result(self, request_body: req_vo.BasicModelInfo):
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="get request: get train result")
@@ -175,16 +174,17 @@ class AIbeemRouter:
         except Exception as exc:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                     msg="get request: an error occur while get train result: " + exc.__str__())
-            return json.dumps({"CODE": "FAIL", "ERROR_MSG": "INTERNAL ERROR", "RSLT_MSG": ""})
+
+            return res_vo.TrainResult(CODE="FAIL", ERROR_MSG="IS ERROR SH", RSLT_MSG="")
         else:
             if len(train_result) == 0:
-                return json.dumps({"CODE": "FAIL", "ERROR_MSG": "model not exist", "RSLT_MSG": ""})
+                return res_vo.TrainResult(CODE="FAIL", ERROR_MSG="model not exist", RSLT_MSG="")
             else:
                 total_result = {"train_result": train_result["train_result"],
                                 "test_result": train_result["test_result"]}
-                return json.dumps({"CODE": "SUCCESS", "ERROR_MSG": "", "RSLT_MSG": total_result})
+                return res_vo.TrainResult(CODE="SUCCESS", ERROR_MSG="", RSLT_MSG=total_result)
 
-    @router.post("/dataset/make")
+    @router.post("/dataset/make", response_model=res_vo.BaseResponse)
     async def make_dataset(self, request_body: req_vo.MakeDataset):
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="get request: make dataset")
@@ -193,7 +193,7 @@ class AIbeemRouter:
             model_name = getattr(BuiltinModels, model_id)
         else:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg="make dataset: model not found")
-            return json.dumps({"CODE": "FAIL", "ERROR_MSG": "model not found"})
+            return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="model not found")
 
         main_version = request_body.MN_VER
         sub_version = request_body.N_VER
@@ -206,19 +206,18 @@ class AIbeemRouter:
             except ValueError as exc:
                 self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                         msg="make dataset: failed to make actor MakeDatasetNBO: " + exc.__str__())
-                return json.dumps({"CODE": "FAIL", "ERROR_MSG": "same process is already running"})
+                return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="same process is already running")
             except Exception as exc:
                 self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                         msg="make dataset: failed to make actor MakeDatasetNBO: " + exc.__str__())
-                return json.dumps({"CODE": "FAIL", "ERROR_MSG": "failed to create process"})
+                return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="failed to create process")
             else:
                 if await self._shared_state.is_actor_exist.remote(name=name):
-                    return json.dumps({"CODE": "FAIL", "ERROR_MSG": "same task is already running"})
+                    return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="same task is already running")
 
-            labels = ["EVT000", "EVT100", "EVT200", "EVT300", "EVT400", "EVT500", "EVT600", "EVT700", "EVT800",
-                      "EVT900"]
+            labels = ["EVT000", "EVT010", "EVT020"]
             key_index = 0
-            x_index = [1]
+            x_index = [3]
             version = sub_version
             num_data_limit = int(request_body.LRNG_DATA_TGT_NCNT)
             self._logger.log.remote(level=logging.INFO, worker=self._worker,
@@ -235,26 +234,44 @@ class AIbeemRouter:
                     dataset_maker.fetch_data.remote()
                     self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                             msg="make dataset: running")
-                    return json.dumps({"CODE": "SUCCESS", "ERROR_MSG": ""})
+                    return res_vo.BaseResponse(CODE="SUCCESS", ERROR_MSG="")
                 else:
-                    return json.dumps({"CODE": "FAIL", "ERROR_MSG": "max concurrent exceeded"})
+                    ray.kill(dataset_maker)
+                    return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="max concurrent exceeded")
             else:
                 self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                         msg="make dataset: failed to init MakeDatasetNBO")
-                return json.dumps({"CODE": "FAIL", "ERROR_MSG": "failed to init process"})
+                ray.kill(dataset_maker)
+                return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="failed to init process")
 
-    @router.post("/dataset/download")
+    @router.post("/dataset/stop", response_model=res_vo.BaseResponse)
+    async def dataset_make_stop(self, request_body: req_vo.BasicModelInfo):
+        model_id = request_body.MDL_ID
+        main_version = request_body.MN_VER
+        sub_version = request_body.N_VER
+        name = model_id + ":" + main_version + '.' + sub_version
+        act = await self._shared_state.get_actor.remote(name=name)
+        if act is not None:
+            kill_result = await act.kill_process.remote()
+            if kill_result == 0:
+                return res_vo.BaseResponse(CODE="SUCCESS", ERROR_MSG="")
+            else:
+                return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="failed to kill task")
+        else:
+            return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="task not found")
+
+    @router.post("/dataset/download", response_model=res_vo.PathResponse)
     async def get_dataset_url(self, request_body: req_vo.BasicModelInfo):
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="get request: download dataset url")
         dataset_name = request_body.MDL_ID
         version = request_body.N_VER
-        path = statics.ROOT_DIR+"/dataset/"+dataset_name+"/"+version+"/"+dataset_name+"_"+version+".zip"
+        path = statics.ROOT_DIR + "/dataset/" + dataset_name + "/" + version + "/" + dataset_name + "_" + version + ".zip"
         if not os.path.exists(path):
-            return json.dumps({"CODE": "FAIL", "ERROR_MSG": "dataset not exist", "PATH": ""})
+            return res_vo.PathResponse(CODE="FAIL", ERROR_MSG="dataset not exist", PATH="")
         uid = str(uuid.uuid4())
         await self._shared_state.set_dataset_url.remote(uid=uid, path=path)
-        return json.dumps({"CODE": "SUCCESS", "ERROR_MSG": "", "PATH": "/dataset/" + uid})
+        return res_vo.PathResponse(CODE="SUCCESS", ERROR_MSG="", PATH="/dataset/" + uid)
 
     @router.get("/dataset/{uid}")
     async def download_dataset(self, uid: str):
@@ -286,7 +303,7 @@ class AIbeemRouter:
             else:
                 return "deleted"
 
-    @router.post("/deploy")
+    @router.post("/deploy", response_model=res_vo.MessageResponse)
     async def deploy(self, request_body: req_vo.Deploy):
         self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="get request: deploy")
         model_id = request_body.MDL_ID
@@ -296,51 +313,54 @@ class AIbeemRouter:
         result = await self._server.deploy.remote(model_id=model_id,
                                                   version=version,
                                                   container_num=request_body.WDTB_SRVR_NCNT)
+        result = res_vo.MessageResponse.parse_obj(result)
         return result
 
-    @router.get("/deploy/state")
+    @router.get("/deploy/state", response_model=res_vo.DeployState)
     async def get_deploy_state(self):
-        remote_job_obj = self._server.get_deploy_state.remote()
-        result = await remote_job_obj
+        result = await self._server.get_deploy_state.remote()
+        result = res_vo.DeployState.parse_obj(result)
         return result
 
-    @router.post("/deploy/add_container")
+    @router.post("/deploy/add_container", response_model=res_vo.MessageResponse)
     async def add_container(self, request_body: req_vo.AddContainer):
-        remote_job_obj = self._server.add_container.remote(model_id=request_body.model_id, version=request_body.version,
-                                                           container_num=request_body.container_num)
-        result = await remote_job_obj
+        result = await self._server.add_container.remote(model_id=request_body.model_id, version=request_body.version,
+                                                         container_num=request_body.container_num)
+        result = res_vo.MessageResponse.parse_obj(result)
         return result
 
-    @router.post("/deploy/remove_container")
+    @router.post("/deploy/remove_container", response_model=res_vo.MessageResponse)
     async def remove_container(self, request_body: req_vo.RemoveContainer):
-        remote_job_obj = self._server.remove_container.remote(model_id=request_body.model_id,
-                                                              version=request_body.version,
-                                                              container_num=request_body.container_num)
-        result = await remote_job_obj
+        result = await self._server.remove_container.remote(model_id=request_body.model_id,
+                                                            version=request_body.version,
+                                                            container_num=request_body.container_num)
+        result = res_vo.MessageResponse.parse_obj(result)
         return result
 
-    @router.post("/deploy/end_deploy")
+    @router.post("/deploy/end_deploy", response_model=res_vo.MessageResponse)
     async def end_deploy(self, request_body: req_vo.BasicModelInfo):
         model_id = request_body.MDL_ID
         main_version = request_body.MN_VER
         sub_version = request_body.N_VER
         version = main_version + '.' + sub_version
         result = await self._server.end_deploy.remote(model_id=model_id, version=version)
+        result = res_vo.MessageResponse.parse_obj(result)
         return result
 
-    @router.post("/predict")
+    @router.post("/predict", response_model=res_vo.PredictResponse)
     async def predict(self, request_body: req_vo.Predict):
-        model_ID = request_body.MDL_ID
+        model_id = request_body.MDL_ID
         main_version = request_body.MN_VER
         sub_version = request_body.N_VER
         version = main_version + "." + sub_version
         data = [request_body.EVNT_THRU_PATH]
         data = {"inputs": data}
-        result = await self._server.predict.remote(model_id=model_ID, version=version,
+        result = await self._server.predict.remote(model_id=model_id, version=version,
                                                    data=data)
+        result = res_vo.PredictResponse.parse_obj(result)
         return result
 
-    @router.post("/tensorboard")
+    @router.post("/tensorboard", response_model=res_vo.PathResponse)
     async def create_tensorboard(self, request_body: req_vo.BasicModelInfo):
         self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="get request: create tensorboard")
         model_id = request_body.MDL_ID
@@ -352,12 +372,12 @@ class AIbeemRouter:
         if os.path.isdir(log_path):
             port = await self._shared_state.get_tensorboard_port.remote(dir_path=log_path)
             if port == -1:
-                return json.dumps({"CODE": "FAIL", "ERROR_MSG": "launch tensorboard failed", "PATH": ""})
+                return res_vo.PathResponse(CODE="FAIL", ERROR_MSG="failed to launch tensorboard", PATH="")
             else:
                 path = "/tensorboard/" + str(port)
-                return json.dumps({"CODE": "SUCCESS", "ERROR_MSG": "", "PATH": path})
+                return res_vo.PathResponse(CODE="SUCCESS", ERROR_MSG="", PATH=path)
         else:
-            return json.dumps({"CODE": "FAIL", "ERROR_MSG": "log file not exist", "PATH": ""})
+            return res_vo.PathResponse(CODE="FAIL", ERROR_MSG="train log not exist", PATH="")
 
 
 async def _reverse_proxy(request: Request):

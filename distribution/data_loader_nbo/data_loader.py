@@ -100,7 +100,7 @@ class MakeDatasetNBO:
             return -1
         try:
             self._db = DBUtil()
-            self._db.set_select_chunk(name="select_test", param={"START": start_dtm, "END": end_dtm},
+            self._db.set_select_chunk(name="select_nbo", param={"START": start_dtm, "END": end_dtm},
                                       array_size=10000, prefetch_row=10000)
         except Exception as exc:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
@@ -291,6 +291,20 @@ class MakeDatasetNBO:
                                 msg="making nbo dataset: an error occur when processing data: " + msg)
         ray.get(self._shared_state.set_make_dataset_result.remote(self._name, TrainStateCode.MAKING_DATASET_FAIL))
         self._shared_state.kill_actor.remote(self._name)
+
+    def kill_process(self) -> int:
+        self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                msg="cancel make nbo dataset: run")
+        try:
+            self._process_pool.close()
+            ray.get(self._shared_state.set_make_dataset_result.remote(self._name, TrainStateCode.MAKING_DATASET_FAIL))
+            self._shared_state.kill_actor.remote(self._name)
+        except Exception as exc:
+            self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                    msg="cancel make nbo dataset: fail: " + exc.__str__())
+            return -1
+        else:
+            return 0
 
     def fetch_data(self):
         self._cur_buffer_size = 0

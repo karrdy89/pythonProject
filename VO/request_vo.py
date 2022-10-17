@@ -3,7 +3,6 @@ from pydantic import BaseModel, Extra
 
 class CheckTrainProgress(BaseModel):
     MDL_ID: str
-    MDL_NM: str
     MN_VER: str
     N_VER: str
 
@@ -13,7 +12,6 @@ class CheckTrainProgress(BaseModel):
 
 class MakeDataset(BaseModel):
     MDL_ID: str
-    MDL_NM: str
     MN_VER: str
     N_VER: str
     STYMD: str
@@ -26,7 +24,6 @@ class MakeDataset(BaseModel):
 
 class Deploy(BaseModel):
     MDL_ID: str
-    MDL_NM: str
     MN_VER: str
     N_VER: str
     WDTB_SRVR_NCNT: int
@@ -37,7 +34,6 @@ class Deploy(BaseModel):
 
 class Predict(BaseModel):
     MDL_ID: str
-    MDL_NM: str
     MN_VER: str
     N_VER: str
     EVNT_THRU_PATH: list
@@ -74,7 +70,6 @@ class EndDeploy(BaseModel):
 
 class Train(BaseModel):
     MDL_ID: str
-    MDL_NM: str
     MN_VER: str
     N_VER: str
     EPOCH: int
@@ -88,7 +83,6 @@ class Train(BaseModel):
 
 class StopTrain(BaseModel):
     MDL_ID: str
-    MDL_NM: str
     MN_VER: str
     N_VER: str
 
@@ -98,7 +92,6 @@ class StopTrain(BaseModel):
 
 class BasicModelInfo(BaseModel):
     MDL_ID: str
-    MDL_NM: str
     MN_VER: str
     N_VER: str
 

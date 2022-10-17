@@ -1,30 +1,17 @@
 <mapper name="BaseMapper">
         <select name="select_nbo">
-            WITH CCT AS (
-                SELECT
-                    /*+ INDEX_DESC(A IXTBCHN3001H03) */
-                    *
-                FROM
-                    S_AIB.TBCHN3001H A
-                WHERE 1=1
-                AND CUST_NO IS NOT NULL
-                AND ORGN_DTM BETWEEN #{START} || '999999' AND #{END} || '999999'
-            )
             SELECT
+                /*+ INDEX_DESC(A IXTBCHN3001H03) */
                 A.CUST_NO
                 , A.ORGN_DTM
                 , A.CHNL_ID
                 , A.EVNT_ID
-                , B.EVNT_NM
+                ,(SELECT B.EVNT_NM FROM S_AIB.TBCHN2002M B WHERE B.EVNT_ID = A.EVNT_ID)
             FROM
-                CCT A
-                , S_AIB.TBCHN2002M B
-                , S_AIB.TBCHN2004M C
+                S_AIB.TBCHN3001H A
             WHERE 1=1
-                AND A.SYS_ID = C.SYS_ID
-                AND A.EVNT_ID = B.EVNT_ID
-                AND A.SYS_EVNT_ID = C.SYS_EVNT_ID
-                AND B.USE_YN = 'Y'
+            AND CUST_NO IS NOT NULL
+            AND ORGN_DTM BETWEEN #{START} || '999999' AND #{END} || '999999'
         </select>
         <select name="select_test">
             SELECT CUST_NO, EVNT_ID
