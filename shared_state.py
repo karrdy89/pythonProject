@@ -170,6 +170,8 @@ class SharedState:
                 self._train_result.popitem(last=False)
             self._train_result[name] = TrainResult()
         self._train_result[name].set_train_status(status=status_code)
+        if status_code == TrainStateCode.TRAINING_FAIL or status_code == TrainStateCode.TRAINING_DONE:
+            self.send_state_code(name=name, state_code=status_code)
 
     def set_train_progress(self, name: str, epoch: str, progress: str) -> None:
         if name not in self._train_result:
@@ -219,26 +221,7 @@ class SharedState:
                 self._make_dataset_result.popitem(last=False)
         self._make_dataset_result[name] = state_code
         if state_code == TrainStateCode.MAKING_DATASET_DONE or state_code == TrainStateCode.MAKING_DATASET_FAIL:
-            sp_nm = name.split(':')
-            mdl_id = sp_nm[0]
-            sp_version = sp_nm[-1].split('.')
-            mn_ver = sp_version[0]
-            n_ver = sp_version[1]
-            try:
-                data = {"MDL_ID": mdl_id, "MN_VER": mn_ver, "N_VER": n_ver, "MDL_LRNG_ST_CD": str(state_code)}
-                headers = {'Content-Type': 'application/json; charset=utf-8'}
-                res = requests.post(self._URL_UPDATE_STATE_LRN, data=json.dumps(data), headers=headers)
-            except Exception as e:
-                self._logger.log.remote(level=logging.ERROR, worker=self._worker,
-                                        msg="http request fail: update make dataset state" + e.__str__())
-            else:
-                if res.status_code == 200:
-                    self._logger.log.remote(level=logging.INFO, worker=self._worker,
-                                            msg="http request success: update make dataset state")
-                else:
-                    self._logger.log.remote(level=logging.ERROR, worker=self._worker,
-                                            msg="http request fail: update make dataset state code: "
-                                                + str(res.status_code))
+            self.send_state_code(name=name, state_code=state_code)
 
     def get_make_dataset_result(self, name: str) -> int:
         if name in self._make_dataset_result:
@@ -289,3 +272,26 @@ class SharedState:
         port = self._tensorboard_tool.run(dir_path=dir_path)
         self._lock.release()
         return port
+
+    def send_state_code(self, name: str, state_code: int):
+        sp_nm = name.split(':')
+        mdl_id = sp_nm[0]
+        sp_version = sp_nm[-1].split('.')
+        mn_ver = sp_version[0]
+        n_ver = sp_version[1]
+        print(name, state_code)
+        try:
+            data = {"MDL_ID": mdl_id, "MN_VER": mn_ver, "N_VER": n_ver, "MDL_LRNG_ST_CD": str(state_code)}
+            headers = {'Content-Type': 'application/json; charset=utf-8'}
+            res = requests.post(self._URL_UPDATE_STATE_LRN, data=json.dumps(data), headers=headers)
+        except Exception as e:
+            self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                    msg="http request fail: update train state" + e.__str__())
+        else:
+            if res.status_code == 200:
+                self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                        msg="http request success: update train state")
+            else:
+                self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                        msg="http request fail: update train state: "
+                                            + str(res.status_code))
