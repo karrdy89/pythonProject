@@ -35,17 +35,23 @@ class BaseCallback(keras.callbacks.Callback):
         self._shared_state: ray.actor = ray.get_actor(Actors.GLOBAL_STATE)
         self.name: str = name
         self.epoch_step: int = 0
+        self.cur_steps: int = 0
         self.epoch: int = 0
+        self.total: int = 0
+
+    def on_train_begin(self, logs=None):
+        self.total = self.params["steps"] * self.params["epochs"]
 
     def on_epoch_begin(self, epoch, logs=None) -> None:
         self.epoch_step = 0
         self.epoch += 1
-        progress = (self.epoch_step / self.params["steps"]) * 100
-        progress = str(progress) + "%"
+        progress = (self.epoch_step / self.params["steps"])
+        total_progress = self.cur_steps/self.total
         # self._train_result.set_train_progress(epoch=str(self.epoch)+"/"+str(self.params["epochs"]), progress=progress)
         self._shared_state.set_train_progress.remote(name=self.name,
                                                      epoch=str(self.epoch)+"/"+str(self.params["epochs"]),
-                                                     progress=progress)
+                                                     progress=progress,
+                                                     total_progress=total_progress)
         self._shared_state.set_train_result.remote(name=self.name, train_result=logs)
 
     def on_epoch_end(self, epoch, logs=None) -> None:
@@ -53,11 +59,14 @@ class BaseCallback(keras.callbacks.Callback):
 
     def on_batch_end(self, batch, logs=None) -> None:
         self.epoch_step += 1
-        progress = (self.epoch_step / self.params["steps"]) * 100
-        progress = str(progress) + "%"
+        self.cur_steps += 1
+        progress = (self.epoch_step / self.params["steps"])
+        total_progress = self.cur_steps/self.total
+        # self._train_result.set_train_progress(epoch=str(self.epoch)+"/"+str(self.params["epochs"]), progress=progress)
         self._shared_state.set_train_progress.remote(name=self.name,
                                                      epoch=str(self.epoch)+"/"+str(self.params["epochs"]),
-                                                     progress=progress)
+                                                     progress=progress,
+                                                     total_progress=total_progress)
         self._shared_state.set_train_result.remote(name=self.name, train_result=logs)
 
 
@@ -93,15 +102,13 @@ class EvaluationCallback(keras.callbacks.Callback):
         self.epoch_step: int = 0
 
     def on_test_begin(self, logs=None) -> None:
-        progress = (self.epoch_step / self.params["steps"]) * 100
-        progress = str(progress) + "%"
+        progress = (self.epoch_step / self.params["steps"])
         self._shared_state.set_test_progress.remote(name=self.name, progress=progress)
         self._shared_state.set_test_result.remote(self.name, logs)
 
     def on_test_batch_end(self, batch, logs=None) -> None:
         self.epoch_step += 1
-        progress = (self.epoch_step / self.params["steps"]) * 100
-        progress = str(progress) + "%"
+        progress = (self.epoch_step / self.params["steps"])
         self._shared_state.set_test_progress.remote(name=self.name, progress=progress)
         self._shared_state.set_test_result.remote(self.name, logs)
 

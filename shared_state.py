@@ -173,14 +173,15 @@ class SharedState:
         if status_code == TrainStateCode.TRAINING_FAIL or status_code == TrainStateCode.TRAINING_DONE:
             self.send_state_code(name=name, state_code=status_code)
 
-    def set_train_progress(self, name: str, epoch: str, progress: str) -> None:
+    def set_train_progress(self, name: str, epoch: str, progress: float, total_progress: float) -> None:
         if name not in self._train_result:
             if len(self._train_result) > self._PIPELINE_MAX:
                 self._train_result.popitem(last=False)
             self._train_result[name] = TrainResult()
-        self._train_result[name].set_train_progress(epoch=epoch, progress=progress)
+        self._train_result[name].set_train_progress(epoch=epoch, progress=progress,
+                                                    total_progress=total_progress)
 
-    def set_test_progress(self, name: str, progress: str) -> None:
+    def set_test_progress(self, name: str, progress: float) -> None:
         if name not in self._train_result:
             if len(self._train_result) > self._PIPELINE_MAX:
                 self._train_result.popitem(last=False)
@@ -204,7 +205,9 @@ class SharedState:
     def get_train_result(self, name: str) -> dict:
         if name in self._train_result:
             train_result = self._train_result[name]
-            return {"progress": train_result.get_train_progress(), "train_result": train_result.get_train_result(),
+            return {"train_progress": train_result.get_train_progress(),
+                    "test_progress": train_result.get_test_progress(),
+                    "train_result": train_result.get_train_result(),
                     "test_result": train_result.get_test_result()}
         else:
             return {}
@@ -279,7 +282,6 @@ class SharedState:
         sp_version = sp_nm[-1].split('.')
         mn_ver = sp_version[0]
         n_ver = sp_version[1]
-        print(name, state_code)
         try:
             data = {"MDL_ID": mdl_id, "MN_VER": mn_ver, "N_VER": n_ver, "MDL_LRNG_ST_CD": str(state_code)}
             headers = {'Content-Type': 'application/json; charset=utf-8'}
