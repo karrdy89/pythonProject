@@ -10,7 +10,7 @@ class BaseResponse(BaseModel):
 
 
 class MessageResponse(BaseResponse):
-    MSG: str
+    MSG: str | dict
 
     class Config:
         extra = Extra.forbid

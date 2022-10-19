@@ -316,9 +316,13 @@ class AIbeemRouter:
         result = res_vo.MessageResponse.parse_obj(result)
         return result
 
-    @router.get("/deploy/state", response_model=res_vo.DeployState)
-    async def get_deploy_state(self):
-        result = await self._server.get_deploy_state.remote()
+    @router.post("/deploy/state", response_model=res_vo.DeployState)
+    async def get_deploy_state(self, request_body: req_vo.BasicModelInfo):
+        model_id = request_body.MDL_ID
+        main_version = request_body.MN_VER
+        sub_version = request_body.N_VER
+        version = main_version + '.' + sub_version
+        result = await self._server.get_deploy_state.remote(model_id=model_id, version=version)
         result = res_vo.DeployState.parse_obj(result)
         return result
 

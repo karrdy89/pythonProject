@@ -25,8 +25,8 @@ except configparser.Error as e:
     sys.exit()
 
 boot_logger.info("(Main Server) init ray...")
-# os.environ["RAY_LOG_TO_STDERR"] = "1"
-os.environ["RAY_LOG_TO_STDERR"] = "0"
+os.environ["RAY_LOG_TO_STDERR"] = "1"
+# os.environ["RAY_LOG_TO_STDERR"] = "0"
 ray.init(dashboard_host="127.0.0.1", dashboard_port=8265)
 
 
@@ -46,24 +46,27 @@ class UvicornServer(uvicorn.Server):
         pass
 
     async def run_server(self):
-        await self.serve()
+        try:
+            await self.serve()
+        except Exception as uv_exc:
+            raise uv_exc
 
-
-config = uvicorn.Config("routers:app",
-                        host="0.0.0.0",
-                        port=8080,
-                        ssl_keyfile=SSL_CERT_PATH + "/key.pem",
-                        ssl_certfile=SSL_CERT_PATH + "/cert.pem",
-                        ssl_keyfile_password="1234"
-                        )
 
 # config = uvicorn.Config("routers:app",
 #                         host="0.0.0.0",
 #                         port=8080,
-#                         ssl_keyfile=SSL_CERT_PATH + "/newkey.pem",
+#                         ssl_keyfile=SSL_CERT_PATH + "/key.pem",
 #                         ssl_certfile=SSL_CERT_PATH + "/cert.pem",
-#                         ssl_ca_certs=SSL_CERT_PATH + "/DigiCertCA.pem"
+#                         ssl_keyfile_password="1234"
 #                         )
+
+config = uvicorn.Config("routers:app",
+                        host="0.0.0.0",
+                        port=8080,
+                        ssl_keyfile=SSL_CERT_PATH + "/newkey.pem",
+                        ssl_certfile=SSL_CERT_PATH + "/cert.pem",
+                        ssl_ca_certs=SSL_CERT_PATH + "/DigiCertCA.pem"
+                        )
 
 
 boot_logger.info("(Main Server) create actors...")
