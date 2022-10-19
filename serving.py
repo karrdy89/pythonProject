@@ -433,7 +433,13 @@ class ModelServing:
 
     async def deploy_containers(self, model_id: str, version: str, container_num: int, model_deploy_state) -> dict:
         async with self._lock:
-            self._current_container_num += container_num
+            if self._current_container_num + container_num > self._CONTAINER_MAX:
+                result = {"CODE": "FAIL", "ERROR_MSG": "max container number exceeded",
+                          "MSG": "current container number: " + str(self._current_container_num)
+                                 + "max container number: " + str(self._CONTAINER_MAX)}
+                return result
+            else:
+                self._current_container_num += container_num
         model_key = model_id + "_" + version
         futures = []
         list_container_name = []
@@ -464,6 +470,11 @@ class ModelServing:
                                                      state=StateCode.AVAILABLE)
                 model_deploy_state.containers[list_container_name[i]] = serving_container
                 deploy_count += 1
+            else:
+                container = list_container[i]
+                container.remove(force=True)
+                self.release_port_http(list_http_url[i][1])
+                self.release_port_grpc(list_grpc_url[i][1])
         async with self._lock:
             self._current_container_num -= (container_num - deploy_count)
         self._deploy_states[model_key] = model_deploy_state
@@ -472,12 +483,18 @@ class ModelServing:
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="deploy finished. " + str(deploy_count) + "/" + str(container_num)
                                     + " is deployed: " + model_id + ":" + version)
-        result = {"CODE": "SUCCESS", "ERROR_MSG": "",
-                  "MSG": "deploy finished. " + str(deploy_count) + "/" + str(container_num) + " deployed"}
+
+        if deploy_count == container_num:
+            result = {"CODE": "SUCCESS", "ERROR_MSG": "",
+                      "MSG": "deploy finished. " + str(deploy_count) + "/" + str(container_num) + " deployed"}
+            return result
+        else:
+            result = {"CODE": "FAIL", "ERROR_MSG": "can create container",
+                      "MSG": "deploy finished. " + str(deploy_count) + "/" + str(container_num) + " deployed"}
+            return result
         # result = json.dumps({"code": 200,
         #                      "msg": "deploy finished. " + str(deploy_count) + "/" + str(container_num) + " deployed",
         #                      "event_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode('utf8')
-        return result
 
     def run_container(self, model_id: str, container_name: str, http_port: int, grpc_port: int, deploy_path: str) \
             -> Container | None:

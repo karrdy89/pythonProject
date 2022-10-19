@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import ray
 import logging
 import os
@@ -35,7 +37,7 @@ class Logger:
         Logging given data to files
     """
     def __init__(self):
-        logging.basicConfig(level=logging.INFO)
+        logging.basicConfig(level=logging.INFO, datefmt="%Y-%m-%d %H:%M:%S")
         self._worker: str = type(self).__name__
         self.logger: Logger = logging.getLogger("global")
         self._boot_logger: Logger = BootLogger().logger
@@ -56,12 +58,12 @@ class Logger:
             return -1
         self._boot_logger.info("(" + self._worker + ") " + "set logging parameters...")
         formatter = logging.Formatter("[%(levelname)s] : %(asctime)s : %(message)s", "%Y-%m-%d %H:%M:%S")
-        error_handler = RotatingFileHandler(self._log_base_path + "error.log", mode='a', maxBytes=self._MAX_BYTES,
-                                            backupCount=self._MAX_BACKUP_COUNT)
+        error_handler = RotatingFileHandler(self._log_base_path+"{:%Y-%m-%d %H:%M:%S}_error.log".format(datetime.now()),
+                                            mode='a', maxBytes=self._MAX_BYTES, backupCount=self._MAX_BACKUP_COUNT)
         error_handler.setFormatter(formatter)
         error_handler.setLevel(logging.ERROR)
-        info_handler = RotatingFileHandler(self._log_base_path + "info.log", mode='a', maxBytes=self._MAX_BYTES,
-                                           backupCount=self._MAX_BACKUP_COUNT)
+        info_handler = RotatingFileHandler(self._log_base_path+"{:%Y-%m-%d %H:%M:%S}_info.log".format(datetime.now()),
+                                           mode='a', maxBytes=self._MAX_BYTES, backupCount=self._MAX_BACKUP_COUNT)
         info_handler.setFormatter(formatter)
         info_handler.setLevel(logging.INFO)
         console_handler = logging.StreamHandler()
@@ -101,12 +103,12 @@ class BootLogger:
          Constructs all the necessary attributes.
      """
     def __init__(self):
-        logging.basicConfig(level=logging.INFO)
+        logging.basicConfig(level=logging.INFO, datefmt="%Y-%m-%d %H:%M:%S")
         self.logger = logging.getLogger("boot")
-        self.log_base_path = os.path.dirname(os.path.abspath(__file__)) + "/logs/"
+        self._log_base_path = os.path.dirname(os.path.abspath(__file__)) + "/logs/"
         formatter = logging.Formatter("[%(levelname)s] : %(asctime)s : %(message)s", "%Y-%m-%d %H:%M:%S")
-        log_handler = RotatingFileHandler(self.log_base_path + "boot.log", mode='a', maxBytes=104857600,
-                                          backupCount=5)
+        log_handler = RotatingFileHandler(self._log_base_path+"{:%Y-%m-%d %H:%M:%S}_boot.log".format(datetime.now()),
+                                          mode='a', maxBytes=104857600, backupCount=5)
         log_handler.setFormatter(formatter)
         log_handler.setLevel(logging.INFO)
         self.logger.addHandler(log_handler)
