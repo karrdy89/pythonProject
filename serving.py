@@ -231,6 +231,9 @@ class ModelServing:
                     self._deploy_requests.remove((model_id, version))
                     result = {"CODE": "SUCCESS", "ERROR_MSG": "", "MSG": "nothing to change"}
                     return result
+            elif model_deploy_state.state == StateCode.SHUTDOWN:
+                result = {"CODE": "FAIL", "ERROR_MSG": "shutdown has been scheduled on this model", "MSG": ""}
+                return result
 
         if container_num <= 0:
             self._deploy_requests.remove((model_id, version))
@@ -336,6 +339,7 @@ class ModelServing:
         encoded_version = version_encode(version)
         model_key = model_id + "_" + version
         model_deploy_state = self._deploy_states.get(model_key)
+        print(model_deploy_state)
         if model_deploy_state is None:
             self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="model not deployed : "
                                                                                  + model_id + ":" + version)
@@ -345,7 +349,6 @@ class ModelServing:
         if model_deploy_state.state == StateCode.SHUTDOWN:
             result = {"CODE": "FAIL", "ERROR_MSG": "shutdown has already been scheduled", "MSG": ""}
             return result
-
         if model_deploy_state.state == StateCode.AVAILABLE:
             async with self._lock:
                 model_deploy_state.state = StateCode.SHUTDOWN
