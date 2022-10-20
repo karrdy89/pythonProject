@@ -207,56 +207,62 @@ class ModelServing:
     async def deploy(self, model_id: str, version: str, container_num: int) -> dict:
         self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="deploy start : " + model_id
                                                                              + ":" + version)
-        if (model_id, version) in self._deploy_requests:
-            self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="same deploy request is in progress : "
-                                                                                 + model_id + ":" + version)
-            result = {"CODE": "FAIL", "ERROR_MSG": "same deploy request is in progress", "MSG": ""}
-            return result
-
-        self._deploy_requests.append((model_id, version))
+        async with self._lock:
+            if (model_id, version) in self._deploy_requests:
+                self._logger.log.remote(level=logging.WARN, worker=self._worker,
+                                        msg="same deploy request is in progress : " + model_id + ":" + version)
+                result = {"CODE": "FAIL", "ERROR_MSG": "same deploy request is in progress", "MSG": ""}
+                return result
+            else:
+                self._deploy_requests.append((model_id, version))
         encoded_version = version_encode(version)
         model_key = model_id + "_" + version
         model_deploy_state = self._deploy_states.get(model_key)
+        result = None
         if model_deploy_state is not None:
             if model_deploy_state.state == StateCode.AVAILABLE:
                 diff = container_num - self._current_container_num
                 if diff > 0:
-                    self._deploy_requests.remove((model_id, version))
-                    result = await self.add_container(model_id, version, diff)
-                    return result
+                    try:
+                        result = await self.add_container(model_id, version, diff)
+                    except Exception as exc:
+                        self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                                msg="deploy error : " + model_id
+                                                    + ":" + version + ":" + exc.__str__())
                 elif diff < 0:
-                    self._deploy_requests.remove((model_id, version))
-                    result = await self.remove_container(model_id, version, abs(diff))
-                    return result
+                    try:
+                        result = await self.remove_container(model_id, version, abs(diff))
+                    except Exception as exc:
+                        self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                                msg="deploy error : " + model_id
+                                                    + ":" + version + ":" + exc.__str__())
                 else:
-                    self._deploy_requests.remove((model_id, version))
                     result = {"CODE": "SUCCESS", "ERROR_MSG": "", "MSG": "nothing to change"}
-                    return result
             elif model_deploy_state.state == StateCode.SHUTDOWN:
-                self._deploy_requests.remove((model_id, version))
                 result = {"CODE": "FAIL", "ERROR_MSG": "shutdown has been scheduled on this model", "MSG": ""}
-                return result
-
-        if container_num <= 0:
-            self._deploy_requests.remove((model_id, version))
-            result = {"CODE": "SUCCESS", "ERROR_MSG": "", "MSG": "nothing to change"}
-            return result
-
-        cp_result = self.copy_to_deploy(model_id, encoded_version)
-        if cp_result == -1:
-            self._logger.log.remote(level=logging.ERROR, worker=self._worker,
-                                    msg="an error occur when copying model file :" + model_id + ":" + version)
-            result = {"CODE": "FAIL", "ERROR_MSG": "model not found", "MSG": ""}
             self._deploy_requests.remove((model_id, version))
             return result
-        if cp_result == -2:
-            result = {"CODE": "FAIL", "ERROR_MSG": "an error occur when copying model file", "MSG": ""}
+        else:
+            if container_num <= 0:
+                result = {"CODE": "SUCCESS", "ERROR_MSG": "", "MSG": "nothing to change"}
+            else:
+                cp_result = self.copy_to_deploy(model_id, encoded_version)
+                if cp_result == -1:
+                    self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                            msg="an error occur when copying model file :" + model_id + ":" + version)
+                    result = {"CODE": "FAIL", "ERROR_MSG": "model not found", "MSG": ""}
+                elif cp_result == -2:
+                    result = {"CODE": "FAIL", "ERROR_MSG": "an error occur when copying model file", "MSG": ""}
+                else:
+                    model_deploy_state = ModelDeployState(model=(model_id, encoded_version), state=StateCode.AVAILABLE)
+                    try:
+                        result = await self.deploy_containers(model_id, version, container_num, model_deploy_state)
+                    except Exception as exc:
+                        self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                                msg="deploy error : " + model_id
+                                                    + ":" + version + ":" + exc.__str__())
             self._deploy_requests.remove((model_id, version))
             return result
-        model_deploy_state = ModelDeployState(model=(model_id, encoded_version), state=StateCode.AVAILABLE)
-        result = await self.deploy_containers(model_id, version, container_num, model_deploy_state)
-        self._deploy_requests.remove((model_id, version))
-        return result
 
     async def get_deploy_state(self, model_id: str, version: str) -> dict:
         self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="get deploy state")
@@ -342,29 +348,30 @@ class ModelServing:
         encoded_version = version_encode(version)
         model_key = model_id + "_" + version
         model_deploy_state = self._deploy_states.get(model_key)
-        print(model_deploy_state)
+        result = None
         if model_deploy_state is None:
             self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="model not deployed : "
                                                                                  + model_id + ":" + version)
             result = {"CODE": "FAIL", "ERROR_MSG": "the model is not deployed", "MSG": ""}
-            return result
-
-        if model_deploy_state.state == StateCode.SHUTDOWN:
-            result = {"CODE": "FAIL", "ERROR_MSG": "shutdown has already been scheduled", "MSG": ""}
-            return result
-        if model_deploy_state.state == StateCode.AVAILABLE:
-            async with self._lock:
-                model_deploy_state.state = StateCode.SHUTDOWN
-                self._gc_list.append((ManageType.MODEL, model_key))
-                self._current_container_num -= len(model_deploy_state.containers)
-            try:
-                self.delete_deployed_model(model_id, encoded_version)
-            except Exception as e:
-                print(e)
-            self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="end deploy : "
-                                                                                 + model_id + ":" + version)
-            result = {"CODE": "SUCCESS", "ERROR_MSG": "", "MSG": "end deploy accepted"}
-            return result
+        else:
+            if model_deploy_state.state == StateCode.SHUTDOWN:
+                result = {"CODE": "FAIL", "ERROR_MSG": "shutdown has already been scheduled", "MSG": ""}
+            elif model_deploy_state.state == StateCode.AVAILABLE:
+                async with self._lock:
+                    model_deploy_state.state = StateCode.SHUTDOWN
+                    self._gc_list.append((ManageType.MODEL, model_key))
+                    self._current_container_num -= len(model_deploy_state.containers)
+                try:
+                    self.delete_deployed_model(model_id, encoded_version)
+                except Exception as exc:
+                    self._logger.log.remote(level=logging.WARN, worker=self._worker,
+                                            msg="end deploy : model not deleted: "
+                                                + model_id + ":" + version + ":" + exc.__str__())
+                finally:
+                    self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="end deploy : "
+                                                                                         + model_id + ":" + version)
+                    result = {"CODE": "SUCCESS", "ERROR_MSG": "", "MSG": "end deploy accepted"}
+        return result
 
     async def predict(self, model_id: str, version: str, data: dict) -> dict:
         model_deploy_state = self._deploy_states.get(model_id + "_" + version)
@@ -462,19 +469,22 @@ class ModelServing:
                 self.release_port_grpc(list_grpc_url[i][1])
         async with self._lock:
             self._current_container_num -= (container_num - deploy_count)
-        self._deploy_states[model_key] = model_deploy_state
+            self._deploy_states[model_key] = model_deploy_state
         await self._set_cycle(model_id=model_id, version=version)
-        self._logger.log.remote(level=logging.INFO, worker=self._worker,
-                                msg="deploy finished. " + str(deploy_count) + "/" + str(container_num)
-                                    + " is deployed: " + model_id + ":" + version)
 
         if deploy_count == container_num:
+            self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                    msg="deploy finished. " + str(deploy_count) + "/" + str(container_num)
+                                        + " is deployed: " + model_id + ":" + version)
             result = {"CODE": "SUCCESS", "ERROR_MSG": "",
                       "MSG": "deploy finished. " + str(deploy_count) + "/" + str(container_num) + " deployed"}
             async with self._lock:
                 self._current_container_num += container_num
             return result
         else:
+            self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                    msg="deploy finished. " + str(deploy_count) + "/" + str(container_num)
+                                        + " is deployed: " + model_id + ":" + version)
             result = {"CODE": "FAIL", "ERROR_MSG": "can create container",
                       "MSG": "deploy finished. " + str(deploy_count) + "/" + str(container_num) + " deployed"}
             return result
@@ -651,7 +661,7 @@ class ModelServing:
         return 0
 
     async def gc_container(self) -> None:
-        self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="GC activate")
+        self._logger.log.remote(level=logging.DEBUG, worker=self._worker, msg="GC activate")
         for type_key in self._gc_list.copy():
             manage_type = type_key[0]
             key = type_key[1]
