@@ -9,3 +9,4 @@
 # get preparation of matching with real data
 # get event of customer between login to target action(base on log - daily, when create input must include login inside)
 # count event number with channel list
+
