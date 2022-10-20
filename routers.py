@@ -19,7 +19,7 @@ from starlette.background import BackgroundTask
 import VO.request_vo as req_vo
 import VO.response_vo as res_vo
 import statics
-from distribution.data_loader_nbo.data_loader import MakeDatasetNBO
+from dataset_maker.nbo.data_processing import MakeDatasetNBO
 from pipeline import Pipeline
 from tensorboard_service import TensorBoardTool
 from utils.common import version_encode

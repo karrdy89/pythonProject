@@ -40,7 +40,7 @@ from ray.util.multiprocessing import Pool
 
 from db import DBUtil
 from statics import Actors, ROOT_DIR, TrainStateCode
-from distribution.data_loader_nbo.utils import split_chunk, make_dataset
+from dataset_maker.nbo.utils import split_chunk, make_dataset
 
 
 @ray.remote
