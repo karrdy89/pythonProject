@@ -158,6 +158,31 @@ class Path(Artifact):
         self.data = path
 
 
+class Version(Artifact):
+    """
+    An artifact representing a path of data
+    """
+    TYPE_NAME = 'pipeline.Version'
+
+    def __init__(self, name: Optional[str] = None,
+                 data: Optional[object | str] = None, metadata: Optional[dict] = None):
+        super().__init__(name=name, data=data, metadata=metadata)
+
+    @property
+    def version(self) -> str:
+        return self._get_version()
+
+    def _get_version(self) -> str:
+        return self.data
+
+    @version.setter
+    def version(self, version: str) -> None:
+        self._set_version(version)
+
+    def _set_version(self, version: str) -> None:
+        self.data = version
+
+
 class TrainInfo(Artifact):
     """
     An artifact representing an information for training
@@ -251,3 +276,4 @@ class TrainInfo(Artifact):
 
     def _set_log_path(self, log_path: str) -> None:
         self.metadata["log_path"] = log_path
+

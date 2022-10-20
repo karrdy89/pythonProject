@@ -6,7 +6,7 @@ import traceback
 
 import ray
 
-from pipeline import TrainInfo, PipelineComponent
+from pipeline import TrainInfo, PipelineComponent, Version
 from statics import Actors, TrainStateCode
 
 
@@ -153,6 +153,9 @@ class Pipeline:
                             args[k] = self._component_result
                         elif v.__name__ == type(TrainInfo()).__name__:
                             args[k] = train_info
+                        elif v.__name__ == type(Version()).__name__:
+                            version = train_info.name.split(':')[-1]
+                            args[k] = version
                     self._component_result = component(**args)
         except Exception as e:
             self._pipeline_state[current_task_name] = StateCode.ERROR

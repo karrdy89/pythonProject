@@ -276,7 +276,7 @@ class SharedState:
         self._lock.release()
         return port
 
-    def send_state_code(self, name: str, state_code: int):
+    def send_state_code(self, name: str, state_code: int) -> None:
         sp_nm = name.split(':')
         mdl_id = sp_nm[0]
         sp_version = sp_nm[-1].split('.')

@@ -357,7 +357,8 @@ class AIbeemRouter:
         main_version = request_body.MN_VER
         sub_version = request_body.N_VER
         version = main_version + "." + sub_version
-        data = [request_body.EVNT_THRU_PATH]
+
+        data = [request_body.EVNT_THRU_PATH[:20]]
         data = {"inputs": data}
         result = await self._server.predict.remote(model_id=model_id, version=version,
                                                    data=data)

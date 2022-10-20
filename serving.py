@@ -221,17 +221,19 @@ class ModelServing:
             if model_deploy_state.state == StateCode.AVAILABLE:
                 diff = container_num - self._current_container_num
                 if diff > 0:
+                    self._deploy_requests.remove((model_id, version))
                     result = await self.add_container(model_id, version, diff)
                     return result
                 elif diff < 0:
-                    result = await self.remove_container(model_id, version, abs(diff))
                     self._deploy_requests.remove((model_id, version))
+                    result = await self.remove_container(model_id, version, abs(diff))
                     return result
                 else:
                     self._deploy_requests.remove((model_id, version))
                     result = {"CODE": "SUCCESS", "ERROR_MSG": "", "MSG": "nothing to change"}
                     return result
             elif model_deploy_state.state == StateCode.SHUTDOWN:
+                self._deploy_requests.remove((model_id, version))
                 result = {"CODE": "FAIL", "ERROR_MSG": "shutdown has been scheduled on this model", "MSG": ""}
                 return result
 
@@ -253,6 +255,7 @@ class ModelServing:
             return result
         model_deploy_state = ModelDeployState(model=(model_id, encoded_version), state=StateCode.AVAILABLE)
         result = await self.deploy_containers(model_id, version, container_num, model_deploy_state)
+        self._deploy_requests.remove((model_id, version))
         return result
 
     async def get_deploy_state(self, model_id: str, version: str) -> dict:
@@ -394,14 +397,15 @@ class ModelServing:
                     self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg="http request error : "
                                                                                           + model_id + ":" + version)
                     result["CODE"] = "FAIL"
-                    result["ERROR_MSG"] = "http request error"
+                    result["ERROR_MSG"] = "an error occur when making inspection. please check input values"
                 elif predict_result == -1:
                     self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg="connection error : "
                                                                                           + model_id + ":" + version)
                     await self.fail_back(model_id, version, container_name)
                     result = await self.predict(model_id, version, data)
-                async with self._lock:
-                    container.ref_count -= 1
+                else:
+                    async with self._lock:
+                        container.ref_count -= 1
                     result["CODE"] = "SUCCESS"
                     result["ERROR_MSG"] = ""
                     outputs = predict_result["outputs"]
@@ -437,8 +441,8 @@ class ModelServing:
                                                        container_name=container_name,
                                                        http_port=http_port,
                                                        grpc_port=grpc_port,
-                                                       # deploy_path=self._project_path + self._DEPLOY_PATH + model_key + "/"))) #remove pp
-                                                       deploy_path=self._DEPLOY_PATH + model_key + "/")))  # remove pp
+                                                       deploy_path=self._project_path + self._DEPLOY_PATH + model_key + "/"))) #remove pp
+                                                       # deploy_path=self._DEPLOY_PATH + model_key + "/")))  # remove pp
             list_container_name.append(container_name)
             list_http_url.append((self._CONTAINER_SERVER_IP, http_port))
             list_grpc_url.append((self._CONTAINER_SERVER_IP, grpc_port))
@@ -459,7 +463,6 @@ class ModelServing:
         async with self._lock:
             self._current_container_num -= (container_num - deploy_count)
         self._deploy_states[model_key] = model_deploy_state
-        self._deploy_requests.remove((model_id, version))
         await self._set_cycle(model_id=model_id, version=version)
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="deploy finished. " + str(deploy_count) + "/" + str(container_num)

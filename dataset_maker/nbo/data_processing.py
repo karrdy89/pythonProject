@@ -229,6 +229,10 @@ class MakeDatasetNBO:
                 data.append(label)
         try:
             df = pd.DataFrame(self._dataset, columns=fields)
+            # get all features in dataframe
+            # add self._featureslist of list
+            # append and drop dupl in done
+            # append to feature list in information total
             df.to_csv(self._path + "/" + str(self._file_count) + ".csv", sep=",", na_rep="NaN")
         except Exception as exc:
             self._process_pool.close()
