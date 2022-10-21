@@ -101,10 +101,10 @@ class MakeDatasetNBO:
             return -1
         try:
             self._db = DBUtil()
-            self._db.set_select_chunk(name="select_test", param={"START": start_dtm, "END": end_dtm},
-                                      array_size=10000, prefetch_row=10000)
-            # self._db.set_select_chunk(name="select_nbo", param={"START": start_dtm, "END": end_dtm},
+            # self._db.set_select_chunk(name="select_test", param={"START": start_dtm, "END": end_dtm},
             #                           array_size=10000, prefetch_row=10000)
+            self._db.set_select_chunk(name="select_nbo", param={"START": start_dtm, "END": end_dtm},
+                                      array_size=10000, prefetch_row=10000)
         except Exception as exc:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                     msg="an error occur when set DBUtil: " + exc.__str__())
@@ -174,7 +174,9 @@ class MakeDatasetNBO:
             else:
                 classes = information.get("classes")
         vocabs = list(set(chain(*self._vocabs)))
-        vocabs.remove(None)
+        if None in vocabs:
+            vocabs.remove(None)
+            vocabs.append("")
         information = {"max_len": max_len, "class": classes, "vocabs": vocabs}
         try:
             with open(self._path + "/information.json", 'w', encoding="utf-8") as f:
@@ -240,7 +242,7 @@ class MakeDatasetNBO:
                 one_column.append(feature_df[k])
             combined = pd.concat(one_column, ignore_index=True).tolist()
             self._vocabs.append(combined)
-            df.to_csv(self._path + "/" + str(self._file_count) + ".csv", sep=",", na_rep="NaN")
+            df.to_csv(self._path + "/" + str(self._file_count) + ".csv", sep=",", na_rep="NaN", index=False)
         except Exception as exc:
             import traceback
             print(traceback.format_exc())

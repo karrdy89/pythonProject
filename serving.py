@@ -255,7 +255,8 @@ class ModelServing:
                 elif cp_result == -2:
                     result = {"CODE": "FAIL", "ERROR_MSG": "an error occur when copying model file", "MSG": ""}
                 else:
-                    model_deploy_state = ModelDeployState(model=(model_id, encoded_version), state=StateCode.AVAILABLE)
+                    model_deploy_state = ModelDeployState(model=(model_id, encoded_version),
+                                                          state=StateCode.AVAILABLE)
                     try:
                         result = await self.deploy_containers(model_id, version, container_num, model_deploy_state)
                     except Exception as exc:
@@ -425,12 +426,7 @@ class ModelServing:
                     result["CODE"] = "SUCCESS"
                     result["ERROR_MSG"] = ""
                     outputs = predict_result["outputs"]
-
-                    temp_result = []
-                    for i in range(len(outputs["result"])):
-                        temp_result.append("EVT" + str(i).zfill(7))
-                    # result["EVNT_ID"] = outputs["result"]
-                    result["EVNT_ID"] = temp_result
+                    result["EVNT_ID"] = outputs["result"]
                     result["PRBT"] = outputs["result_1"]
                 return result
         else:
@@ -479,6 +475,10 @@ class ModelServing:
                                                          state=StateCode.AVAILABLE)
                     model_deploy_state.containers[list_container_name[i]] = serving_container
                     deploy_count += 1
+                    url = "http://"+list_http_url[i][0]+':'+str(list_http_url[i][1])+"/v1/models/"+model_id+"/metadata"
+                    import requests
+                    response = requests.get(url).json()
+                    print(response)
             else:
                 container = list_container[i]
                 container.remove(force=True)
@@ -806,6 +806,7 @@ class ServingContainer:
 class ModelDeployState:
     model: tuple[str, int]
     state: int
+    max_input: int = 34
     cycle_iterator = None
     containers: dict = field(default_factory=dict)
 

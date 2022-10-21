@@ -51,6 +51,7 @@ class Http:
                 if resp.status == 200:
                     return json.loads(await resp.text())
                 else:
+                    print(await resp.text())
                     logger = ray.get_actor("logging_service")
                     logger.log.remote(level=logging.ERROR, worker=type(self).__name__,
                                       msg="http request error :" + str(resp.status))

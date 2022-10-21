@@ -89,7 +89,7 @@ class LabelLayer(tf.keras.layers.Layer):
 
     def call(self, x):
         batchsize = tf.shape(x)[0]
-        tf_labels = tf.constant([self.labels], dtype='int64')
+        tf_labels = tf.constant([self.labels], dtype='string')
         tf_labels = tf.tile(tf_labels, [batchsize, 1])
         top_k = tf.nn.top_k(x, k=self.topn, sorted=True, name='top_k').indices
         top_label = tf.gather(tf_labels, top_k, batch_dims=1)

@@ -1,16 +1,12 @@
-import json
-import os
-
 from models.sequential.sasc.modules import LabelLayer
-from pipeline import Input, TrainInfo, PipelineComponent
+from pipeline import Input, Dataset, TrainInfo, PipelineComponent
 from pipeline.util import split_ratio
 from pipeline.callbacks import base_callbacks, evaluation_callback
 from models.sequential.sasc import sasc
-from statics import ROOT_DIR
 
 
 @PipelineComponent
-def train_NBO_model(train_info: Input[TrainInfo]):
+def train_NBO_model(dataset: Input[Dataset], train_info: Input[TrainInfo]):
     import tensorflow as tf
     import pandas as pd
     import numpy as np
@@ -18,39 +14,13 @@ def train_NBO_model(train_info: Input[TrainInfo]):
     from tensorflow.keras import layers
     from sklearn.model_selection import train_test_split
 
-    # get all dataset list
-    sp_model_info = train_info.name.split(':')
-    model_name = sp_model_info[0]
-    nm_version = sp_model_info[-1].split('.')[-1]
-    base_dataset_path = ROOT_DIR + "/dataset/" + model_name + "/" + nm_version + "/"
-    datafiles = []
-    information_json = None
-    for folderName, subfolders, filenames in os.walk(base_dataset_path):
-        for filename in filenames:
-            ext = filename.split('.')[-1]
-            if ext == "csv":
-                datafiles.append(filename)
-            if ext == "json":
-                information_json = json.load(base_dataset_path+filename)
-    if len(datafiles) == 0 or information_json is None:
-        raise FileNotFoundError
-
-    print(information_json)
-
-    model = None
-    for filename in datafiles:
-        dataset_path = base_dataset_path + filename
-
-        print(dataset_path)
-        # load data
-        # all feature will be stored in json
-
-    print(datafiles)
-    # df = dataset.data
+    train_info = train_info
+    df = dataset.data
     labels = df['Target'].unique()
     y = df.pop("Target")
     df = df.iloc[:, ::-1]
     X = df.stack().groupby(level=0).apply(list).tolist()
+    print(X[:1])
     one_col = []
 
     for k in df:
@@ -70,6 +40,7 @@ def train_NBO_model(train_info: Input[TrainInfo]):
     X_valid, X_test, y_valid, y_test = train_test_split(X_valid_test, y_valid_test,
                                                         test_size=(1-test_ratio/(validation_ratio+test_ratio)),
                                                         shuffle=False)
+    print(X_train[:1])
     X_train = np.array(X_train, dtype='object')
     X_valid = np.array(X_valid, dtype='object')
     X_test = np.array(X_test, dtype='object')
@@ -79,6 +50,8 @@ def train_NBO_model(train_info: Input[TrainInfo]):
     y_valid = label_vocab(y_valid)
     y_test = np.array(y_test).astype(int)
     y_test = label_vocab(y_test)
+
+    print(X_train[:1], y_train[:1])
 
     vocab_size = len(le.get_vocabulary())
     max_len = len(df.columns)
@@ -94,4 +67,5 @@ def train_NBO_model(train_info: Input[TrainInfo]):
     model.evaluate(X_test, y_test, callbacks=test_callback, batch_size=train_info.batch_size)
     labeled_output = LabelLayer(label_vocab.get_vocabulary(), len(label_vocab.get_vocabulary()), name='result')(model.outputs)
     model = tf.keras.Model(model.input, labeled_output)
+    print(model.summary())
     model.save(train_info.save_path)

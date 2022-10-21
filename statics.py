@@ -30,4 +30,3 @@ class TrainStateCode:
 
 class BuiltinModels:
     MDL0000001 = "NBO"
-    MDL9999999 = "NBO_TEST"

@@ -31,22 +31,24 @@ class BaseCallback(keras.callbacks.Callback):
     on_batch_end(batch, logs=None) -> None:
         update training progress to global data store when batch end.
     """
-    def __init__(self, name):
+    def __init__(self, name: str, dataset_num: int | None = 1, cur_dataset_num: int | None = 1):
         self._shared_state: ray.actor = ray.get_actor(Actors.GLOBAL_STATE)
         self.name: str = name
         self.epoch_step: int = 0
         self.cur_steps: int = 0
+        self.dataset_num: int = dataset_num
+        self.cur_dataset_num: int = cur_dataset_num
         self.epoch: int = 0
         self.total: int = 0
 
     def on_train_begin(self, logs=None):
-        self.total = self.params["steps"] * self.params["epochs"]
+        self.total = self.params["steps"] * self.params["epochs"] * self.dataset_num
 
     def on_epoch_begin(self, epoch, logs=None) -> None:
         self.epoch_step = 0
         self.epoch += 1
         progress = (self.epoch_step / self.params["steps"])
-        total_progress = self.cur_steps/self.total
+        total_progress = (self.cur_dataset_num * self.cur_steps) / self.total
         # self._train_result.set_train_progress(epoch=str(self.epoch)+"/"+str(self.params["epochs"]), progress=progress)
         self._shared_state.set_train_progress.remote(name=self.name,
                                                      epoch=str(self.epoch)+"/"+str(self.params["epochs"]),
@@ -61,7 +63,7 @@ class BaseCallback(keras.callbacks.Callback):
         self.epoch_step += 1
         self.cur_steps += 1
         progress = (self.epoch_step / self.params["steps"])
-        total_progress = self.cur_steps/self.total
+        total_progress = (self.cur_dataset_num * self.cur_steps) / self.total
         # self._train_result.set_train_progress(epoch=str(self.epoch)+"/"+str(self.params["epochs"]), progress=progress)
         self._shared_state.set_train_progress.remote(name=self.name,
                                                      epoch=str(self.epoch)+"/"+str(self.params["epochs"]),
@@ -116,7 +118,7 @@ class EvaluationCallback(keras.callbacks.Callback):
         self._shared_state.set_test_result.remote(self.name, logs)
 
 
-def base_callbacks(train_info: TrainInfo, monitor: str) -> list:
+def base_callbacks(train_info: TrainInfo, monitor: str, dataset_num: int, cur_dataset_num: int) -> list:
     """
     Provides necessary callbacks for train(progress monitoring, early stopping, tensorboard log callback)
 
@@ -126,6 +128,8 @@ def base_callbacks(train_info: TrainInfo, monitor: str) -> list:
         training options
     monitor : str
         value to monitor for early stopping
+    dataset_num : int
+    cur_dataset_num : int
     """
     callback_list = []
     tb_cb = keras.callbacks.TensorBoard(log_dir=train_info.log_path)
@@ -134,7 +138,7 @@ def base_callbacks(train_info: TrainInfo, monitor: str) -> list:
         es_cb = keras.callbacks.EarlyStopping(monitor=monitor, min_delta=0, patience=10, verbose=1, mode="auto",
                                               baseline=None, restore_best_weights=True)
         callback_list.append(es_cb)
-    callback_list.append(BaseCallback(train_info.name))
+    callback_list.append(BaseCallback(train_info.name, dataset_num, cur_dataset_num))
     return callback_list
 
 
