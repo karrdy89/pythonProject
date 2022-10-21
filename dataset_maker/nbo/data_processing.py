@@ -1,12 +1,12 @@
-# import sys
-#
-# from db import DBUtil
+import sys
 
+# from db import DBUtil
+#
 # db = DBUtil()
 # q = "CREATE TABLE TEST (" \
 #     "CUST_NO VARCHAR(13) NOT NULL," \
 #     "ORGN_DTM DATE NOT NULL," \
-#     "EVNT_ID VARCHAR(6)," \
+#     "EVNT_ID VARCHAR(10)," \
 #     "EVNT_NM VARCHAR(9)," \
 #     "SYS_EVNT_ID VARCHAR(10)," \
 #     "SYS_EVNT_NM VARCHAR(20))"
@@ -17,12 +17,11 @@
 # import random
 # test_data = []
 # for _ in range(10000000):
-#     test_data.append(("CUST" + str(_%300000).zfill(7), datetime.datetime.now(), "EVT" + str(random.randint(0, 250)).zfill(3),
+#     test_data.append(("CUST" + str(_%300000).zfill(7), datetime.datetime.now(), "EVT" + str(random.randint(0, 250)).zfill(7),
 #                       "T_EVNT" + str(random.randint(0, 250)).zfill(3), "C03-EVT" + str(random.randint(0, 250)).zfill(3),
 #                       "T_CH" + str(random.randint(0, 50)).zfill(2) + "-T_EVNT" + str(random.randint(0, 250)).zfill(3)))
 # print(test_data[:1])
 # r = db.insert_many("INSERT_TEST_DATA", test_data)
-
 
 import configparser
 import sys
@@ -33,6 +32,7 @@ import logging
 from shutil import rmtree
 from zipfile import ZipFile
 from os.path import basename
+from itertools import chain
 
 import pandas as pd
 import ray
@@ -57,6 +57,7 @@ class MakeDatasetNBO:
         self._split: list = []
         self._dataset: list = []
         self._information: list = []
+        self._vocabs: list = []
         self._information_total: list = []
         self._dataset_name = "NBO"
         self._name = ''
@@ -100,8 +101,10 @@ class MakeDatasetNBO:
             return -1
         try:
             self._db = DBUtil()
-            self._db.set_select_chunk(name="select_nbo", param={"START": start_dtm, "END": end_dtm},
+            self._db.set_select_chunk(name="select_test", param={"START": start_dtm, "END": end_dtm},
                                       array_size=10000, prefetch_row=10000)
+            # self._db.set_select_chunk(name="select_nbo", param={"START": start_dtm, "END": end_dtm},
+            #                           array_size=10000, prefetch_row=10000)
         except Exception as exc:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                     msg="an error occur when set DBUtil: " + exc.__str__())
@@ -170,7 +173,9 @@ class MakeDatasetNBO:
                     classes[key] += inform_classes[key]
             else:
                 classes = information.get("classes")
-        information = {"max_len": max_len, "class": classes}
+        vocabs = list(set(chain(*self._vocabs)))
+        vocabs.remove(None)
+        information = {"max_len": max_len, "class": classes, "vocabs": vocabs}
         try:
             with open(self._path + "/information.json", 'w', encoding="utf-8") as f:
                 json.dump(information, f, ensure_ascii=False, indent=4)
@@ -229,12 +234,16 @@ class MakeDatasetNBO:
                 data.append(label)
         try:
             df = pd.DataFrame(self._dataset, columns=fields)
-            # get all features in dataframe
-            # add self._featureslist of list
-            # append and drop dupl in done
-            # append to feature list in information total
+            one_column = []
+            feature_df = df.iloc[:, 1:-1]
+            for k in list(feature_df.keys()):
+                one_column.append(feature_df[k])
+            combined = pd.concat(one_column, ignore_index=True).tolist()
+            self._vocabs.append(combined)
             df.to_csv(self._path + "/" + str(self._file_count) + ".csv", sep=",", na_rep="NaN")
         except Exception as exc:
+            import traceback
+            print(traceback.format_exc())
             self._process_pool.close()
             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                     msg="an error occur when export csv: " + exc.__str__())

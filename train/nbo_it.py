@@ -1,3 +1,4 @@
+import json
 import os
 
 from models.sequential.sasc.modules import LabelLayer
@@ -23,16 +24,23 @@ def train_NBO_model(train_info: Input[TrainInfo]):
     nm_version = sp_model_info[-1].split('.')[-1]
     base_dataset_path = ROOT_DIR + "/dataset/" + model_name + "/" + nm_version + "/"
     datafiles = []
+    information_json = None
     for folderName, subfolders, filenames in os.walk(base_dataset_path):
         for filename in filenames:
             ext = filename.split('.')[-1]
             if ext == "csv":
                 datafiles.append(filename)
-    if len(datafiles) == 0:
+            if ext == "json":
+                information_json = json.load(base_dataset_path+filename)
+    if len(datafiles) == 0 or information_json is None:
         raise FileNotFoundError
+
+    print(information_json)
+
     model = None
     for filename in datafiles:
         dataset_path = base_dataset_path + filename
+
         print(dataset_path)
         # load data
         # all feature will be stored in json
