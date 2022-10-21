@@ -33,7 +33,7 @@ class Http:
         try:
             async with self._session.get(url) as resp:
                 if resp.status == 200:
-                    return await resp.text()
+                    return json.loads(await resp.text())
                 else:
                     logger = ray.get_actor("logging_service")
                     logger.log.remote(level=logging.ERROR, worker=type(self).__name__,

@@ -108,6 +108,10 @@ class SharedState:
         else:
             self._lock.acquire()
             self._actors[name] = act
+            if name in self._train_result:
+                del self._train_result[name]
+            if name in self._pipline_result:
+                del self._pipline_result[name]
             self._lock.release()
             return 0
 

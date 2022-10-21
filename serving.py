@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from shutil import copytree, rmtree
 from concurrent.futures import ThreadPoolExecutor
 from itertools import cycle
+from typing import Optional
 
 import docker
 import ray
@@ -276,6 +277,8 @@ class ModelServing:
             container_num = len(model_deploy_state.containers)
             for k, v in model_deploy_state.containers.items():
                 containers.append((v.name, v.state))
+                res = await self.check_container_state(model_id, version, container_name=v.name)  # test
+                print(res)  # test
             deploy_state = {"model_id": model_id, "version": version, "containers": containers, "current_container_num":self._current_container_num}
             return {"CODE": "SUCCESS", "ERROR_MSG": "", "DEPLOY_STATE": deploy_state}
         else:
@@ -389,6 +392,12 @@ class ModelServing:
             result["CODE"] = "FAIL"
             result["ERROR_MSG"] = "the model is not deployed"
             return result
+        elif model_deploy_state.state == StateCode.UN_AVAILABLE:
+            self._logger.log.remote(level=logging.WARN, worker=self._worker,
+                                    msg="all containers are currently un available : " + model_id + ":" + version)
+            result["CODE"] = "FAIL"
+            result["ERROR_MSG"] = "all containers are currently un available and attempting to fail back"
+            return result
 
         deploy_info = next(model_deploy_state.cycle_iterator)
         url = deploy_info[0]
@@ -416,7 +425,12 @@ class ModelServing:
                     result["CODE"] = "SUCCESS"
                     result["ERROR_MSG"] = ""
                     outputs = predict_result["outputs"]
-                    result["EVNT_ID"] = outputs["result"]
+
+                    temp_result = []
+                    for i in range(len(outputs["result"])):
+                        temp_result.append("EVT" + str(i).zfill(7))
+                    # result["EVNT_ID"] = outputs["result"]
+                    result["EVNT_ID"] = temp_result
                     result["PRBT"] = outputs["result_1"]
                 return result
         else:
@@ -449,7 +463,7 @@ class ModelServing:
                                                        http_port=http_port,
                                                        grpc_port=grpc_port,
                                                        deploy_path=self._project_path + self._DEPLOY_PATH + model_key + "/"))) #remove pp
-                                                       # deploy_path=self._DEPLOY_PATH + model_key + "/")))  # remove pp
+                                                       # deploy_path=self._DEPLOY_PATH + model_key + "/")))
             list_container_name.append(container_name)
             list_http_url.append((self._CONTAINER_SERVER_IP, http_port))
             list_grpc_url.append((self._CONTAINER_SERVER_IP, grpc_port))
@@ -457,11 +471,14 @@ class ModelServing:
         deploy_count = 0
         for i in range(len(list_container)):
             if list_container[i] is not None:
-                serving_container = ServingContainer(name=list_container_name[i], container=list_container[i],
-                                                     http_url=list_http_url[i], grpc_url=list_grpc_url[i],
-                                                     state=StateCode.AVAILABLE)
-                model_deploy_state.containers[list_container_name[i]] = serving_container
-                deploy_count += 1
+                url = "http://"+list_http_url[i][0]+':'+str(list_http_url[i][1])+"/v1/models/"+model_id
+                check_rst = await self.check_container_state_url(url=url)
+                if check_rst == 0:
+                    serving_container = ServingContainer(name=list_container_name[i], container=list_container[i],
+                                                         http_url=list_http_url[i], grpc_url=list_grpc_url[i],
+                                                         state=StateCode.AVAILABLE)
+                    model_deploy_state.containers[list_container_name[i]] = serving_container
+                    deploy_count += 1
             else:
                 container = list_container[i]
                 container.remove(force=True)
@@ -469,8 +486,6 @@ class ModelServing:
                 self.release_port_grpc(list_grpc_url[i][1])
         async with self._lock:
             self._current_container_num -= (container_num - deploy_count)
-            self._deploy_states[model_key] = model_deploy_state
-        await self._set_cycle(model_id=model_id, version=version)
 
         if deploy_count == container_num:
             self._logger.log.remote(level=logging.INFO, worker=self._worker,
@@ -479,14 +494,16 @@ class ModelServing:
             result = {"CODE": "SUCCESS", "ERROR_MSG": "",
                       "MSG": "deploy finished. " + str(deploy_count) + "/" + str(container_num) + " deployed"}
             async with self._lock:
+
+                self._deploy_states[model_key] = model_deploy_state
                 self._current_container_num += container_num
+            await self._set_cycle(model_id=model_id, version=version)
             return result
         else:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                     msg="deploy finished. " + str(deploy_count) + "/" + str(container_num)
                                         + " is deployed: " + model_id + ":" + version)
-            result = {"CODE": "FAIL", "ERROR_MSG": "can create container",
-                      "MSG": "deploy finished. " + str(deploy_count) + "/" + str(container_num) + " deployed"}
+            result = {"CODE": "FAIL", "ERROR_MSG": "can create container", "MSG": ""}
             return result
 
     def run_container(self, model_id: str, container_name: str, http_port: int, grpc_port: int, deploy_path: str) \
@@ -516,12 +533,54 @@ class ModelServing:
                                 msg="trying to fail back container : " + model_id + ":" + version)
         model_deploy_state = self._deploy_states.get(model_id + "_" + version)
         if model_deploy_state is not None:
+            if model_deploy_state.state != StateCode.SHUTDOWN and model_deploy_state.state != StateCode.UN_AVAILABLE:
+                container = model_deploy_state.containers.get(container_name)
+                container.state = StateCode.SHUTDOWN
+                container_total = len(model_deploy_state.containers)
+                un_available_container = 0
+                for container_key, container in model_deploy_state.containers.items():
+                    if container.state == StateCode.SHUTDOWN:
+                        un_available_container += 1
+                if container_total == un_available_container:
+                    model_deploy_state.state = StateCode.UN_AVAILABLE
+                result = await self._set_cycle(model_id, version)
+                if result == 0:
+                    self._gc_list.append((ManageType.CONTAINER, container_name))
+                result_add_container = await self.add_container(model_id, version, 1)
+                if result_add_container.get("CODE") != "SUCCESS":
+                    model_deploy_state.state = StateCode.AVAILABLE
+
+    async def check_container_state(self, model_id: str, version: str, container_name: str,
+                                    retry_count: Optional[int] = 3):
+        model_deploy_state = self._deploy_states.get(model_id + "_" + version)
+        if model_deploy_state is not None:
             container = model_deploy_state.containers.get(container_name)
-            container.state = StateCode.SHUTDOWN
-            result = await self._set_cycle(model_id, version)
-            if result == 0:
-                self._gc_list.append((ManageType.CONTAINER, container_name))
-            await self.add_container(model_id, version, 1)
+            if container.state == StateCode.AVAILABLE:
+                for _ in range(retry_count):
+                    async with Http() as http:
+                        url = "http://" + container.http_url[0] + ':' + str(container.http_url[1]) + "/v1/models/" + model_id
+                        result = await http.get(url)
+                        if result is None or result == -1:
+                            await asyncio.sleep(0.1)
+                            continue
+                        else:
+                            container_state_info = result["model_version_status"][0]
+                            if container_state_info["state"] == "AVAILABLE":
+                                return 0
+                return -1
+
+    async def check_container_state_url(self, url: str, retry_count: Optional[int] = 4):
+        for _ in range(retry_count):
+            async with Http() as http:
+                result = await http.get(url)
+                if result is None or result == -1:
+                    await asyncio.sleep(0.2)
+                    continue
+                else:
+                    container_state_info = result["model_version_status"][0]
+                    if container_state_info["state"] == "AVAILABLE":
+                        return 0
+        return -1
 
     def get_port_http(self) -> int:
         port = self._http_port.pop()
@@ -755,6 +814,7 @@ class StateCode:
     ALREADY_EXIST = 1
     IN_PROGRESS = 3
     AVAILABLE = 0
+    UN_AVAILABLE = -1
     SHUTDOWN = 4
 
 
