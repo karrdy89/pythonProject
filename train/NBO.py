@@ -15,7 +15,6 @@ def train_NBO_model(train_info: Input[TrainInfo]):
     import pandas as pd
     import numpy as np
     from tensorflow.keras.layers.experimental import preprocessing
-    from tensorflow.keras import layers
     from sklearn.model_selection import train_test_split
 
     sp_model_info = train_info.name.split(':')
@@ -47,15 +46,14 @@ def train_NBO_model(train_info: Input[TrainInfo]):
         labels.append(k)
         if min_class_num < v:
             min_class_num = v
+    labels = list(set(labels))
 
     mask_token = vocabs.pop(vocabs.index(""))
     le = preprocessing.StringLookup()
     le.adapt(vocabs)
-    label_vocab = preprocessing.StringLookup()
-    label_vocab.adapt(labels)
 
-    vocab_size = len(le.get_vocabulary())
-    num_labels = len(label_vocab.get_vocabulary())
+    vocab_size = len(le.get_vocabulary()) + 1
+    num_labels = len(labels)
     model = sasc.get_model(vocab_size=vocab_size, vocabulary=vocabs, max_len=max_len, num_labels=num_labels,
                            mask_token=mask_token)
     test_dataset_X = None
@@ -65,7 +63,14 @@ def train_NBO_model(train_info: Input[TrainInfo]):
         dataset_path = base_dataset_path + filename
         df = pd.read_csv(dataset_path)
         df.fillna("", inplace=True)
-        y = df.pop("label")
+        y = df[["label"]]
+        if set(y["label"].tolist()) != set(labels):
+            raise print("wrong data information")
+        df.drop(["label", "key"], axis=1, inplace=True)
+        for idx, label in enumerate(labels):
+            y.loc[y["label"] == label] = idx
+
+        y = y["label"].tolist()
         X = df.stack().groupby(level=0).apply(list).tolist()
         train_ratio, validation_ratio, test_ratio = split_ratio(train_info.data_split)
         X_train, X_valid_test, y_train, y_valid_test = train_test_split(X, y, test_size=validation_ratio + test_ratio,
@@ -75,16 +80,13 @@ def train_NBO_model(train_info: Input[TrainInfo]):
                                                                         validation_ratio + test_ratio)),
                                                             shuffle=True)
         X_train = np.array(X_train, dtype='object')
-        y_train = np.array(y_train).astype(str)
-        y_train = label_vocab(y_train)
+        y_train = np.array(y_train).astype(np.int)
 
         X_valid = np.array(X_valid, dtype='object')
-        y_valid = np.array(y_valid).astype(str)
-        y_valid = label_vocab(y_valid)
+        y_valid = np.array(y_valid).astype(np.int)
 
         X_test = np.array(X_test, dtype='object')
-        y_test = np.array(y_test).astype(str)
-        y_test = label_vocab(y_test)
+        y_test = np.array(y_test).astype(np.int)
 
         if test_dataset_X is None:
             test_dataset_X = X_test
@@ -102,6 +104,9 @@ def train_NBO_model(train_info: Input[TrainInfo]):
 
     test_callback = evaluation_callback(train_info)
     model.evaluate(test_dataset_X, test_dataset_y, callbacks=test_callback, batch_size=train_info.batch_size)
-    labeled_output = LabelLayer(label_vocab.get_vocabulary(), len(label_vocab.get_vocabulary()), name='result')(model.outputs)
+
+
+    # labeled_output = LabelLayer(label_vocab.get_vocabulary(), len(label_vocab.get_vocabulary()), name='result')(model.outputs)
+    labeled_output = LabelLayer(labels, num_labels, name='result')(model.outputs)
     model = tf.keras.Model(model.input, labeled_output)
     model.save(train_info.save_path)

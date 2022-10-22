@@ -377,7 +377,7 @@ class ModelServing:
                     result = {"CODE": "SUCCESS", "ERROR_MSG": "", "MSG": "end deploy accepted"}
         return result
 
-    async def predict(self, model_id: str, version: str, data: dict) -> dict:
+    async def predict(self, model_id: str, version: str, data: list) -> dict:
         model_deploy_state = self._deploy_states.get(model_id + "_" + version)
         result = {"CODE": "FAIL", "ERROR_MSG": "N/A", "EVNT_ID": [], "PRBT": []}
         if (model_deploy_state is None) or (model_deploy_state.cycle_iterator is None):
@@ -400,6 +400,10 @@ class ModelServing:
             result["ERROR_MSG"] = "all containers are currently un available and attempting to fail back"
             return result
 
+        if model_deploy_state.max_input is not None:
+            data = data[:model_deploy_state.max_input]
+
+        data = {"inputs": [data]}
         deploy_info = next(model_deploy_state.cycle_iterator)
         url = deploy_info[0]
         state = deploy_info[1]
@@ -465,39 +469,54 @@ class ModelServing:
             list_grpc_url.append((self._CONTAINER_SERVER_IP, grpc_port))
         list_container = await asyncio.gather(*futures)
         deploy_count = 0
+        max_input = None
         for i in range(len(list_container)):
             if list_container[i] is not None:
                 url = "http://"+list_http_url[i][0]+':'+str(list_http_url[i][1])+"/v1/models/"+model_id
                 check_rst = await self.check_container_state_url(url=url)
                 if check_rst == 0:
-                    serving_container = ServingContainer(name=list_container_name[i], container=list_container[i],
-                                                         http_url=list_http_url[i], grpc_url=list_grpc_url[i],
-                                                         state=StateCode.AVAILABLE)
-                    model_deploy_state.containers[list_container_name[i]] = serving_container
-                    deploy_count += 1
-                    url = "http://"+list_http_url[i][0]+':'+str(list_http_url[i][1])+"/v1/models/"+model_id+"/metadata"
-                    import requests
-                    response = requests.get(url).json()
-                    print(response)
+                    if max_input is None:
+                        url = "http://" + list_http_url[i][0] + ':' + str(
+                            list_http_url[i][1]) + "/v1/models/" + model_id + "/metadata"
+                        async with Http() as http:
+                            result = await http.get(url)
+                            if result is None or result == -1:
+                                pass
+                            else:
+                                input_spec = result.get("metadata").get("signature_def").get("signature_def")\
+                                    .get("serving_default").get("inputs")
+                                for key in input_spec:
+                                    split_key = key.split("_")
+                                    if split_key[0] == "seq":
+                                        max_input = int(split_key[1])
+                    if max_input is not None:
+                        serving_container = ServingContainer(name=list_container_name[i], container=list_container[i],
+                                                             http_url=list_http_url[i], grpc_url=list_grpc_url[i],
+                                                             state=StateCode.AVAILABLE)
+                        model_deploy_state.containers[list_container_name[i]] = serving_container
+                        deploy_count += 1
+                    else:
+                        container = list_container[i]
+                        container.remove(force=True)
+                        self.release_port_http(list_http_url[i][1])
+                        self.release_port_grpc(list_grpc_url[i][1])
             else:
                 container = list_container[i]
                 container.remove(force=True)
                 self.release_port_http(list_http_url[i][1])
                 self.release_port_grpc(list_grpc_url[i][1])
-        async with self._lock:
-            self._current_container_num -= (container_num - deploy_count)
 
         if deploy_count == container_num:
             self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                     msg="deploy finished. " + str(deploy_count) + "/" + str(container_num)
                                         + " is deployed: " + model_id + ":" + version)
-            result = {"CODE": "SUCCESS", "ERROR_MSG": "",
-                      "MSG": "deploy finished. " + str(deploy_count) + "/" + str(container_num) + " deployed"}
             async with self._lock:
-
+                model_deploy_state.max_input = max_input
                 self._deploy_states[model_key] = model_deploy_state
                 self._current_container_num += container_num
             await self._set_cycle(model_id=model_id, version=version)
+            result = {"CODE": "SUCCESS", "ERROR_MSG": "",
+                      "MSG": "deploy finished. " + str(deploy_count) + "/" + str(container_num) + " deployed"}
             return result
         else:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
@@ -569,12 +588,12 @@ class ModelServing:
                                 return 0
                 return -1
 
-    async def check_container_state_url(self, url: str, retry_count: Optional[int] = 4):
+    async def check_container_state_url(self, url: str, retry_count: Optional[int] = 5):
         for _ in range(retry_count):
             async with Http() as http:
                 result = await http.get(url)
                 if result is None or result == -1:
-                    await asyncio.sleep(0.2)
+                    await asyncio.sleep(0.3)
                     continue
                 else:
                     container_state_info = result["model_version_status"][0]
@@ -806,7 +825,7 @@ class ServingContainer:
 class ModelDeployState:
     model: tuple[str, int]
     state: int
-    max_input: int = 34
+    max_input: int = None
     cycle_iterator = None
     containers: dict = field(default_factory=dict)
 
