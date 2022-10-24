@@ -69,6 +69,14 @@ config = uvicorn.Config("routers:app",
                         )
 
 
+boot_logger.info("(Main Server) check database connection...")
+try:
+    db = DBUtil()
+    result = db.connection_test()
+except Exception as exc:
+    boot_logger.error("(Main Server) can not connect to database...: " + exc.__str__())
+    sys.exit()
+
 boot_logger.info("(Main Server) create actors...")
 logging_service = Logger.options(name=Actors.LOGGER, max_concurrency=500).remote()
 
@@ -77,6 +85,7 @@ init_processes = ray.get(logging_service.init.remote())
 if init_processes == -1:
     boot_logger.error("(Main Server) failed to init logging_service")
     sys.exit()
+
 
 model_serving = ModelServing.options(name=Actors.MODEL_SERVER).remote()
 shared_state = SharedState.options(name=Actors.GLOBAL_STATE).remote()
@@ -88,14 +97,6 @@ try:
     api_service = UvicornServer.options(name=Actors.SERVER).remote(config=config)
 except Exception as exc:
     exc_str = ''.join(traceback.format_exception(None, exc, exc.__traceback__))
-    init_processes.append(-1)
-
-boot_logger.info("(Main Server) check database connection...")
-try:
-    db = DBUtil()
-    result = db.connection_test()
-except Exception as exc:
-    boot_logger.error("(Main Server) can not connect to database...: " + exc.__str__())
     init_processes.append(-1)
 
 if -1 in init_processes:

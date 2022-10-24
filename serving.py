@@ -165,7 +165,7 @@ class ModelServing:
         self._RETRY_COUNT: int = 20
         self._RETRY_WAIT_TIME: float = 0.1
 
-    def init(self) -> int:
+    async def init(self) -> int:
         self._boot_logger.info("(" + self._worker + ") " + "init model_serving actor...")
         self._boot_logger.info("(" + self._worker + ") " + "set global logger...")
         self._logger = ray.get_actor(Actors.LOGGER)
@@ -208,12 +208,17 @@ class ModelServing:
         if True:
             self._boot_logger.info("(" + self._worker + ") " + "deploying existing containers...")
             self._db = DBUtil()
-            stored_deploy_states = self._db.select(name="select_deploy_state")
+            stored_deploy_states = []
+            try:
+                stored_deploy_states = self._db.select(name="select_deploy_state")
+            except Exception as exc:
+                self._boot_logger.error(
+                    "(" + self._worker + ") " + "can't read deploy state from db:" + exc.__str__())
             for stored_deploy_state in stored_deploy_states:
                 model_id = stored_deploy_state[0]
-                mn_ver = stored_deploy_state[1]
-                n_ver = stored_deploy_state[2]
-                container_num = int(stored_deploy_state[3])
+                mn_ver = str(stored_deploy_state[1])
+                n_ver = str(stored_deploy_state[2])
+                container_num = stored_deploy_state[3]
                 print(model_id, mn_ver, n_ver, container_num)
                 version = mn_ver+"."+n_ver
                 encoded_version = version_encode(version)
@@ -484,8 +489,8 @@ class ModelServing:
                                                        container_name=container_name,
                                                        http_port=http_port,
                                                        grpc_port=grpc_port,
-                                                       deploy_path=self._project_path + self._DEPLOY_PATH + model_key + "/"))) #remove pp
-                                                       # deploy_path=self._DEPLOY_PATH + model_key + "/")))
+                                                       # deploy_path=self._project_path + self._DEPLOY_PATH + model_key + "/"))) #remove pp
+                                                       deploy_path=self._DEPLOY_PATH + model_key + "/")))
             list_container_name.append(container_name)
             list_http_url.append((self._CONTAINER_SERVER_IP, http_port))
             list_grpc_url.append((self._CONTAINER_SERVER_IP, grpc_port))
@@ -505,12 +510,16 @@ class ModelServing:
                             if result is None or result == -1:
                                 pass
                             else:
-                                input_spec = result.get("metadata").get("signature_def").get("signature_def")\
-                                    .get("serving_default").get("inputs")
-                                for key in input_spec:
-                                    split_key = key.split("_")
-                                    if split_key[0] == "seq":
-                                        max_input = int(split_key[1])
+                                try:
+                                    input_spec = result.get("metadata").get("signature_def").get("signature_def")\
+                                        .get("serving_default").get("inputs")
+                                except Exception:
+                                    pass
+                                else:
+                                    for key in input_spec:
+                                        split_key = key.split("_")
+                                        if split_key[0] == "seq":
+                                            max_input = int(split_key[1])
                     if max_input is not None:
                         serving_container = ServingContainer(name=list_container_name[i], container=list_container[i],
                                                              http_url=list_http_url[i], grpc_url=list_grpc_url[i],
