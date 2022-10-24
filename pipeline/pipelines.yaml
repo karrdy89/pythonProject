@@ -10,9 +10,9 @@ pipelines:
   - name: NBO_TEST
     sequence:
       - name: "load data"
-        task: data_loader.NBO.get_nbo_data
+        task: data_loader.NBO_TEST.get_nbo_data
       - name: "data preprocessing"
-        task: preprocess.NBO.process_nbo_data
+        task: preprocess.NBO_TEST.process_nbo_data
       - name: "train model"
         task: train.NBO_TEST.train_NBO_model
   - name: NBO
