@@ -508,13 +508,17 @@ class ModelServing:
                         async with Http() as http:
                             result = await http.get(url)
                             if result is None or result == -1:
-                                pass
+                                self._logger.log.remote(level=logging.WARN, worker=self._worker,
+                                                        msg="can find models metadata: connection error : "
+                                                            + model_id + ":" + version)
                             else:
                                 try:
                                     input_spec = result.get("metadata").get("signature_def").get("signature_def")\
                                         .get("serving_default").get("inputs")
                                 except Exception:
-                                    pass
+                                    self._logger.log.remote(level=logging.WARN, worker=self._worker,
+                                                            msg="can find models input signature : "
+                                                                + model_id + ":" + version)
                                 else:
                                     for key in input_spec:
                                         split_key = key.split("_")
