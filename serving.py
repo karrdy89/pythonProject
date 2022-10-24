@@ -1,11 +1,9 @@
 import configparser
-import json
 import os
 import asyncio
 import shutil
 import uuid
 import functools
-import datetime
 import logging
 import logger
 from dataclasses import dataclass, field
@@ -27,8 +25,8 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from utils.http_util import Http
 from utils.common import version_encode, version_decode
 from logger import BootLogger
-from statics import ErrorCode
 from statics import Actors
+from db import DBUtil
 
 
 @ray.remote
@@ -140,11 +138,12 @@ class ModelServing:
     """
 
     def __init__(self):
+        self._worker: str = type(self).__name__
         self._logger: ray.actor = None
         self._boot_logger: logger = BootLogger().logger
+        self._db = None
         self._lock: asyncio.Lock = asyncio.Lock()
         self._executor: ThreadPoolExecutor = ThreadPoolExecutor()
-        self._worker: str = type(self).__name__
         self._deploy_requests: list[tuple[str, str]] = []
         self._deploy_states: dict[str, ModelDeployState] = {}
         self._gc_list: list[tuple[int, str]] = []
@@ -163,6 +162,8 @@ class ModelServing:
         self._DEPLOY_PATH: str = ''
         self._CONTAINER_IMAGE: str = "tensorflow/serving:2.6.5"
         self._CONTAINER_SERVER_IP: str = ""
+        self._RETRY_COUNT: int = 20
+        self._RETRY_WAIT_TIME: float = 0.1
 
     def init(self) -> int:
         self._boot_logger.info("(" + self._worker + ") " + "init model_serving actor...")
@@ -179,6 +180,8 @@ class ModelServing:
             self._DEPLOY_PATH = str(config_parser.get("DEPLOY", "DEPLOY_PATH"))
             self._CONTAINER_IMAGE = str(config_parser.get("DEPLOY", "CONTAINER_IMAGE"))
             self._CONTAINER_SERVER_IP = str(config_parser.get("DEPLOY", "CONTAINER_SERVER_IP"))
+            self._RETRY_COUNT: int = int(config_parser.get("DEPLOY", "RETRY_COUNT"))
+            self._RETRY_WAIT_TIME: float = float(config_parser.get("DEPLOY", "RETRY_WAIT_TIME"))
         except configparser.Error as e:
             self._boot_logger.error("(" + self._worker + ") " + "an error occur when set config...: " + str(e))
             return -1
@@ -196,13 +199,32 @@ class ModelServing:
             return -1
         self._boot_logger.info("(" + self._worker + ") " + "remove all serving containers...")
         self.remove_all_container()
+
         self._boot_logger.info("(" + self._worker + ") " + "set garbage container collector...")
         self._manager_handle = AsyncIOScheduler()
         self._manager_handle.add_job(self.gc_container, "interval", seconds=self._GC_CHECK_INTERVAL, id="gc_container")
         self._manager_handle.start()
-        self._boot_logger.info("(" + self._worker + ") " + "init model_serving actor complete...")
 
-        # read database and run container
+        if True:
+            self._boot_logger.info("(" + self._worker + ") " + "deploying existing containers...")
+            self._db = DBUtil()
+            stored_deploy_states = self._db.select(name="select_deploy_state")
+            for stored_deploy_state in stored_deploy_states:
+                model_id = stored_deploy_state[0]
+                mn_ver = stored_deploy_state[1]
+                n_ver = stored_deploy_state[2]
+                container_num = int(stored_deploy_state[3])
+                print(model_id, mn_ver, n_ver, container_num)
+                version = mn_ver+"."+n_ver
+                encoded_version = version_encode(version)
+                model_deploy_state = ModelDeployState(model=(model_id, encoded_version),
+                                                      state=StateCode.AVAILABLE)
+                result = await self.deploy_containers(model_id, version, container_num, model_deploy_state)
+                if result.get("CODE") == "FAIL":
+                    self._boot_logger.error(
+                        "(" + self._worker + ") " + "can't make container from stored deploy state")
+                    return -1
+            self._boot_logger.info("(" + self._worker + ") " + "init model_serving actor complete...")
         return 0
 
     async def deploy(self, model_id: str, version: str, container_num: int) -> dict:
@@ -423,7 +445,7 @@ class ModelServing:
                     self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg="connection error : "
                                                                                           + model_id + ":" + version)
                     await self.fail_back(model_id, version, container_name)
-                    result = await self.predict(model_id, version, data)
+                    result = await self.predict(model_id, version, data.get("inputs")[0])
                 else:
                     async with self._lock:
                         container.ref_count -= 1
@@ -434,7 +456,7 @@ class ModelServing:
                     result["PRBT"] = outputs["result_1"]
                 return result
         else:
-            result = await self.predict(model_id, version, data)
+            result = await self.predict(model_id, version, data.get("inputs")[0])
             return result
 
     async def deploy_containers(self, model_id: str, version: str, container_num: int, model_deploy_state) -> dict:
@@ -588,12 +610,12 @@ class ModelServing:
                                 return 0
                 return -1
 
-    async def check_container_state_url(self, url: str, retry_count: Optional[int] = 5):
-        for _ in range(retry_count):
+    async def check_container_state_url(self, url: str):
+        for _ in range(self._RETRY_COUNT):
             async with Http() as http:
                 result = await http.get(url)
                 if result is None or result == -1:
-                    await asyncio.sleep(0.3)
+                    await asyncio.sleep(self._RETRY_WAIT_TIME)
                     continue
                 else:
                     container_state_info = result["model_version_status"][0]

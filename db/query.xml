@@ -13,13 +13,49 @@
             AND CUST_NO IS NOT NULL
             AND ORGN_DTM BETWEEN #{START} || '999999' AND #{END} || '999999'
         </select>
-        <select name="select_test">
-            SELECT CUST_NO, EVNT_ID
-            FROM TEST
+
+        <select name="select_deploy_state">
+            SELECT
+                A.MDL_ID
+                , A.MN_VER
+                , A.N_VER
+                , A.WDTB_SRVR_NCNT
+            FROM
+            (
+                SELECT
+                    A.MDL_ID /* 모델ID */
+                    , A.MN_VER /* 주버전 */
+                    , A.N_VER /* 부버전 */
+                    , A.MDL_NM /* 모델명 */
+                    , A.LRNG_DATA_TGT_NCNT /* 학습자료대상건수 */
+                    , A.MDL_DESC /* 모델설명 */
+                    , A.MDL_LRNG_ST_CD /* 모델학습상태코드 */
+                    , A.LRNG_STR_DTM /* 학습시작일시 */
+                    , A.LRNG_END_DTM /* 학습종료일시 */
+                    , B.SEQNO /* 일련번호 */
+                    , NVL(B.WDTB_ST_CD, '00') WDTB_ST_CD /* 배포상태코드 */
+                    , B.WDTB_SRVR_NCNT /* 배포서버갯수 */
+                    , B.RSLT_MSG /* 결과메세지 */
+                    , B.REG_ID /* 등록ID(배포자ID) */
+                    , S_AIB.FN_USR_NM(B.REG_ID) REG_NM /* 등록자(배포자) */
+                    , B.REG_DTM /* 등록일시(배포일시)  */
+                    , DECODE(B.WDTB_ST_CD, '01', B.REG_DTM, NULL) WDTB_COMP_DTM /* 배포완료일시 */
+                    , ROW_NUMBER() OVER (PARTITION BY A.MDL_ID, A.MN_VER, A.N_VER ORDER BY A.MDL_ID, A.MN_VER DESC, A.N_VER DESC, B.SEQNO DESC) WDTB_DESC_SEQNO
+                FROM
+                    S_AIB.TBMOD1001M A /* 학습모델 */
+                    , S_AIB.TBMOD1003H B /* 모델배포 */
+                WHERE 1=1
+                    AND A.MDL_ID = B.MDL_ID(+)
+                    AND A.MN_VER = B.MN_VER(+)
+                    AND A.N_VER = B.N_VER(+)
+                    AND A.MDL_LRNG_ST_CD IN ('22') /* 모델학습상태코드(22:학습완료) */
+                    AND B.WDTB_ST_CD LIKE '01' || '%' /* 모델배포상태코드(00:배포준비, 01:배포완료, 02:배포실패, 03:배포취소) */
+            ) A
             WHERE 1=1
-            AND ORGN_DTM BETWEEN TO_DATE(#{START}, 'YYYYMMDD') AND TO_DATE(#{END}, 'YYYYMMDD')
-            ORDER BY CUST_NO ASC, ORGN_DTM ASC
+            ORDER BY
+                A.MDL_ID, A.MN_VER DESC, A.N_VER DESC, A.SEQNO DESC
         </select>
+
         <insert name="insert_test">
                 INSERT INTO TEST
                  (CUST_NO,
@@ -37,6 +73,7 @@
                  #{SYS_EVNT_NM}
                 )
         </insert>
+
         <insert name="INSERT_TEST_DATA">
                 INSERT INTO TEST
                  (CUST_NO,
