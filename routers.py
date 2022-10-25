@@ -266,7 +266,7 @@ class AIbeemRouter:
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="get request: download dataset url")
         dataset_name = request_body.MDL_ID
-        version = request_body.N_VER
+        version = request_body.MN_VER
         path = statics.ROOT_DIR + "/dataset/" + dataset_name + "/" + version + "/" + dataset_name + "_" + version + ".zip"
         if not os.path.exists(path):
             return res_vo.PathResponse(CODE="FAIL", ERROR_MSG="dataset not exist", PATH="")

@@ -284,8 +284,8 @@ class SharedState:
         sp_nm = name.split(':')
         mdl_id = sp_nm[0]
         sp_version = sp_nm[-1].split('.')
-        mn_ver = sp_version[0]
-        n_ver = sp_version[1]
+        mn_ver = sp_version[1]
+        n_ver = sp_version[0]
         try:
             data = {"MDL_ID": mdl_id, "MN_VER": mn_ver, "N_VER": n_ver, "MDL_LRNG_ST_CD": str(state_code)}
             headers = {'Content-Type': 'application/json; charset=utf-8'}
