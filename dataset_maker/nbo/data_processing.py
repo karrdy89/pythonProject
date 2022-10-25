@@ -101,10 +101,10 @@ class MakeDatasetNBO:
             return -1
         try:
             self._db = DBUtil()
-            # self._db.set_select_chunk(name="select_test", param={"START": start_dtm, "END": end_dtm},
-            #                           array_size=10000, prefetch_row=10000)
-            self._db.set_select_chunk(name="select_nbo", param={"START": start_dtm, "END": end_dtm},
+            self._db.set_select_chunk(name="select_test", param={"START": start_dtm, "END": end_dtm},
                                       array_size=10000, prefetch_row=10000)
+            # self._db.set_select_chunk(name="select_nbo", param={"START": start_dtm, "END": end_dtm},
+            #                           array_size=10000, prefetch_row=10000)
         except Exception as exc:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                     msg="an error occur when set DBUtil: " + exc.__str__())

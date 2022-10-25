@@ -208,26 +208,27 @@ class ModelServing:
         self._boot_logger.info("(" + self._worker + ") " + "deploying existing containers...")
         self._db = DBUtil()
         stored_deploy_states = []
-        try:
-            stored_deploy_states = self._db.select(name="select_deploy_state")
-        except Exception as exc:
-            self._boot_logger.error(
-                "(" + self._worker + ") " + "can't read deploy state from db:" + exc.__str__())
-        for stored_deploy_state in stored_deploy_states:
-            model_id = stored_deploy_state[0]
-            mn_ver = str(stored_deploy_state[1])
-            n_ver = str(stored_deploy_state[2])
-            container_num = stored_deploy_state[3]
-            print(model_id, mn_ver, n_ver, container_num)
-            version = mn_ver+"."+n_ver
-            encoded_version = version_encode(version)
-            model_deploy_state = ModelDeployState(model=(model_id, encoded_version),
-                                                  state=StateCode.AVAILABLE)
-            result = await self.deploy_containers(model_id, version, container_num, model_deploy_state)
-            if result.get("CODE") == "FAIL":
-                self._boot_logger.error(
-                    "(" + self._worker + ") " + "can't make container from stored deploy state")
-                return -1
+        # try:
+        #     stored_deploy_states = self._db.select(name="select_deploy_state")
+        # except Exception as exc:
+        #     self._boot_logger.error(
+        #         "(" + self._worker + ") " + "can't read deploy state from db:" + exc.__str__())
+        #     # return -1
+        # for stored_deploy_state in stored_deploy_states:
+        #     model_id = stored_deploy_state[0]
+        #     mn_ver = str(stored_deploy_state[1])
+        #     n_ver = str(stored_deploy_state[2])
+        #     container_num = stored_deploy_state[3]
+        #     print(model_id, mn_ver, n_ver, container_num)
+        #     version = mn_ver+"."+n_ver
+        #     encoded_version = version_encode(version)
+        #     model_deploy_state = ModelDeployState(model=(model_id, encoded_version),
+        #                                           state=StateCode.AVAILABLE)
+        #     result = await self.deploy_containers(model_id, version, container_num, model_deploy_state)
+        #     if result.get("CODE") == "FAIL":
+        #         self._boot_logger.error(
+        #             "(" + self._worker + ") " + "can't make container from stored deploy state")
+        #         return -1
         self._boot_logger.info("(" + self._worker + ") " + "init model_serving actor complete...")
         return 0
 

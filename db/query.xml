@@ -56,6 +56,14 @@
                 A.MDL_ID, A.MN_VER DESC, A.N_VER DESC, A.SEQNO DESC
         </select>
 
+        <select name="select_test">
+            SELECT CUST_NO, EVNT_ID
+            FROM TEST
+            WHERE 1=1
+            AND ORGN_DTM BETWEEN TO_DATE(#{START}, 'YYYYMMDD') AND TO_DATE(#{END}, 'YYYYMMDD')
+            ORDER BY CUST_NO ASC, ORGN_DTM ASC
+        </select>
+
         <insert name="insert_test">
                 INSERT INTO TEST
                  (CUST_NO,

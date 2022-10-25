@@ -15,8 +15,16 @@ class Mapper:
     def get(self, name: str) -> str:
         query_strings = self._queries.findall(".//*[@name='"+name+"']")
         if len(query_strings) > 1:
-            return "query id is duplicated. check query.xml"
+            raise MapperException("Query is duplicated")
         if len(query_strings) == 0:
-            return ""
+            raise MapperException("Query not exist")
         else:
             return query_strings[0].text
+
+
+class MapperException(Exception):
+    def __init__(self, msg: str):
+        self.msg = msg
+
+    def __str__(self):
+        return self.msg
