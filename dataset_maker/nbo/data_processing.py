@@ -54,6 +54,7 @@ class MakeDatasetNBO:
         self._num_chunks: int = 0
         self._num_merged: int = 0
         self._file_count: int = 1
+        self._len_limit: int = 50
         self._split: list = []
         self._dataset: list = []
         self._information: list = []
@@ -101,10 +102,10 @@ class MakeDatasetNBO:
             return -1
         try:
             self._db = DBUtil()
-            self._db.set_select_chunk(name="select_test", param={"START": start_dtm, "END": end_dtm},
-                                      array_size=10000, prefetch_row=10000)
-            # self._db.set_select_chunk(name="select_nbo", param={"START": start_dtm, "END": end_dtm},
+            # self._db.set_select_chunk(name="select_test", param={"START": start_dtm, "END": end_dtm},
             #                           array_size=10000, prefetch_row=10000)
+            self._db.set_select_chunk(name="select_nbo", param={"START": start_dtm, "END": end_dtm},
+                                      array_size=10000, prefetch_row=10000)
         except Exception as exc:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                     msg="an error occur when set DBUtil: " + exc.__str__())
@@ -285,7 +286,8 @@ class MakeDatasetNBO:
                 if len_chunk > diff_num:
                     cur_chunk = cur_chunk[0:diff_num]
                     self._num_merged = i
-                    self._process_pool.apply_async(make_dataset, args=(cur_chunk, self._labels, self._act))
+                    self._process_pool.apply_async(make_dataset, args=(cur_chunk, self._labels,
+                                                                       self._len_limit, self._act))
                     self._is_merge_stop = True
                     self._is_operation_end = True
                     self._early_stopping = True
@@ -294,7 +296,7 @@ class MakeDatasetNBO:
                     break
             self._num_data += len_chunk
             self._num_merged = i
-            self._process_pool.apply_async(make_dataset, args=(cur_chunk, self._labels, self._act))
+            self._process_pool.apply_async(make_dataset, args=(cur_chunk, self._labels, self._len_limit, self._act))
             self._total_processed_data += len(cur_chunk)
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="total processed data: " + str(self._total_processed_data))

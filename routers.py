@@ -217,6 +217,7 @@ class AIbeemRouter:
 
             labels = ["EVT0000001", "EVT0000100", "EVT0000020"]
             key_index = 0
+            # x_index = [1]
             x_index = [3]
             version = sub_version
             num_data_limit = int(request_body.LRNG_DATA_TGT_NCNT)

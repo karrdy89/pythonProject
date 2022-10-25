@@ -23,7 +23,7 @@ def split_chunk(chunk: list[tuple], chunk_index: int, key_index: int, x_index: l
         act.fault_handle.remote(msg="failed to send split result")
 
 
-def make_dataset(datas: list, labels: list[str], act):
+def make_dataset(datas: list, labels: list[str], len_limit: int, act):
     max_len = 0
     classes = {}
     for label in labels:
@@ -46,9 +46,14 @@ def make_dataset(datas: list, labels: list[str], act):
                     if matched_idx_current <= matched_idx_before + 1:
                         matched_idx_before = matched_idx_current
                     else:
-                        dataset.append([cust_id] + features[matched_idx_before:matched_idx_current] + [feature])
+                        tmp_features = features[matched_idx_before:matched_idx_current]
+                        if len(tmp_features) >= len_limit:
+                            tmp_features = tmp_features[-len_limit:]
+                        dataset.append([cust_id] + tmp_features + [feature])
                         if max_len < (matched_idx_current - matched_idx_before):
                             max_len = matched_idx_current - matched_idx_before
+                            if max_len >= len_limit:
+                                max_len = len_limit
                         classes[feature] += 1
                         matched_idx_before = matched_idx_current
                     matched = True
