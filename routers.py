@@ -74,8 +74,8 @@ class AIbeemRouter:
         else:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg="train run: model not found")
             return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="model not found")
-        main_version = request_body.MN_VER
-        sub_version = request_body.N_VER
+        sub_version = request_body.MN_VER
+        main_version = request_body.N_VER
         version = main_version + '.' + sub_version
         pipeline_name = model_id + ":" + version
         if await self._shared_state.is_actor_exist.remote(name=pipeline_name):
@@ -126,8 +126,8 @@ class AIbeemRouter:
     async def stop_train(self, request_body: req_vo.StopTrain):
         self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="get request: train stop")
         model_id = request_body.MDL_ID
-        main_version = request_body.MN_VER
-        sub_version = request_body.N_VER
+        sub_version = request_body.MN_VER
+        main_version = request_body.N_VER
         version = main_version + "." + sub_version
         pipeline_name = model_id + ":" + version
         await self._shared_state.set_train_status.remote(name=pipeline_name, status_code=TrainStateCode.TRAINING_FAIL)
@@ -146,8 +146,8 @@ class AIbeemRouter:
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="get request: train progress")
         model_id = request_body.MDL_ID
-        main_version = request_body.MN_VER
-        sub_version = request_body.N_VER
+        sub_version = request_body.MN_VER
+        main_version = request_body.N_VER
         version = main_version + '.' + sub_version
         name = model_id + ":" + version
         train_state = await self._shared_state.get_status_code.remote(name=name)
@@ -165,8 +165,8 @@ class AIbeemRouter:
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="get request: get train result")
         model_id = request_body.MDL_ID
-        main_version = request_body.MN_VER
-        sub_version = request_body.N_VER
+        sub_version = request_body.MN_VER
+        main_version = request_body.N_VER
         version = main_version + '.' + sub_version
         name = model_id + ":" + version
         try:
@@ -195,8 +195,8 @@ class AIbeemRouter:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg="make dataset: model not found")
             return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="model not found")
 
-        main_version = request_body.MN_VER
-        sub_version = request_body.N_VER
+        sub_version = request_body.MN_VER
+        main_version = request_body.N_VER
         name = model_id + ":" + main_version + '.' + sub_version
         start_dtm = request_body.STYMD
         end_dtm = request_body.EDYMD
@@ -248,8 +248,8 @@ class AIbeemRouter:
     @router.post("/dataset/stop", response_model=res_vo.BaseResponse)
     async def dataset_make_stop(self, request_body: req_vo.BasicModelInfo):
         model_id = request_body.MDL_ID
-        main_version = request_body.MN_VER
-        sub_version = request_body.N_VER
+        sub_version = request_body.MN_VER
+        main_version = request_body.N_VER
         name = model_id + ":" + main_version + '.' + sub_version
         act = await self._shared_state.get_actor.remote(name=name)
         if act is not None:
@@ -308,8 +308,8 @@ class AIbeemRouter:
     async def deploy(self, request_body: req_vo.Deploy):
         self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="get request: deploy")
         model_id = request_body.MDL_ID
-        main_version = request_body.MN_VER
-        sub_version = request_body.N_VER
+        sub_version = request_body.MN_VER
+        main_version = request_body.N_VER
         version = main_version + '.' + sub_version
         result = await self._server.deploy.remote(model_id=model_id,
                                                   version=version,
@@ -320,8 +320,8 @@ class AIbeemRouter:
     @router.post("/deploy/state", response_model=res_vo.DeployState)
     async def get_deploy_state(self, request_body: req_vo.BasicModelInfo):
         model_id = request_body.MDL_ID
-        main_version = request_body.MN_VER
-        sub_version = request_body.N_VER
+        sub_version = request_body.MN_VER
+        main_version = request_body.N_VER
         version = main_version + '.' + sub_version
         result = await self._server.get_deploy_state.remote(model_id=model_id, version=version)
         result = res_vo.DeployState.parse_obj(result)
@@ -345,8 +345,8 @@ class AIbeemRouter:
     @router.post("/deploy/end_deploy", response_model=res_vo.MessageResponse)
     async def end_deploy(self, request_body: req_vo.BasicModelInfo):
         model_id = request_body.MDL_ID
-        main_version = request_body.MN_VER
-        sub_version = request_body.N_VER
+        sub_version = request_body.MN_VER
+        main_version = request_body.N_VER
         version = main_version + '.' + sub_version
         result = await self._server.end_deploy.remote(model_id=model_id, version=version)
         result = res_vo.MessageResponse.parse_obj(result)
@@ -355,8 +355,8 @@ class AIbeemRouter:
     @router.post("/predict", response_model=res_vo.PredictResponse)
     async def predict(self, request_body: req_vo.Predict):
         model_id = request_body.MDL_ID
-        main_version = request_body.MN_VER
-        sub_version = request_body.N_VER
+        sub_version = request_body.MN_VER
+        main_version = request_body.N_VER
         version = main_version + "." + sub_version
 
         data = request_body.EVNT_THRU_PATH
@@ -369,8 +369,8 @@ class AIbeemRouter:
     async def create_tensorboard(self, request_body: req_vo.BasicModelInfo):
         self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="get request: create tensorboard")
         model_id = request_body.MDL_ID
-        main_version = request_body.MN_VER
-        sub_version = request_body.N_VER
+        sub_version = request_body.MN_VER
+        main_version = request_body.N_VER
         version = main_version + "." + sub_version
         encoded_version = version_encode(version)
         log_path = project_path + "/train_logs/" + model_id + "/" + str(encoded_version)
