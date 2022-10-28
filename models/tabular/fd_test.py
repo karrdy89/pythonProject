@@ -22,14 +22,20 @@ len(events)
 
 # sep with ip
 ips = df["IP"].unique().tolist()
-dfs = []
+tdfs = []
 for ip in ips:
-    dfs.append(df[df['IP'] == ip])
+    tdfs.append(df[df['IP'] == ip].reset_index())
 
-# start with login(MID) if class == 0 end with PR is not 0, else to end of ip from sep
 login_event = "CCMLO0101"
-for df in dfs:
-    pass
+
+for tdf in tdfs:
+    ip = tdf["IP"].iloc[0]
+    label = tdf["Class"].iloc[0]
+    start_idxes = tdf.index[tdf["MID"] == login_event].tolist()
+    end_idxes = tdf.index[tdf["PR"] != 0].tolist()
+    for end_idx in end_idxes:
+        pass
+    print(start_idxes, start_idxes)
 
 # print(df.values.tolist())
 
