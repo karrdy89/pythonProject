@@ -56,15 +56,37 @@
 #                 if it_start_idx > end_idx+1:
 #                     start_idx = it_start_idx
 #
-# dataset.to_csv(ROOT_DIR + "/dataset/fd_test/fd_dataset_tabular.csv", sep=",", index=False)
+# dataset.to_csv(ROOT_DIR + "/dataset/fd_test/fd_dataset_tabular.csv", na_rep=0, sep=",", index=False)
 
 
 import pandas as pd
+import numpy as np
 from statics import ROOT_DIR
 
 dataset_path = ROOT_DIR + "/dataset/fd_test/fd_dataset_tabular.csv"
 df = pd.read_csv(dataset_path)
+df_labels = df[["label"]]
+df.drop(["label", "IP"], axis=1, inplace=True)
 
+
+def convert_to_float(collection):
+    floats = [float(el) for el in collection]
+    return np.array(floats)
+
+df_numeric = pd.concat([df.apply(convert_to_float)], axis=1)
+df_numeric = df_numeric.values.tolist()
+df_numeric = np.array(df_numeric)
+
+
+from sklearn.manifold import TSNE
+
+model = TSNE(n_components=2, perplexity=1, n_iter=3000, learning_rate=200, init="pca")
+res = model.fit_transform(df_numeric)
+
+import matplotlib.pyplot as plt
+
+plt.scatter(res[:,0], res[:,1])
+plt.show()
 # use PCA or LDA
 # use t-sne to visualization
 # use ADASYN for additional data
