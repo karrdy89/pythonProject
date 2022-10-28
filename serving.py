@@ -216,8 +216,8 @@ class ModelServing:
         else:
             for stored_deploy_state in stored_deploy_states:
                 model_id = stored_deploy_state[0]
-                mn_ver = str(stored_deploy_state[1])
-                n_ver = str(stored_deploy_state[2])
+                mn_ver = str(stored_deploy_state[2])
+                n_ver = str(stored_deploy_state[1])
                 container_num = stored_deploy_state[3]
                 print(model_id, mn_ver, n_ver, container_num)
                 version = mn_ver+"."+n_ver
