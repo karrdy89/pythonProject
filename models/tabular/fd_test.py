@@ -7,10 +7,14 @@ dataset_path = ROOT_DIR + "/dataset/fd_test/fd_dataset.csv"
 df = pd.read_csv(dataset_path)
 print(df.keys())
 df = df[["MID", "IP", "PID", "PR", "Class"]]
+
 # CCM -> CCW check it is good to go
 df["MID"] = df["MID"].str.replace("CCW", "CCM")
 df[["PID"]] = df[["PID"]].fillna(value="NA")
 df["EVT"] = df.MID.str.cat(df.PID, sep='-')
+
+# check null
+assert not df.isnull().values.any()
 
 # uniques to col
 events = df["EVT"].unique().tolist()
