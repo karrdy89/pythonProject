@@ -28,5 +28,16 @@ class TrainStateCode:
     TRAINING_FAIL = "23"
 
 
+class ModelType:
+    Tensorflow = 0
+    ONNX = 1
+
+
+class ModelInfo:
+    def __init__(self, model_name: str, model_type: int):
+        self.model_name = model_name
+        self.model_type = model_type
+
+
 class BuiltinModels:
-    MDL0000001 = "NBO"
+    MDL0000001 = ModelInfo(model_name="NBO", model_type=ModelType.Tensorflow)

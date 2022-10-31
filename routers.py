@@ -71,6 +71,7 @@ class AIbeemRouter:
         model_id = request_body.MDL_ID
         if hasattr(BuiltinModels, model_id):
             model_name = getattr(BuiltinModels, model_id)
+            model_name = model_name.model_name
         else:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg="train run: model not found")
             return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="model not found")
@@ -191,6 +192,7 @@ class AIbeemRouter:
         model_id = request_body.MDL_ID
         if hasattr(BuiltinModels, model_id):
             model_name = getattr(BuiltinModels, model_id)
+            model_name = model_name.model_name
         else:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg="make dataset: model not found")
             return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="model not found")
