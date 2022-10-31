@@ -113,8 +113,20 @@ X, y = make_classification(n_classes=2, class_sep=2, weights=[0.1, 0.9], n_infor
 
 # visualization
 print('Original dataset shape %s' % Counter(y))
-
+# projection 2d using pca or t-sne
+# make scatter plot for 2 class
+# or draw many scatter plots with of feature pair
 
 sm = SMOTE(random_state=42)
 X_res, y_res = sm.fit_resample(X, y)
 print('Resampled dataset shape %s' % Counter(y_res))
+# projection 2d using pca or t-sne
+# make scatter plot for 2 class
+# or draw many scatter plots with of feature pair
+
+# use tree and make result
+
+# XGboost with some of real data with oversampled data
+# under sampling tree with some of real data with oversampled data
+
+# get score and check with real data both
