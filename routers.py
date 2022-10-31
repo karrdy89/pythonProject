@@ -131,7 +131,6 @@ class AIbeemRouter:
         main_version = request_body.N_VER
         version = main_version + "." + sub_version
         pipeline_name = model_id + ":" + version
-        await self._shared_state.set_train_status.remote(name=pipeline_name, status_code=TrainStateCode.TRAINING_FAIL)
         kill_actor_result = await self._shared_state.kill_actor.remote(name=pipeline_name)
         if kill_actor_result == 0:
             self._logger.log.remote(level=logging.INFO, worker=self._worker,
@@ -212,15 +211,15 @@ class AIbeemRouter:
             except Exception as exc:
                 self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                         msg="make dataset: failed to make actor MakeDatasetNBO: " + exc.__str__())
-                return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="failed to create process")
+                return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="failed to create process")+O
             else:
                 if await self._shared_state.is_actor_exist.remote(name=name):
                     return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="same task is already running")
 
             labels = ["EVT0000001", "EVT0000100", "EVT0000020"]
             key_index = 0
-            # x_index = [1]
-            x_index = [3]
+            x_index = [1]
+            # x_index = [3]
             version = sub_version
             num_data_limit = int(request_body.LRNG_DATA_TGT_NCNT)
             self._logger.log.remote(level=logging.INFO, worker=self._worker,
