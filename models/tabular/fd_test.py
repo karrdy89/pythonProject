@@ -78,6 +78,7 @@ df_numeric = df_numeric.values.tolist()
 df_numeric = np.array(df_numeric)
 
 
+# projection 2d
 from sklearn.manifold import TSNE
 
 model = TSNE(n_components=2, perplexity=1, n_iter=3000, learning_rate=200, init="pca")
@@ -85,10 +86,17 @@ res = model.fit_transform(df_numeric)
 
 import matplotlib.pyplot as plt
 
-plt.scatter(res[:,0], res[:,1])
+plt.scatter(res[:, 0], res[:, 1])
 plt.show()
+
+# smote
+from imblearn.over_sampling import SMOTE #pip install imbalanced-learn
+
+
+
+
+# use ADASYN for additional data, smote will be better
+# use XGBoost
 # use PCA or LDA
 # use t-sne to visualization
-# use ADASYN for additional data
-# use XGBoost
 # use under bagging random forest
