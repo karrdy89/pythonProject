@@ -155,12 +155,12 @@ X = StandardScaler().fit_transform(X)
 # plt.show()
 
 
-
+# oversampling all
 # don't oversampling with smote to much
-# sm = SMOTE(random_state=42)
-# X_res, y_res = sm.fit_resample(X, y)
-# print('Resampled dataset shape %s' % Counter(y_res))
-#
+sm = SMOTE(random_state=42)
+X_res, y_res = sm.fit_resample(X, y)
+print('Resampled dataset shape %s' % Counter(y_res))
+
 # columns = [str(x) for x in range(n_features)]
 # df = pd.DataFrame(X_res, columns=columns)
 # df["labels"] = y_res
@@ -173,12 +173,12 @@ X = StandardScaler().fit_transform(X)
 #
 # df_X_label_1 = df_label_1.iloc[:, :-1]
 # list_X_label_1 = df_X_label_1.values.tolist()
+
+# model = TSNE(n_components=2, perplexity=5, n_iter=3000, learning_rate="auto", init="pca")
+# x_res_0 = model.fit_transform(np.array(list_X_label_0))
 #
 # model = TSNE(n_components=2, perplexity=5, n_iter=3000, learning_rate="auto", init="pca")
-# res_0 = model.fit_transform(np.array(list_X_label_0))
-#
-# model = TSNE(n_components=2, perplexity=5, n_iter=3000, learning_rate="auto", init="pca")
-# res_1 = model.fit_transform(np.array(list_X_label_1))
+# x_res_1 = model.fit_transform(np.array(list_X_label_1))
 #
 # import matplotlib.pyplot as plt
 #
@@ -186,8 +186,31 @@ X = StandardScaler().fit_transform(X)
 # plt.scatter(res_1[:, 0], res_1[:, 1])
 # plt.show()
 
+# random forest with smote
+from numpy import mean
+from sklearn.model_selection import cross_val_score, train_test_split, cross_validate
+from sklearn.model_selection import RepeatedStratifiedKFold
+from sklearn.ensemble import RandomForestClassifier
+# define model
+model = RandomForestClassifier(n_estimators=10)
+# define evaluation procedure
+cv = RepeatedStratifiedKFold(n_splits=10, n_repeats=3, random_state=1)
+# evaluate model
+cv_result = cross_validate(model, X_res, y_res, scoring='roc_auc', cv=cv, n_jobs=1, return_estimator=True,
+                           return_train_score=True)
+print(cv_result["estimator"])
+print(cv_result["train_score"])
+print(cv_result["test_score"])
+# summarize performance
+print('Mean Train ROC AUC: %.3f' % mean(cv_result["train_score"]))
 
-# XGboost with some of real data with oversampled data
-# under sampling tree with some of real data with oversampled data
+# XGBoost with smote
 
-# get score and check with real data both
+
+# under bagging with imb data
+
+# weighted XGBoost with imb data
+
+# XGBoost model to onnx model -> save
+
+# make deploy logic
