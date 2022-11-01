@@ -1,28 +1,3 @@
-import sys
-
-# from db import DBUtil
-#
-# db = DBUtil()
-# q = "CREATE TABLE TEST (" \
-#     "CUST_NO VARCHAR(13) NOT NULL," \
-#     "ORGN_DTM DATE NOT NULL," \
-#     "EVNT_ID VARCHAR(10)," \
-#     "EVNT_NM VARCHAR(9)," \
-#     "SYS_EVNT_ID VARCHAR(10)," \
-#     "SYS_EVNT_NM VARCHAR(20))"
-# q = "DROP TABLE TEST"
-# db.execute_query(q)
-
-# import datetime
-# import random
-# test_data = []
-# for _ in range(10000000):
-#     test_data.append(("CUST" + str(_%300000).zfill(7), datetime.datetime.now(), "EVT" + str(random.randint(0, 250)).zfill(7),
-#                       "T_EVNT" + str(random.randint(0, 250)).zfill(3), "C03-EVT" + str(random.randint(0, 250)).zfill(3),
-#                       "T_CH" + str(random.randint(0, 50)).zfill(2) + "-T_EVNT" + str(random.randint(0, 250)).zfill(3)))
-# print(test_data[:1])
-# r = db.insert_many("INSERT_TEST_DATA", test_data)
-
 import configparser
 import sys
 import os
@@ -102,8 +77,10 @@ class MakeDatasetNBO:
             return -1
         try:
             self._db = DBUtil()
+            # test
             self._db.set_select_chunk(name="select_test", param={"START": start_dtm, "END": end_dtm},
                                       array_size=10000, prefetch_row=10000)
+            # build
             # self._db.set_select_chunk(name="select_nbo", param={"START": start_dtm, "END": end_dtm},
             #                           array_size=10000, prefetch_row=10000)
         except Exception as exc:

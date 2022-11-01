@@ -212,6 +212,7 @@ class ModelServing:
         except Exception as exc:
             self._boot_logger.error(
                 "(" + self._worker + ") " + "can't read deploy state from db:" + exc.__str__())
+            # build
             # return -1
         else:
             for stored_deploy_state in stored_deploy_states:
@@ -302,10 +303,8 @@ class ModelServing:
             model_id = sep_key[0]
             version = sep_key[1]
             model_deploy_state = self._deploy_states[model_key]
-            container_num = len(model_deploy_state.containers)
             for k, v in model_deploy_state.containers.items():
                 containers.append((v.name, v.state))
-                res = await self.check_container_state(model_id, version, container_name=v.name)  # test
             deploy_state = {"model_id": model_id, "version": version, "containers": containers, "current_container_num":self._current_container_num}
             return {"CODE": "SUCCESS", "ERROR_MSG": "", "DEPLOY_STATE": deploy_state}
         else:
@@ -488,8 +487,8 @@ class ModelServing:
                                                        container_name=container_name,
                                                        http_port=http_port,
                                                        grpc_port=grpc_port,
-                                                       deploy_path=self._project_path + self._DEPLOY_PATH + model_key + "/"))) #remove pp
-                                                       # deploy_path=self._DEPLOY_PATH + model_key + "/")))
+                                                       deploy_path=self._project_path + self._DEPLOY_PATH + model_key + "/"))) #test
+                                                       # deploy_path=self._DEPLOY_PATH + model_key + "/"))) # build
             list_container_name.append(container_name)
             list_http_url.append((self._CONTAINER_SERVER_IP, http_port))
             list_grpc_url.append((self._CONTAINER_SERVER_IP, grpc_port))

@@ -52,6 +52,7 @@ class UvicornServer(uvicorn.Server):
             raise uv_exc
 
 
+# test
 config = uvicorn.Config("routers:app",
                         host="0.0.0.0",
                         port=8080,
@@ -60,6 +61,7 @@ config = uvicorn.Config("routers:app",
                         ssl_keyfile_password="1234"
                         )
 
+# build
 # config = uvicorn.Config("routers:app",
 #                         host="0.0.0.0",
 #                         port=8080,
