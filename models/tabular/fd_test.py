@@ -92,10 +92,10 @@
 # plt.show()
 
 # smote
-from imblearn.over_sampling import SMOTE #pip install imbalanced-learn
-
-
-
+import pandas as pd
+from sklearn.manifold import TSNE
+import numpy as np
+from imblearn.over_sampling import SMOTE  # pip install imbalanced-learn
 
 # use ADASYN for additional data, smote will be better
 # use XGBoost
@@ -108,11 +108,54 @@ from collections import Counter
 from sklearn.datasets import make_classification
 from imblearn.over_sampling import SMOTE
 
-X, y = make_classification(n_classes=2, class_sep=2, weights=[0.01, 0.99], n_informative=3, n_redundant=1, flip_y=0,
-                           n_features=50, n_clusters_per_class=1, n_samples=1000, random_state=10)
+n_features = 50
+X, y = make_classification(n_classes=2, class_sep=3, weights=[0.01, 0.99], n_informative=2, n_redundant=1, flip_y=0,
+                           n_features=n_features, n_clusters_per_class=1, n_samples=1000, random_state=10)
+print('Original dataset shape %s' % Counter(y))
+
+
+from sklearn.preprocessing import StandardScaler
+X = StandardScaler().fit_transform(X)
+
+columns = [str(x) for x in range(n_features)]
+df = pd.DataFrame(X, columns=columns)
+df["labels"] = y
+
+df_label_0 = df[df["labels"] == 0].reset_index(drop=True)
+df_label_1 = df[df["labels"] == 1].reset_index(drop=True)
+
+df_X_label_0 = df_label_0.iloc[:, :-1]
+list_X_label_0 = df_X_label_0.values.tolist()
+
+df_X_label_1 = df_label_1.iloc[:, :-1]
+list_X_label_1 = df_X_label_1.values.tolist()
 
 # visualization
-print('Original dataset shape %s' % Counter(y))
+# use t-sne
+model = TSNE(n_components=2, perplexity=1, n_iter=3000, learning_rate="auto", init="pca")
+res_0 = model.fit_transform(np.array(list_X_label_0))
+
+model = TSNE(n_components=2, perplexity=5, n_iter=3000, learning_rate="auto", init="pca")
+res_1 = model.fit_transform(np.array(list_X_label_1))
+
+import matplotlib.pyplot as plt
+
+plt.scatter(res_0[:, 0], res_0[:, 1])
+plt.scatter(res_1[:, 0], res_1[:, 1])
+plt.show()
+
+# use pca -> t-sne is better
+# from sklearn.decomposition import PCA
+# pca = PCA(n_components=2) # 주성분을 몇개로 할지 결정
+# res_0 = pca.fit_transform(np.array(list_X_label_0))
+# res_1 = pca.fit_transform(np.array(list_X_label_1))
+#
+# plt.scatter(res_0[:, 0], res_0[:, 1])
+# plt.scatter(res_1[:, 0], res_1[:, 1])
+# plt.show()
+
+
+
 # projection 2d using pca or t-sne
 # make scatter plot for 2 class
 # or draw many scatter plots with of feature pair
