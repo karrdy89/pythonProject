@@ -279,7 +279,7 @@ class MakeDatasetNBO:
                                 msg="total processed data: " + str(self._total_processed_data))
         self._split = []
 
-    def fault_handle(self, msg):
+    def fault_handle(self, msg) -> int:
         # all exception handled here and add fail message value on shared state actor
         self._process_pool.close()
         self._logger.log.remote(level=logging.ERROR, worker=self._worker,
