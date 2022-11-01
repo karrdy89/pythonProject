@@ -219,7 +219,6 @@ class ModelServing:
                 mn_ver = str(stored_deploy_state[2])
                 n_ver = str(stored_deploy_state[1])
                 container_num = stored_deploy_state[3]
-                print(model_id, mn_ver, n_ver, container_num)
                 version = mn_ver+"."+n_ver
                 encoded_version = version_encode(version)
                 model_deploy_state = ModelDeployState(model=(model_id, encoded_version),
@@ -307,7 +306,6 @@ class ModelServing:
             for k, v in model_deploy_state.containers.items():
                 containers.append((v.name, v.state))
                 res = await self.check_container_state(model_id, version, container_name=v.name)  # test
-                print(res)  # test
             deploy_state = {"model_id": model_id, "version": version, "containers": containers, "current_container_num":self._current_container_num}
             return {"CODE": "SUCCESS", "ERROR_MSG": "", "DEPLOY_STATE": deploy_state}
         else:
@@ -490,8 +488,8 @@ class ModelServing:
                                                        container_name=container_name,
                                                        http_port=http_port,
                                                        grpc_port=grpc_port,
-                                                       # deploy_path=self._project_path + self._DEPLOY_PATH + model_key + "/"))) #remove pp
-                                                       deploy_path=self._DEPLOY_PATH + model_key + "/")))
+                                                       deploy_path=self._project_path + self._DEPLOY_PATH + model_key + "/"))) #remove pp
+                                                       # deploy_path=self._DEPLOY_PATH + model_key + "/")))
             list_container_name.append(container_name)
             list_http_url.append((self._CONTAINER_SERVER_IP, http_port))
             list_grpc_url.append((self._CONTAINER_SERVER_IP, grpc_port))

@@ -19,8 +19,8 @@ def train_NBO_model(train_info: Input[TrainInfo]):
 
     sp_model_info = train_info.name.split(':')
     model_name = sp_model_info[0]
-    nm_version = sp_model_info[-1].split('.')[-1]
-    base_dataset_path = ROOT_DIR + "/dataset/" + model_name + "/" + nm_version + "/"
+    mn_version = sp_model_info[-1].split('.')[0]
+    base_dataset_path = ROOT_DIR + "/dataset/" + model_name + "/" + mn_version + "/"
     datafiles = []
     information_json = None
     for folderName, subfolders, filenames in os.walk(base_dataset_path):

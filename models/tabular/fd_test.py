@@ -191,21 +191,26 @@ from numpy import mean
 from sklearn.model_selection import cross_val_score, train_test_split, cross_validate
 from sklearn.model_selection import RepeatedStratifiedKFold
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.pipeline import Pipeline
+
 # define model
 model = RandomForestClassifier(n_estimators=10)
 # define evaluation procedure
+pipe = Pipeline([('scaler', StandardScaler()),
+                 ('rf_classifier', model)])
+
 cv = RepeatedStratifiedKFold(n_splits=10, n_repeats=3, random_state=1)
 # evaluate model
-cv_result = cross_validate(model, X_res, y_res, scoring='roc_auc', cv=cv, n_jobs=1, return_estimator=True,
+cv_result = cross_validate(pipe, X_res, y_res, scoring='roc_auc', cv=cv, n_jobs=1, return_estimator=True,
                            return_train_score=True)
 print(cv_result["estimator"])
 print(cv_result["train_score"])
 print(cv_result["test_score"])
 # summarize performance
 print('Mean Train ROC AUC: %.3f' % mean(cv_result["train_score"]))
-
+est_0 = cv_result["estimator"][0]
 # XGBoost with smote
-
+est_0.score(X,y)
 
 # under bagging with imb data
 
