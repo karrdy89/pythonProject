@@ -175,9 +175,25 @@ class Pipeline:
     def on_pipeline_end(self) -> None:
         self._shared_state.kill_actor.remote(self._name)
 
+    def kill_process(self) -> int:
+        self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                msg="cancel pipeline : activate")
+        try:
+            current_task_name = self._sequence_names[self._component_idx]
+            self._pipeline_state[current_task_name] = StateCode.STOP
+            ray.get(self._shared_state.set_pipeline_result.remote(self._name, self._pipeline_state))
+            self._shared_state.kill_actor.remote(self._name)
+        except Exception as exc:
+            self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                    msg="cancel pipeline: fail: " + exc.__str__())
+            return -1
+        else:
+            return 0
+
 
 class StateCode:
     RUNNING = "RUNNING"
+    STOP = "STOP"
     ERROR = "ERROR"
     WAITING = "WAITING"
     DONE = "DONE"

@@ -130,15 +130,25 @@ class AIbeemRouter:
         sub_version = request_body.N_VER
         version = main_version + "." + sub_version
         pipeline_name = model_id + ":" + version
-        kill_actor_result = await self._shared_state.kill_actor.remote(name=pipeline_name)
-        if kill_actor_result == 0:
-            self._logger.log.remote(level=logging.INFO, worker=self._worker,
-                                    msg="get request: train stopped : " + pipeline_name)
-            return res_vo.BaseResponse(CODE="SUCCESS", ERROR_MSG="")
+        act = await self._shared_state.get_actor.remote(name=pipeline_name)
+        if act is not None:
+            kill_result = await act.kill_process.remote()
+            if kill_result == 0:
+                return res_vo.BaseResponse(CODE="SUCCESS", ERROR_MSG="")
+            else:
+                return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="failed to kill task")
         else:
-            self._logger.log.remote(level=logging.WARN, worker=self._worker,
-                                    msg="train stopped fail: model not exist: " + pipeline_name)
-            return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="training process not exist")
+            return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="task not found")
+
+        # kill_actor_result = await self._shared_state.kill_actor.remote(name=pipeline_name)
+        # if kill_actor_result == 0:
+        #     self._logger.log.remote(level=logging.INFO, worker=self._worker,
+        #                             msg="get request: train stopped : " + pipeline_name)
+        #     return res_vo.BaseResponse(CODE="SUCCESS", ERROR_MSG="")
+        # else:
+        #     self._logger.log.remote(level=logging.WARN, worker=self._worker,
+        #                             msg="train stopped fail: model not exist: " + pipeline_name)
+        #     return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="training process not exist")
 
     @router.post("/train/progress", response_model=res_vo.TrainProgress)
     async def get_train_progress(self, request_body: req_vo.CheckTrainProgress):
