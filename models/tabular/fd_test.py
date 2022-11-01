@@ -116,33 +116,33 @@ print('Original dataset shape %s' % Counter(y))
 
 from sklearn.preprocessing import StandardScaler
 X = StandardScaler().fit_transform(X)
-
-columns = [str(x) for x in range(n_features)]
-df = pd.DataFrame(X, columns=columns)
-df["labels"] = y
-
-df_label_0 = df[df["labels"] == 0].reset_index(drop=True)
-df_label_1 = df[df["labels"] == 1].reset_index(drop=True)
-
-df_X_label_0 = df_label_0.iloc[:, :-1]
-list_X_label_0 = df_X_label_0.values.tolist()
-
-df_X_label_1 = df_label_1.iloc[:, :-1]
-list_X_label_1 = df_X_label_1.values.tolist()
-
-# visualization
-# use t-sne
-model = TSNE(n_components=2, perplexity=1, n_iter=3000, learning_rate="auto", init="pca")
-res_0 = model.fit_transform(np.array(list_X_label_0))
-
-model = TSNE(n_components=2, perplexity=5, n_iter=3000, learning_rate="auto", init="pca")
-res_1 = model.fit_transform(np.array(list_X_label_1))
-
-import matplotlib.pyplot as plt
-
-plt.scatter(res_0[:, 0], res_0[:, 1])
-plt.scatter(res_1[:, 0], res_1[:, 1])
-plt.show()
+#
+# columns = [str(x) for x in range(n_features)]
+# df = pd.DataFrame(X, columns=columns)
+# df["labels"] = y
+#
+# df_label_0 = df[df["labels"] == 0].reset_index(drop=True)
+# df_label_1 = df[df["labels"] == 1].reset_index(drop=True)
+#
+# df_X_label_0 = df_label_0.iloc[:, :-1]
+# list_X_label_0 = df_X_label_0.values.tolist()
+#
+# df_X_label_1 = df_label_1.iloc[:, :-1]
+# list_X_label_1 = df_X_label_1.values.tolist()
+#
+# # visualization
+# # use t-sne
+# model = TSNE(n_components=2, perplexity=1, n_iter=3000, learning_rate="auto", init="pca")
+# res_0 = model.fit_transform(np.array(list_X_label_0))
+#
+# model = TSNE(n_components=2, perplexity=5, n_iter=3000, learning_rate="auto", init="pca")
+# res_1 = model.fit_transform(np.array(list_X_label_1))
+#
+# import matplotlib.pyplot as plt
+#
+# plt.scatter(res_0[:, 0], res_0[:, 1])
+# plt.scatter(res_1[:, 0], res_1[:, 1])
+# plt.show()
 
 # use pca -> t-sne is better
 # from sklearn.decomposition import PCA
@@ -156,18 +156,36 @@ plt.show()
 
 
 
-# projection 2d using pca or t-sne
-# make scatter plot for 2 class
-# or draw many scatter plots with of feature pair
+# don't oversampling with smote to much
+# sm = SMOTE(random_state=42)
+# X_res, y_res = sm.fit_resample(X, y)
+# print('Resampled dataset shape %s' % Counter(y_res))
+#
+# columns = [str(x) for x in range(n_features)]
+# df = pd.DataFrame(X_res, columns=columns)
+# df["labels"] = y_res
+#
+# df_label_0 = df[df["labels"] == 0].reset_index(drop=True)
+# df_label_1 = df[df["labels"] == 1].reset_index(drop=True)
+#
+# df_X_label_0 = df_label_0.iloc[:, :-1]
+# list_X_label_0 = df_X_label_0.values.tolist()
+#
+# df_X_label_1 = df_label_1.iloc[:, :-1]
+# list_X_label_1 = df_X_label_1.values.tolist()
+#
+# model = TSNE(n_components=2, perplexity=5, n_iter=3000, learning_rate="auto", init="pca")
+# res_0 = model.fit_transform(np.array(list_X_label_0))
+#
+# model = TSNE(n_components=2, perplexity=5, n_iter=3000, learning_rate="auto", init="pca")
+# res_1 = model.fit_transform(np.array(list_X_label_1))
+#
+# import matplotlib.pyplot as plt
+#
+# plt.scatter(res_0[:, 0], res_0[:, 1])
+# plt.scatter(res_1[:, 0], res_1[:, 1])
+# plt.show()
 
-sm = SMOTE(random_state=42)
-X_res, y_res = sm.fit_resample(X, y)
-print('Resampled dataset shape %s' % Counter(y_res))
-# projection 2d using pca or t-sne
-# make scatter plot for 2 class
-# or draw many scatter plots with of feature pair
-
-# use tree and make result
 
 # XGboost with some of real data with oversampled data
 # under sampling tree with some of real data with oversampled data
