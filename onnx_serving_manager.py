@@ -7,18 +7,37 @@ import functools
 import logging
 import logger
 from dataclasses import dataclass, field
+from threading import Lock
 from shutil import copytree, rmtree
 from concurrent.futures import ThreadPoolExecutor
 from itertools import cycle
 from typing import Optional
 
 import ray
+from apscheduler.schedulers.background import BackgroundScheduler
+
+from utils.common import version_encode, version_decode
+from logger import BootLogger
+from statics import Actors
+from db import DBUtil
 
 
 @ray.remote
 class OnnxServingManager:
     def __init__(self):
         self._worker: str = type(self).__name__
+        self._logger: ray.actor = None
+        self._boot_logger: logger = BootLogger().logger
+        self._db = None
+        self._lock = Lock()
+        self._deploy_requests: list[tuple[str, str]] = []
+        self._deploy_states: dict[str, ModelDeployState] = {}
+        self._gc_list: list[tuple[int, str]] = []
+        self._current_container_num: int = 0
+        self._project_path: str = os.path.dirname(os.path.abspath(__file__))
+        self._manager_handle: BackgroundScheduler | None = None
+        self._SERVING_ACTOR_MAX: int = 15
+        self._GC_CHECK_INTERVAL: int = 10
 
     def init(self):
         pass
