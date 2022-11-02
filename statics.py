@@ -42,3 +42,4 @@ class ModelInfo:
 
 class BuiltinModels:
     MDL0000001 = ModelInfo(model_name="NBO", model_type=ModelType.Tensorflow)
+    MDL0000002 = ModelInfo(model_name="FD", model_type=ModelType.ONNX)
