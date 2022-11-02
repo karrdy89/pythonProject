@@ -7,7 +7,7 @@ class OnnxServing:
     def __init__(self):
         self._worker = type(self).__name__
 
-    def init(self) -> int:
+    def init(self, model_id: str, version: str) -> int:
         return 0
 
     def _load_model(self):
