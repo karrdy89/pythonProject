@@ -216,6 +216,7 @@ class TfServingManager:
             # return -1
         else:
             for stored_deploy_state in stored_deploy_states:
+                # if model type is tensorflow then deploy
                 model_id = stored_deploy_state[0]
                 mn_ver = str(stored_deploy_state[1])
                 n_ver = str(stored_deploy_state[2])
