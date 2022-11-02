@@ -19,3 +19,7 @@ pipelines:
     sequence:
       - name: "train model"
         task: train.NBO.train_NBO_model
+  - name: FD
+    sequence:
+      - name: "train model"
+        task: train.FD.train_FD_model
