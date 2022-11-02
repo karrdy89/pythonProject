@@ -235,64 +235,76 @@ print('Resampled dataset shape %s' % Counter(y_res))
 #
 
 # XGBoost with smote
-from numpy import mean
-from sklearn.datasets import make_classification
-from sklearn.model_selection import cross_val_score
-from sklearn.model_selection import RepeatedStratifiedKFold
-from xgboost import XGBClassifier   #pip install xgboost
-from sklearn.model_selection import GridSearchCV
-from skl2onnx.common.data_types import FloatTensorType
+# from numpy import mean
+# from sklearn.datasets import make_classification
+# from sklearn.model_selection import cross_val_score
+# from sklearn.model_selection import RepeatedStratifiedKFold
+# from xgboost import XGBClassifier   #pip install xgboost
+# from sklearn.model_selection import GridSearchCV
+# from skl2onnx.common.data_types import FloatTensorType
+#
+# model = XGBClassifier()
+# weights = [1, 10, 25, 50, 75, 99, 100, 1000]
+# param_grid = dict(scale_pos_weight=weights)
+# # define evaluation procedure
+# cv = RepeatedStratifiedKFold(n_splits=10, n_repeats=3, random_state=1)
+# grid = GridSearchCV(estimator=model, param_grid=param_grid, n_jobs=1, cv=cv, scoring='roc_auc')
+# # execute the grid search
+# grid_result = grid.fit(X, y)
+# # report the best configuration
+# print("Best: %f using %s" % (grid_result.best_score_, grid_result.best_params_))
+# # report all configurations
+# means = grid_result.cv_results_['mean_test_score']
+# stds = grid_result.cv_results_['std_test_score']
+# params = grid_result.cv_results_['params']
+# for mean, stdev, param in zip(means, stds, params):
+#     print("%f (%f) with: %r" % (mean, stdev, param))
+#
+# from sklearn.pipeline import Pipeline
+# pipe = Pipeline([('scaler', StandardScaler()),
+#                  ('XGB_Classifier', model)])
+# pipe.fit(X, y)
+#
+# from skl2onnx import convert_sklearn, update_registered_converter
+# from skl2onnx.common.shape_calculator import calculate_linear_classifier_output_shapes
+# from onnxmltools.convert.xgboost.operator_converters.XGBoost import convert_xgboost # pip install onnxmltools
+#
+# update_registered_converter(
+#     XGBClassifier, 'XGBoostXGBClassifier',
+#     calculate_linear_classifier_output_shapes, convert_xgboost,
+#     options={'nocl': [True, False], 'zipmap': [True, False, 'columns']})
+#
+# model_onnx = convert_sklearn(pipe, 'pipeline_xgb',
+#                 [('input', FloatTensorType([None, n_features]))])
+#
+# import os
+# if not os.path.exists(saved_model_path):
+#     os.makedirs(saved_model_path)
+#
+# with open(saved_model_path + "ft_test_xgboost.onnx", "wb") as f:
+#     f.write(model_onnx.SerializeToString())
+#
+# print("predict", pipe.predict(X[:5]))
+# print("predict_proba", pipe.predict_proba(X[:1]))
+#
+# import onnxruntime as rt
+# sess = rt.InferenceSession(saved_model_path + "ft_test_xgboost.onnx")
+# pred_onx = sess.run(None, {"input": X[:5].astype(np.float32)})
+# print("predict", pred_onx[0])
+# print("predict_proba", pred_onx[1][:1])
 
-model = XGBClassifier()
-weights = [1, 10, 25, 50, 75, 99, 100, 1000]
-param_grid = dict(scale_pos_weight=weights)
-# define evaluation procedure
-cv = RepeatedStratifiedKFold(n_splits=10, n_repeats=3, random_state=1)
-grid = GridSearchCV(estimator=model, param_grid=param_grid, n_jobs=1, cv=cv, scoring='roc_auc')
-# execute the grid search
-grid_result = grid.fit(X, y)
-# report the best configuration
-print("Best: %f using %s" % (grid_result.best_score_, grid_result.best_params_))
-# report all configurations
-means = grid_result.cv_results_['mean_test_score']
-stds = grid_result.cv_results_['std_test_score']
-params = grid_result.cv_results_['params']
-for mean, stdev, param in zip(means, stds, params):
-    print("%f (%f) with: %r" % (mean, stdev, param))
+# save with metadata
+import onnx
+model = onnx.load(saved_model_path + "ft_test_xgboost.onnx")
+meta = model.metadata_props.add()
+meta.key = "cfg"
+cfg = {"test": "a"}
+meta.value = str(cfg)
+onnx.save(model, saved_model_path + "ft_test_xgboost_1.onnx")
 
-from sklearn.pipeline import Pipeline
-pipe = Pipeline([('scaler', StandardScaler()),
-                 ('XGB_Classifier', model)])
-pipe.fit(X, y)
-
-from skl2onnx import convert_sklearn, update_registered_converter
-from skl2onnx.common.shape_calculator import calculate_linear_classifier_output_shapes
-from onnxmltools.convert.xgboost.operator_converters.XGBoost import convert_xgboost # pip install onnxmltools
-
-update_registered_converter(
-    XGBClassifier, 'XGBoostXGBClassifier',
-    calculate_linear_classifier_output_shapes, convert_xgboost,
-    options={'nocl': [True, False], 'zipmap': [True, False, 'columns']})
-
-model_onnx = convert_sklearn(pipe, 'pipeline_xgb',
-                [('input', FloatTensorType([None, n_features]))])
-
-import os
-if not os.path.exists(saved_model_path):
-    os.makedirs(saved_model_path)
-
-with open(saved_model_path + "ft_test_xgboost.onnx", "wb") as f:
-    f.write(model_onnx.SerializeToString())
-
-print("predict", pipe.predict(X[:5]))
-print("predict_proba", pipe.predict_proba(X[:1]))
-
-import onnxruntime as rt
-sess = rt.InferenceSession(saved_model_path + "ft_test_xgboost.onnx")
-pred_onx = sess.run(None, {"input": X[:5].astype(np.float32)})
-print("predict", pred_onx[0])
-print("predict_proba", pred_onx[1][:1])
-
+# loading
+cfg_s = eval(onnx.load(saved_model_path + "ft_test_xgboost_1.onnx").metadata_props[0].value)
+print(cfg_s)
 
 # evaluate model
 # scores = cross_val_score(model, X_res, y_res, scoring='roc_auc', cv=cv, n_jobs=1)
