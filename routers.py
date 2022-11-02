@@ -230,7 +230,7 @@ class AIbeemRouter:
             labels = ["EVT0000001", "EVT0000100", "EVT0000020"]
             key_index = 0
             # x_index = [1]   # test
-            x_index = [3]   # build
+            x_index = [3]  # build
             version = main_version
             num_data_limit = int(request_body.LRNG_DATA_TGT_NCNT)
             self._logger.log.remote(level=logging.INFO, worker=self._worker,
@@ -325,8 +325,8 @@ class AIbeemRouter:
         sub_version = request_body.N_VER
         version = main_version + '.' + sub_version
         result = await self._tf_serving_manager.deploy.remote(model_id=model_id,
-                                                  version=version,
-                                                  container_num=request_body.WDTB_SRVR_NCNT)
+                                                              version=version,
+                                                              deploy_num=request_body.WDTB_SRVR_NCNT)
         result = res_vo.MessageResponse.parse_obj(result)
         return result
 
@@ -342,16 +342,17 @@ class AIbeemRouter:
 
     @router.post("/deploy/add_container", response_model=res_vo.MessageResponse)
     async def add_container(self, request_body: req_vo.AddContainer):
-        result = await self._tf_serving_manager.add_container.remote(model_id=request_body.model_id, version=request_body.version,
-                                                         container_num=request_body.container_num)
+        result = await self._tf_serving_manager.add_container.remote(model_id=request_body.model_id,
+                                                                     version=request_body.version,
+                                                                     container_num=request_body.container_num)
         result = res_vo.MessageResponse.parse_obj(result)
         return result
 
     @router.post("/deploy/remove_container", response_model=res_vo.MessageResponse)
     async def remove_container(self, request_body: req_vo.RemoveContainer):
         result = await self._tf_serving_manager.remove_container.remote(model_id=request_body.model_id,
-                                                            version=request_body.version,
-                                                            container_num=request_body.container_num)
+                                                                        version=request_body.version,
+                                                                        container_num=request_body.container_num)
         result = res_vo.MessageResponse.parse_obj(result)
         return result
 
@@ -375,7 +376,7 @@ class AIbeemRouter:
 
         data = request_body.EVNT_THRU_PATH
         result = await self._tf_serving_manager.predict.remote(model_id=model_id, version=version,
-                                                   data=data)
+                                                               data=data)
         result = res_vo.PredictResponse.parse_obj(result)
         return result
 

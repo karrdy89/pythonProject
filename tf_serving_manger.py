@@ -236,7 +236,7 @@ class TfServingManager:
         self._boot_logger.info("(" + self._worker + ") " + "init tensorflow_serving manager actor complete...")
         return 0
 
-    async def deploy(self, model_id: str, version: str, container_num: int) -> dict:
+    async def deploy(self, model_id: str, version: str, deploy_num: int) -> dict:
         self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="deploy start : " + model_id
                                                                              + ":" + version)
         async with self._lock:
@@ -253,7 +253,7 @@ class TfServingManager:
         result = None
         if model_deploy_state is not None:
             if model_deploy_state.state == StateCode.AVAILABLE:
-                diff = container_num - self._current_container_num
+                diff = deploy_num - self._current_container_num
                 if diff > 0:
                     try:
                         result = await self.add_container(model_id, version, diff)
@@ -275,7 +275,7 @@ class TfServingManager:
             self._deploy_requests.remove((model_id, version))
             return result
         else:
-            if container_num <= 0:
+            if deploy_num <= 0:
                 result = {"CODE": "SUCCESS", "ERROR_MSG": "", "MSG": "nothing to change"}
             else:
                 cp_result = self.copy_to_deploy(model_id, encoded_version)
@@ -289,7 +289,7 @@ class TfServingManager:
                     model_deploy_state = ModelDeployState(model=(model_id, encoded_version),
                                                           state=StateCode.AVAILABLE)
                     try:
-                        result = await self.deploy_containers(model_id, version, container_num, model_deploy_state)
+                        result = await self.deploy_containers(model_id, version, deploy_num, model_deploy_state)
                     except Exception as exc:
                         self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                                 msg="deploy error : " + model_id

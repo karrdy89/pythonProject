@@ -32,7 +32,7 @@ class OnnxServingManager:
         self._deploy_requests: list[tuple[str, str]] = []
         self._deploy_states: dict[str, ModelDeployState] = {}
         self._gc_list: list[tuple[int, str]] = []
-        self._current_actor_num: int = 0
+        self._current_deploy_num: int = 0
         self._manager_handle: BackgroundScheduler | None = None
         self._SERVING_ACTOR_MAX: int = 15
         self._GC_CHECK_INTERVAL: int = 10
@@ -79,12 +79,12 @@ class OnnxServingManager:
                 if model_type == ModelType.ONNX:
                     mn_ver = str(stored_deploy_state[1])
                     n_ver = str(stored_deploy_state[2])
-                    actor_num = stored_deploy_state[3]
+                    deploy_num = stored_deploy_state[3]
                     version = mn_ver + "." + n_ver
                     encoded_version = version_encode(version)
                     model_deploy_state = ModelDeployState(model=(model_id, encoded_version),
                                                           state=StateCode.AVAILABLE)
-                    result = await self.deploy_actor(model_id, version, actor_num, model_deploy_state)
+                    result = await self.deploy_actor(model_id, version, deploy_num, model_deploy_state)
                     if result.get("CODE") == "FAIL":
                         self._boot_logger.error(
                             "(" + self._worker + ") " + "can't make actor from stored deploy state")
@@ -92,7 +92,8 @@ class OnnxServingManager:
         self._boot_logger.info("(" + self._worker + ") " + "init onnx_serving actor complete...")
         return 0
 
-
+    def deploy(self, model_id: str, version: str, deploy_num: int) -> dict:
+        pass
 
 # manage actor like tf container
 # method : deploy
