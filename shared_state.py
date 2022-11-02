@@ -74,6 +74,7 @@ class SharedState:
         self._pipline_result: OrderedDict[str, dict] = OrderedDict()
         self._train_result: OrderedDict[str, TrainResult] = OrderedDict()
         self._make_dataset_result: OrderedDict[str, int] = OrderedDict()
+        self._error_message: OrderedDict[str, str] = OrderedDict()
         self._dataset_url: dict[str, str] = {}
         self._EXPIRE_TIME: int = 3600
         self._tensorboard_tool = TensorBoardTool()
@@ -236,6 +237,20 @@ class SharedState:
         else:
             self._logger.log.remote(level=logging.WARN, worker=self._worker,
                                     msg="make dataset result not exist: " + name)
+
+    def set_error_message(self, name: str, msg: str) -> None:
+        if name not in self._error_message:
+            if len(self._error_message) > self._DATASET_CONCURRENCY_MAX:
+                self._error_message.popitem(last=False)
+        self._error_message[name] = msg
+
+    def get_error_message(self, name: str) -> str:
+        if name in self._error_message:
+            return self._error_message[name]
+        else:
+            self._logger.log.remote(level=logging.WARN, worker=self._worker,
+                                    msg="task not exist: " + name)
+            return ""
 
     def delete_make_dataset_result(self, name: str) -> None:
         if name in self._make_dataset_result:

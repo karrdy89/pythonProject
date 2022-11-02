@@ -160,12 +160,9 @@ class MakeDatasetNBO:
             with open(self._path + "/information.json", 'w', encoding="utf-8") as f:
                 json.dump(information, f, ensure_ascii=False, indent=4)
         except Exception as exc:
-            self._logger.log.remote(level=logging.ERROR, worker=self._worker,
-                                    msg="an error occur when export information: " + exc.__str__())
             if os.path.exists(self._path):
                 rmtree(self._path)
-            ray.get(self._shared_state.set_make_dataset_result.remote(self._name, TrainStateCode.MAKING_DATASET_FAIL))
-            self._shared_state.kill_actor.remote(self._name)
+            self.fault_handle(msg="an error occur when export information: " + exc.__str__())
             return -1
 
         zip_name = self._dataset_name+'_'+self._version+".zip"
@@ -179,12 +176,9 @@ class MakeDatasetNBO:
                             file_path = os.path.join(folderName, filename)
                             zipObj.write(file_path, basename(file_path))
         except Exception as exc:
-            self._logger.log.remote(level=logging.ERROR, worker=self._worker,
-                                    msg="an error occur when create zip archive: " + exc.__str__())
             if os.path.exists(self._path):
                 rmtree(self._path)
-            ray.get(self._shared_state.set_make_dataset_result.remote(self._name, TrainStateCode.MAKING_DATASET_FAIL))
-            self._shared_state.kill_actor.remote(self._name)
+            self.fault_handle(msg="an error occur when create zip archive: " + exc.__str__())
             return -1
 
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
@@ -222,13 +216,7 @@ class MakeDatasetNBO:
             self._vocabs.append(combined)
             df.to_csv(self._path + "/" + str(self._file_count) + ".csv", sep=",", na_rep="NaN", index=False)
         except Exception as exc:
-            import traceback
-            print(traceback.format_exc())
-            self._process_pool.close()
-            self._logger.log.remote(level=logging.ERROR, worker=self._worker,
-                                    msg="an error occur when export csv: " + exc.__str__())
-            ray.get(self._shared_state.set_make_dataset_result.remote(self._name, TrainStateCode.MAKING_DATASET_FAIL))
-            self._shared_state.kill_actor.remote(self._name)
+            self.fault_handle(msg="an error occur when export csv: " + exc.__str__())
         else:
             self._information = []
             self._dataset = []
@@ -279,12 +267,12 @@ class MakeDatasetNBO:
                                 msg="total processed data: " + str(self._total_processed_data))
         self._split = []
 
-    def fault_handle(self, msg) -> int:
-        # all exception handled here and add fail message value on shared state actor
+    def fault_handle(self, msg):
         self._process_pool.close()
         self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                 msg="making nbo dataset: an error occur when processing data: " + msg)
         ray.get(self._shared_state.set_make_dataset_result.remote(self._name, TrainStateCode.MAKING_DATASET_FAIL))
+        ray.get(self._shared_state.set_error_message.remote(self._name, msg))
         self._shared_state.kill_actor.remote(self._name)
 
     def kill_process(self) -> int:

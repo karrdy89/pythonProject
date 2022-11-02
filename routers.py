@@ -130,25 +130,25 @@ class AIbeemRouter:
         sub_version = request_body.N_VER
         version = main_version + "." + sub_version
         pipeline_name = model_id + ":" + version
-        act = await self._shared_state.get_actor.remote(name=pipeline_name)
-        if act is not None:
-            kill_result = await act.kill_process.remote()
-            if kill_result == 0:
-                return res_vo.BaseResponse(CODE="SUCCESS", ERROR_MSG="")
-            else:
-                return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="failed to kill task")
-        else:
-            return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="task not found")
-
-        # kill_actor_result = await self._shared_state.kill_actor.remote(name=pipeline_name)
-        # if kill_actor_result == 0:
-        #     self._logger.log.remote(level=logging.INFO, worker=self._worker,
-        #                             msg="get request: train stopped : " + pipeline_name)
-        #     return res_vo.BaseResponse(CODE="SUCCESS", ERROR_MSG="")
+        # act = await self._shared_state.get_actor.remote(name=pipeline_name)
+        # if act is not None:
+        #     kill_result = await act.kill_process.remote()
+        #     if kill_result == 0:
+        #         return res_vo.BaseResponse(CODE="SUCCESS", ERROR_MSG="")
+        #     else:
+        #         return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="failed to kill task")
         # else:
-        #     self._logger.log.remote(level=logging.WARN, worker=self._worker,
-        #                             msg="train stopped fail: model not exist: " + pipeline_name)
-        #     return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="training process not exist")
+        #     return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="task not found")
+        await self._shared_state.set_error_message.remote(name=pipeline_name, msg="interruption due to stop request")
+        kill_actor_result = await self._shared_state.kill_actor.remote(name=pipeline_name)
+        if kill_actor_result == 0:
+            self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                    msg="get request: train stopped : " + pipeline_name)
+            return res_vo.BaseResponse(CODE="SUCCESS", ERROR_MSG="")
+        else:
+            self._logger.log.remote(level=logging.WARN, worker=self._worker,
+                                    msg="train stopped fail: model not exist: " + pipeline_name)
+            return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="training process not exist")
 
     @router.post("/train/progress", response_model=res_vo.TrainProgress)
     async def get_train_progress(self, request_body: req_vo.CheckTrainProgress):
@@ -162,11 +162,13 @@ class AIbeemRouter:
         train_state = await self._shared_state.get_status_code.remote(name=name)
         pipeline_state = await self._shared_state.get_pipeline_result.remote(name=name)
         train_result = await self._shared_state.get_train_result.remote(name=name)
+        error_message = await self._shared_state.get_error_message.remote(name=name)
         result = res_vo.TrainProgress(MDL_LRNG_ST_CD=train_state,
                                       CODE="SUCCESS",
                                       ERROR_MSG="",
                                       TRAIN_INFO={"pipline_state": pipeline_state,
-                                                  "train_result": train_result})
+                                                  "train_result": train_result,
+                                                  "error_msg": error_message})
         return result
 
     @router.post("/train/result", response_model=res_vo.TrainResult)

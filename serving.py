@@ -217,8 +217,8 @@ class ModelServing:
         else:
             for stored_deploy_state in stored_deploy_states:
                 model_id = stored_deploy_state[0]
-                mn_ver = str(stored_deploy_state[2])
-                n_ver = str(stored_deploy_state[1])
+                mn_ver = str(stored_deploy_state[1])
+                n_ver = str(stored_deploy_state[2])
                 container_num = stored_deploy_state[3]
                 version = mn_ver+"."+n_ver
                 encoded_version = version_encode(version)

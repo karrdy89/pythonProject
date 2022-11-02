@@ -51,6 +51,7 @@ class Pipeline:
     on_pipeline_end() -> None:
         Ask shared_state actor to kill this pipeline
     """
+
     def __init__(self):
         self._worker = type(self).__name__
         self._name: str = ''
@@ -115,6 +116,7 @@ class Pipeline:
             self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="there is no component: " + self._name)
             self._shared_state.set_train_status.remote(name=self._name,
                                                        status_code=TrainStateCode.TRAINING_FAIL)
+            self._shared_state.set_error_message.remote(name=self._name, msg="there is no component: " + self._name)
         if self._component_idx >= len(self._components):
             self._component_idx = 0
             self.on_pipeline_end()
@@ -162,9 +164,10 @@ class Pipeline:
             exc_str = ''.join(traceback.format_exception(None, e, e.__traceback__))
             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                     msg=exc_str)
-            self._shared_state.set_pipeline_result.remote(self._name, self._pipeline_state)
-            self._shared_state.set_train_status.remote(name=self._name,
-                                                       status_code=TrainStateCode.TRAINING_FAIL)
+            ray.get(self._shared_state.set_pipeline_result.remote(self._name, self._pipeline_state))
+            ray.get(self._shared_state.set_error_message.remote(name=self._name, msg=exc_str))
+            ray.get(self._shared_state.set_train_status.remote(name=self._name,
+                                                               status_code=TrainStateCode.TRAINING_FAIL))
             self.on_pipeline_end()
         else:
             self._pipeline_state[current_task_name] = StateCode.DONE
