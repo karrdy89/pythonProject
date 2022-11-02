@@ -15,8 +15,8 @@ class Actors:
     LOGGER = "logging_service"
     GLOBAL_STATE = "shared_state"
     SERVER = "API_service"
-    TF_SERVING = "tf_serving"
-    ONNX_SERVING = "onnx_serving"
+    TF_SERVING_MANAGER = "tf_serving_manager"
+    ONNX_SERVING_MANAGER = "onnx_serving_manager"
     DATA_MAKER_NBO = "datamaker_nbo"
 
 

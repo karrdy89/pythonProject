@@ -6,7 +6,7 @@ import traceback
 import ray
 import uvicorn
 
-from tf_serving import ModelServing as TFServing
+from tf_serving_manger import TfServingManager
 from db import DBUtil
 from logger import Logger, BootLogger
 from shared_state import SharedState
@@ -89,11 +89,11 @@ if init_processes == -1:
     sys.exit()
 
 
-tf_serving = TFServing.options(name=Actors.TF_SERVING).remote()
+tf_serving_manager = TfServingManager.options(name=Actors.TF_SERVING_MANAGER).remote()
 shared_state = SharedState.options(name=Actors.GLOBAL_STATE).remote()
 
 boot_logger.info("(Main Server) init services...")
-init_processes = ray.get([tf_serving.init.remote(), shared_state.init.remote()])
+init_processes = ray.get([tf_serving_manager.init.remote(), shared_state.init.remote()])
 api_service = None
 try:
     api_service = UvicornServer.options(name=Actors.SERVER).remote(config=config)
@@ -104,7 +104,7 @@ except Exception as exc:
 if -1 in init_processes:
     boot_logger.error("(Main Server) failed to init services")
     ray.kill(api_service)
-    ray.kill(tf_serving)
+    ray.kill(tf_serving_manager)
     ray.kill(logging_service)
     ray.kill(shared_state)
     sys.exit()

@@ -61,7 +61,7 @@ class AIbeemRouter:
 
     def __init__(self):
         self._worker = type(self).__name__
-        self._server: ray.actor = ray.get_actor(Actors.TF_SERVING)
+        self._server: ray.actor = ray.get_actor(Actors.TF_SERVING_MANAGER)
         self._logger: ray.actor = ray.get_actor(Actors.LOGGER)
         self._shared_state: ray.actor = ray.get_actor(Actors.GLOBAL_STATE)
 

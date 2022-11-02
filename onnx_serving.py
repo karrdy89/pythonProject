@@ -6,3 +6,9 @@ from ray import actor
 class OnnxServing:
     def __init__(self):
         self._worker = type(self).__name__
+
+# load model
+# set attribute
+# define input shape and type
+# define output type
+# serv with predict method

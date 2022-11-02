@@ -30,7 +30,7 @@ from db import DBUtil
 
 
 @ray.remote
-class ModelServing:
+class TfServingManager:
     """
     A ray actor class to serve and inference tensorflow model
 
