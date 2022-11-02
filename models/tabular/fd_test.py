@@ -209,8 +209,12 @@ print(cv_result["test_score"])
 # summarize performance
 print('Mean Train ROC AUC: %.3f' % mean(cv_result["train_score"]))
 est_0 = cv_result["estimator"][0]
+est_0.score(X, y)
+# export to onnx
+
+
+
 # XGBoost with smote
-est_0.score(X,y)
 
 # under bagging with imb data
 

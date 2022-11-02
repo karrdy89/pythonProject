@@ -265,6 +265,7 @@ class AIbeemRouter:
         name = model_id + ":" + main_version + '.' + sub_version
         act = await self._shared_state.get_actor.remote(name=name)
         if act is not None:
+            await self._shared_state.set_error_message.remote(name=name, msg="interruption due to stop request")
             kill_result = await act.kill_process.remote()
             if kill_result == 0:
                 return res_vo.BaseResponse(CODE="SUCCESS", ERROR_MSG="")
