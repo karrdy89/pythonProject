@@ -25,7 +25,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from utils.http_util import Http
 from utils.common import version_encode, version_decode
 from logger import BootLogger
-from statics import Actors
+from statics import Actors, BuiltinModels, ModelType
 from db import DBUtil
 
 
@@ -166,7 +166,7 @@ class TfServingManager:
         self._RETRY_WAIT_TIME: float = 0.1
 
     async def init(self) -> int:
-        self._boot_logger.info("(" + self._worker + ") " + "init tensorflow_serving actor...")
+        self._boot_logger.info("(" + self._worker + ") " + "init tensorflow_serving manager actor...")
         self._boot_logger.info("(" + self._worker + ") " + "set global logger...")
         self._logger = ray.get_actor(Actors.LOGGER)
         self._boot_logger.info("(" + self._worker + ") " + "set statics from config...")
@@ -216,22 +216,24 @@ class TfServingManager:
             # return -1
         else:
             for stored_deploy_state in stored_deploy_states:
-                # if model type is tensorflow then deploy
                 model_id = stored_deploy_state[0]
-                mn_ver = str(stored_deploy_state[1])
-                n_ver = str(stored_deploy_state[2])
-                container_num = stored_deploy_state[3]
-                version = mn_ver+"."+n_ver
-                encoded_version = version_encode(version)
-                model_deploy_state = ModelDeployState(model=(model_id, encoded_version),
-                                                      state=StateCode.AVAILABLE)
-                result = await self.deploy_containers(model_id, version, container_num, model_deploy_state)
-                if result.get("CODE") == "FAIL":
-                    self._boot_logger.error(
-                        "(" + self._worker + ") " + "can't make container from stored deploy state")
-                    return -1
+                model_type = getattr(BuiltinModels, model_id)
+                model_type = model_type.model_type
+                if model_type == ModelType.Tensorflow:
+                    mn_ver = str(stored_deploy_state[1])
+                    n_ver = str(stored_deploy_state[2])
+                    container_num = stored_deploy_state[3]
+                    version = mn_ver+"."+n_ver
+                    encoded_version = version_encode(version)
+                    model_deploy_state = ModelDeployState(model=(model_id, encoded_version),
+                                                          state=StateCode.AVAILABLE)
+                    result = await self.deploy_containers(model_id, version, container_num, model_deploy_state)
+                    if result.get("CODE") == "FAIL":
+                        self._boot_logger.error(
+                            "(" + self._worker + ") " + "can't make container from stored deploy state")
+                        return -1
 
-        self._boot_logger.info("(" + self._worker + ") " + "init model_serving actor complete...")
+        self._boot_logger.info("(" + self._worker + ") " + "init tensorflow_serving manager actor complete...")
         return 0
 
     async def deploy(self, model_id: str, version: str, container_num: int) -> dict:
