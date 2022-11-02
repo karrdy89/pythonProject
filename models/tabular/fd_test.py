@@ -298,7 +298,7 @@ import onnx
 model = onnx.load(saved_model_path + "ft_test_xgboost.onnx")
 meta = model.metadata_props.add()
 meta.key = "cfg"
-cfg = {"test": "a"}
+cfg = {"input_type": "float", "input_shape": [None, n_features], "labels": {0: "fraud", 1: "normal"}}
 meta.value = str(cfg)
 onnx.save(model, saved_model_path + "ft_test_xgboost_1.onnx")
 
