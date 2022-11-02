@@ -93,13 +93,71 @@ class OnnxServingManager:
         return 0
 
     def deploy(self, model_id: str, version: str, deploy_num: int) -> dict:
+        self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="deploy start : " + model_id
+                                                                             + ":" + version)
+        self._lock.acquire()
+        if (model_id, version) in self._deploy_requests:
+            self._logger.log.remote(level=logging.WARN, worker=self._worker,
+                                    msg="same deploy request is in progress : " + model_id + ":" + version)
+            result = {"CODE": "FAIL", "ERROR_MSG": "same deploy request is in progress", "MSG": ""}
+            return result
+        else:
+            self._deploy_requests.append((model_id, version))
+        self._lock.release()
 
+        encoded_version = version_encode(version)
+        model_key = model_id + "_" + version
+        model_deploy_state = self._deploy_states.get(model_key)
+        result = None
+        if model_deploy_state is not None:
+            if model_deploy_state.state == StateCode.AVAILABLE:
+                diff = deploy_num - self._current_container_num
+                if diff > 0:
+                    try:
+                        result = await self.add_actor(model_id, version, diff)
+                    except Exception as exc:
+                        self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                                msg="deploy error : " + model_id
+                                                    + ":" + version + ":" + exc.__str__())
+                elif diff < 0:
+                    try:
+                        result = await self.remove_actor(model_id, version, abs(diff))
+                    except Exception as exc:
+                        self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                                msg="deploy error : " + model_id
+                                                    + ":" + version + ":" + exc.__str__())
+                else:
+                    result = {"CODE": "SUCCESS", "ERROR_MSG": "", "MSG": "nothing to change"}
+            elif model_deploy_state.state == StateCode.SHUTDOWN:
+                result = {"CODE": "FAIL", "ERROR_MSG": "shutdown has been scheduled on this model", "MSG": ""}
+            self._deploy_requests.remove((model_id, version))
+            return result
+        else:
+            if deploy_num <= 0:
+                result = {"CODE": "SUCCESS", "ERROR_MSG": "", "MSG": "nothing to change"}
+            else:
+                model_deploy_state = ModelDeployState(model=(model_id, encoded_version),
+                                                      state=StateCode.AVAILABLE)
+                try:
+                    result = self.deploy_actor(model_id, version, deploy_num, model_deploy_state)
+                except Exception as exc:
+                    self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                            msg="deploy error : " + model_id
+                                                + ":" + version + ":" + exc.__str__())
+            self._deploy_requests.remove((model_id, version))
+            return result
+
+    def deploy_actor(self, model_id: str, version: str, deploy_num: int, model_deploy_state) -> dict:
         pass
 
 # manage actor like tf container
 # method : deploy
 # method : end_deploy
+# method : get deploy state
+# method : add actor
+# method : remove actor
 # method : set cycle
+# method : deploy actor
 # method : fail back
 # method : garbage collect
 # method : predict
