@@ -23,8 +23,6 @@ class OnnxServing:
 
     def init(self, model_id: str, version: str) -> int:
         encoded_version = version_encode(version)
-
-        # set model path
         self._model_path = ROOT_DIR + "/saved_models/" + model_id + "/" + str(encoded_version)
         model_name = None
         for folderName, subfolders, filenames in os.walk(self._model_path):
@@ -52,27 +50,28 @@ class OnnxServing:
         self._input_shape = self._metadata.get("input_shape")
         self._session = rt.InferenceSession(self._model_path)
 
-    def predict(self, data: list):
+    def predict(self, data: list) -> dict | None:
         if len(data) < self._input_shape[-1]:
             raise print("input shape is incorrect")
         data = data[:self._input_shape[-1]]
-        pred_onx = self._session.run(None, {"input":  np.array([data]).astype(np.float32)})
-        print(pred_onx[0])
-        print(pred_onx[-1])
-        # mapping with labls
-        result = {}
-        result["EVNT_ID"] = ""
-        result["PRBT"] = ""
-        pass
+        # cover with try
+        try:
+            pred_onx = self._session.run(None, {"input":  np.array([data]).astype(np.float32)})
+        except Exception as exc:
+            print(exc.__str__())
+            return None
+        pred = pred_onx[0]
+        pred_proba = pred_onx[-1][0]
+        output_class = []
+        output_proba = []
+        for vals in pred:
+            output_class.append(self._labels.get(vals))
+            output_proba.append([pred_proba.get(vals)])
+        result = {"output_class": output_class, "output_proba": output_proba}
+        print(result)
+        return result
 
 
-
-onnx_serving = OnnxServing.remote()
-ray.get(onnx_serving.init.remote(model_id="MDL0000002", version="1.1"))
-ray.get(onnx_serving.predict.remote(data=[*range(50)]))
-# load model
-# set attribute
-# define input shape and type from metadata
-# define output type from metadata(label dict)
-# serv with predict method
-# td
+# onnx_serving = OnnxServing.remote()
+# ray.get(onnx_serving.init.remote(model_id="MDL0000002", version="1.1"))
+# ray.get(onnx_serving.predict.remote(data=[*range(50)]))
