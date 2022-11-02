@@ -66,7 +66,7 @@ class OnnxServing:
         output_proba = []
         for vals in pred:
             output_class.append(self._labels.get(vals))
-            output_proba.append([pred_proba.get(vals)])
+            output_proba.append(pred_proba.get(vals))
         result = {"output_class": output_class, "output_proba": output_proba}
         print(result)
         return result
