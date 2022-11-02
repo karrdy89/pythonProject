@@ -34,7 +34,6 @@ class OnnxServingManager:
         self._deploy_states: dict[str, ModelDeployState] = {}
         self._gc_list: list[tuple[int, str]] = []
         self._current_container_num: int = 0
-        self._project_path: str = os.path.dirname(os.path.abspath(__file__))
         self._manager_handle: BackgroundScheduler | None = None
         self._SERVING_ACTOR_MAX: int = 15
         self._GC_CHECK_INTERVAL: int = 10
