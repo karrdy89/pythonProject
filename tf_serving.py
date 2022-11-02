@@ -213,7 +213,7 @@ class ModelServing:
             self._boot_logger.error(
                 "(" + self._worker + ") " + "can't read deploy state from db:" + exc.__str__())
             # build
-            return -1
+            # return -1
         else:
             for stored_deploy_state in stored_deploy_states:
                 model_id = stored_deploy_state[0]
@@ -487,8 +487,8 @@ class ModelServing:
                                                        container_name=container_name,
                                                        http_port=http_port,
                                                        grpc_port=grpc_port,
-                                                       # deploy_path=self._project_path + self._DEPLOY_PATH + model_key + "/"))) #test
-                                                       deploy_path=self._DEPLOY_PATH + model_key + "/"))) # build
+                                                       deploy_path=self._project_path + self._DEPLOY_PATH + model_key + "/"))) #test
+                                                       # deploy_path=self._DEPLOY_PATH + model_key + "/"))) # build
             list_container_name.append(container_name)
             list_http_url.append((self._CONTAINER_SERVER_IP, http_port))
             list_grpc_url.append((self._CONTAINER_SERVER_IP, grpc_port))

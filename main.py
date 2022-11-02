@@ -6,7 +6,7 @@ import traceback
 import ray
 import uvicorn
 
-from serving import ModelServing
+from tf_serving import ModelServing as TFServing
 from db import DBUtil
 from logger import Logger, BootLogger
 from shared_state import SharedState
@@ -53,22 +53,22 @@ class UvicornServer(uvicorn.Server):
 
 
 # test
-# config = uvicorn.Config("routers:app",
-#                         host="0.0.0.0",
-#                         port=8080,
-#                         ssl_keyfile=SSL_CERT_PATH + "/key.pem",
-#                         ssl_certfile=SSL_CERT_PATH + "/cert.pem",
-#                         ssl_keyfile_password="1234"
-#                         )
-
-# build
 config = uvicorn.Config("routers:app",
                         host="0.0.0.0",
                         port=8080,
-                        ssl_keyfile=SSL_CERT_PATH + "/newkey.pem",
+                        ssl_keyfile=SSL_CERT_PATH + "/key.pem",
                         ssl_certfile=SSL_CERT_PATH + "/cert.pem",
-                        ssl_ca_certs=SSL_CERT_PATH + "/DigiCertCA.pem"
+                        ssl_keyfile_password="1234"
                         )
+
+# build
+# config = uvicorn.Config("routers:app",
+#                         host="0.0.0.0",
+#                         port=8080,
+#                         ssl_keyfile=SSL_CERT_PATH + "/newkey.pem",
+#                         ssl_certfile=SSL_CERT_PATH + "/cert.pem",
+#                         ssl_ca_certs=SSL_CERT_PATH + "/DigiCertCA.pem"
+#                         )
 
 
 boot_logger.info("(Main Server) check database connection...")
@@ -89,11 +89,11 @@ if init_processes == -1:
     sys.exit()
 
 
-model_serving = ModelServing.options(name=Actors.MODEL_SERVER).remote()
+tf_serving = TFServing.options(name=Actors.TF_SERVING).remote()
 shared_state = SharedState.options(name=Actors.GLOBAL_STATE).remote()
 
 boot_logger.info("(Main Server) init services...")
-init_processes = ray.get([model_serving.init.remote(), shared_state.init.remote()])
+init_processes = ray.get([tf_serving.init.remote(), shared_state.init.remote()])
 api_service = None
 try:
     api_service = UvicornServer.options(name=Actors.SERVER).remote(config=config)
@@ -104,7 +104,7 @@ except Exception as exc:
 if -1 in init_processes:
     boot_logger.error("(Main Server) failed to init services")
     ray.kill(api_service)
-    ray.kill(model_serving)
+    ray.kill(tf_serving)
     ray.kill(logging_service)
     ray.kill(shared_state)
     sys.exit()
