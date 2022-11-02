@@ -21,7 +21,7 @@ class OnnxServing:
         self._labels: dict | None = None
         self._session = None
 
-    def init(self, model_id: str, version: str) -> int:
+    def init(self, model_id: str, version: str) -> int | tuple:
         encoded_version = version_encode(version)
         self._model_path = ROOT_DIR + "/saved_models/" + model_id + "/" + str(encoded_version)
         model_name = None
@@ -34,14 +34,14 @@ class OnnxServing:
                     break
         else:
             if model_name is None:
-                print("model not found")
-                return -1
+                return -1, "model not found"
 
         try:
             self._load_model()
         except Exception as exc:
-            print(exc.__str__())
-            return -1
+            return -1, exc.__str__()
+
+        return 0
 
     def _load_model(self):
         self._metadata = eval(onnx.load(self._model_path).metadata_props[0].value)
@@ -50,16 +50,19 @@ class OnnxServing:
         self._input_shape = self._metadata.get("input_shape")
         self._session = rt.InferenceSession(self._model_path)
 
-    def predict(self, data: list) -> dict | None:
+    def predict(self, data: list) -> dict:
+        result = {"CODE": "FAIL", "ERROR_MSG": "N/A", "EVNT_ID": [], "PRBT": []}
         if len(data) < self._input_shape[-1]:
-            raise print("input shape is incorrect")
+            result["CODE"] = "FAIL"
+            result["ERROR_MSG"] = "input shape is incorrect"
+            return result
         data = data[:self._input_shape[-1]]
-        # cover with try
         try:
             pred_onx = self._session.run(None, {"input":  np.array([data]).astype(np.float32)})
         except Exception as exc:
-            print(exc.__str__())
-            return None
+            result["CODE"] = "FAIL"
+            result["ERROR_MSG"] = "an error occur when get inference from onnx session : " + exc.__str__()
+            return result
         pred = pred_onx[0]
         pred_proba = pred_onx[-1][0]
         output_class = []
@@ -67,8 +70,11 @@ class OnnxServing:
         for vals in pred:
             output_class.append(self._labels.get(vals))
             output_proba.append(pred_proba.get(vals))
-        result = {"output_class": output_class, "output_proba": output_proba}
-        print(result)
+
+        result["CODE"] = "SUCCESS"
+        result["ERROR_MSG"] = ""
+        result["EVNT_ID"] = output_class
+        result["PRBT"] = output_proba
         return result
 
 
