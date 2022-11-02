@@ -61,7 +61,7 @@ class AIbeemRouter:
 
     def __init__(self):
         self._worker = type(self).__name__
-        self._server: ray.actor = ray.get_actor(Actors.TF_SERVING_MANAGER)
+        self._tf_serving_manager: ray.actor = ray.get_actor(Actors.TF_SERVING_MANAGER)
         self._logger: ray.actor = ray.get_actor(Actors.LOGGER)
         self._shared_state: ray.actor = ray.get_actor(Actors.GLOBAL_STATE)
 
@@ -324,7 +324,7 @@ class AIbeemRouter:
         main_version = request_body.MN_VER
         sub_version = request_body.N_VER
         version = main_version + '.' + sub_version
-        result = await self._server.deploy.remote(model_id=model_id,
+        result = await self._tf_serving_manager.deploy.remote(model_id=model_id,
                                                   version=version,
                                                   container_num=request_body.WDTB_SRVR_NCNT)
         result = res_vo.MessageResponse.parse_obj(result)
@@ -336,20 +336,20 @@ class AIbeemRouter:
         main_version = request_body.MN_VER
         sub_version = request_body.N_VER
         version = main_version + '.' + sub_version
-        result = await self._server.get_deploy_state.remote(model_id=model_id, version=version)
+        result = await self._tf_serving_manager.get_deploy_state.remote(model_id=model_id, version=version)
         result = res_vo.DeployState.parse_obj(result)
         return result
 
     @router.post("/deploy/add_container", response_model=res_vo.MessageResponse)
     async def add_container(self, request_body: req_vo.AddContainer):
-        result = await self._server.add_container.remote(model_id=request_body.model_id, version=request_body.version,
+        result = await self._tf_serving_manager.add_container.remote(model_id=request_body.model_id, version=request_body.version,
                                                          container_num=request_body.container_num)
         result = res_vo.MessageResponse.parse_obj(result)
         return result
 
     @router.post("/deploy/remove_container", response_model=res_vo.MessageResponse)
     async def remove_container(self, request_body: req_vo.RemoveContainer):
-        result = await self._server.remove_container.remote(model_id=request_body.model_id,
+        result = await self._tf_serving_manager.remove_container.remote(model_id=request_body.model_id,
                                                             version=request_body.version,
                                                             container_num=request_body.container_num)
         result = res_vo.MessageResponse.parse_obj(result)
@@ -362,7 +362,7 @@ class AIbeemRouter:
         main_version = request_body.MN_VER
         sub_version = request_body.N_VER
         version = main_version + '.' + sub_version
-        result = await self._server.end_deploy.remote(model_id=model_id, version=version)
+        result = await self._tf_serving_manager.end_deploy.remote(model_id=model_id, version=version)
         result = res_vo.MessageResponse.parse_obj(result)
         return result
 
@@ -374,7 +374,7 @@ class AIbeemRouter:
         version = main_version + "." + sub_version
 
         data = request_body.EVNT_THRU_PATH
-        result = await self._server.predict.remote(model_id=model_id, version=version,
+        result = await self._tf_serving_manager.predict.remote(model_id=model_id, version=version,
                                                    data=data)
         result = res_vo.PredictResponse.parse_obj(result)
         return result
