@@ -93,6 +93,7 @@ class OnnxServingManager:
         return 0
 
     def deploy(self, model_id: str, version: str, deploy_num: int) -> dict:
+
         pass
 
 # manage actor like tf container
@@ -102,7 +103,6 @@ class OnnxServingManager:
 # method : fail back
 # method : garbage collect
 # method : predict
-# method : init
 # merge with tf serving? issue is max container num, init process, manage point
 # only advantage is performance
 
