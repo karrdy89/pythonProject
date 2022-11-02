@@ -1,6 +1,5 @@
 import configparser
 import os
-import asyncio
 import shutil
 import uuid
 import functools
@@ -18,7 +17,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 
 from utils.common import version_encode, version_decode
 from logger import BootLogger
-from statics import Actors
+from statics import Actors, BuiltinModels, ModelType
 from db import DBUtil
 
 
@@ -33,13 +32,67 @@ class OnnxServingManager:
         self._deploy_requests: list[tuple[str, str]] = []
         self._deploy_states: dict[str, ModelDeployState] = {}
         self._gc_list: list[tuple[int, str]] = []
-        self._current_container_num: int = 0
+        self._current_actor_num: int = 0
         self._manager_handle: BackgroundScheduler | None = None
         self._SERVING_ACTOR_MAX: int = 15
         self._GC_CHECK_INTERVAL: int = 10
 
-    def init(self):
-        pass
+    def init(self) -> int:
+        self._boot_logger.info("(" + self._worker + ") " + "init onnx_serving actor...")
+        self._boot_logger.info("(" + self._worker + ") " + "set global logger...")
+        self._logger = ray.get_actor(Actors.LOGGER)
+        self._boot_logger.info("(" + self._worker + ") " + "set statics from config...")
+        config_parser = configparser.ConfigParser()
+        try:
+            config_parser.read("config/config.ini")
+            self._SERVING_ACTOR_MAX = int(config_parser.get("DEPLOY", "SERVING_ACTOR_MAX"))
+            self._GC_CHECK_INTERVAL = int(config_parser.get("DEPLOY", "GC_CHECK_INTERVAL"))
+        except configparser.Error as e:
+            self._boot_logger.error("(" + self._worker + ") " + "an error occur when set config...: " + str(e))
+            return -1
+
+        self._boot_logger.info("(" + self._worker + ") " + "set garbage container collector...")
+        self._manager_handle = BackgroundScheduler()
+        self._manager_handle.add_job(self.gc_actor, "interval", seconds=self._GC_CHECK_INTERVAL, id="gc_actor")
+        self._manager_handle.start()
+
+        self._boot_logger.info("(" + self._worker + ") " + "deploying existing models...")
+
+        try:
+            self._db = DBUtil()
+        except Exception as exc:
+            self._boot_logger.error(
+                "(" + self._worker + ") " + "can't initiate DBUtil:" + exc.__str__())
+
+        try:
+            stored_deploy_states = self._db.select(name="select_deploy_state")
+        except Exception as exc:
+            self._boot_logger.error(
+                "(" + self._worker + ") " + "can't read deploy state from db:" + exc.__str__())
+            # build
+            # return -1
+        else:
+            for stored_deploy_state in stored_deploy_states:
+                model_id = stored_deploy_state[0]
+                model_type = getattr(BuiltinModels, model_id)
+                model_type = model_type.model_type
+                if model_type == ModelType.ONNX:
+                    mn_ver = str(stored_deploy_state[1])
+                    n_ver = str(stored_deploy_state[2])
+                    actor_num = stored_deploy_state[3]
+                    version = mn_ver + "." + n_ver
+                    encoded_version = version_encode(version)
+                    model_deploy_state = ModelDeployState(model=(model_id, encoded_version),
+                                                          state=StateCode.AVAILABLE)
+                    result = await self.deploy_actor(model_id, version, actor_num, model_deploy_state)
+                    if result.get("CODE") == "FAIL":
+                        self._boot_logger.error(
+                            "(" + self._worker + ") " + "can't make actor from stored deploy state")
+                        return -1
+        self._boot_logger.info("(" + self._worker + ") " + "init onnx_serving actor complete...")
+        return 0
+
+
 
 # manage actor like tf container
 # method : deploy

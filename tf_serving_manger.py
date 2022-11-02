@@ -166,7 +166,7 @@ class TfServingManager:
         self._RETRY_WAIT_TIME: float = 0.1
 
     async def init(self) -> int:
-        self._boot_logger.info("(" + self._worker + ") " + "init model_serving actor...")
+        self._boot_logger.info("(" + self._worker + ") " + "init tensorflow_serving actor...")
         self._boot_logger.info("(" + self._worker + ") " + "set global logger...")
         self._logger = ray.get_actor(Actors.LOGGER)
         self._boot_logger.info("(" + self._worker + ") " + "set statics from config...")
