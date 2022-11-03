@@ -24,7 +24,7 @@ from pipeline import Pipeline
 from tensorboard_service import TensorBoardTool
 from utils.common import version_encode
 from pipeline import TrainInfo
-from statics import Actors, TrainStateCode, BuiltinModels
+from statics import Actors, TrainStateCode, BuiltinModels, ModelType
 
 project_path = os.path.dirname(os.path.abspath(__file__))
 app = FastAPI()
@@ -62,6 +62,7 @@ class AIbeemRouter:
     def __init__(self):
         self._worker = type(self).__name__
         self._tf_serving_manager: ray.actor = ray.get_actor(Actors.TF_SERVING_MANAGER)
+        self._onx_serving_manager: ray.actor = ray.get_actor(Actors.ONNX_SERVING_MANAGER)
         self._logger: ray.actor = ray.get_actor(Actors.LOGGER)
         self._shared_state: ray.actor = ray.get_actor(Actors.GLOBAL_STATE)
 
@@ -324,9 +325,17 @@ class AIbeemRouter:
         main_version = request_body.MN_VER
         sub_version = request_body.N_VER
         version = main_version + '.' + sub_version
-        result = await self._tf_serving_manager.deploy.remote(model_id=model_id,
-                                                              version=version,
-                                                              deploy_num=request_body.WDTB_SRVR_NCNT)
+        model_type = getattr(BuiltinModels, model_id)
+        model_type = model_type.model_type
+        result = None
+        if model_type == ModelType.Tensorflow:
+            result = await self._tf_serving_manager.deploy.remote(model_id=model_id,
+                                                                  version=version,
+                                                                  deploy_num=request_body.WDTB_SRVR_NCNT)
+        elif model_type == ModelType.ONNX:
+            result = await self._onx_serving_manager.deploy.remote(model_id=model_id,
+                                                                   version=version,
+                                                                   deploy_num=request_body.WDTB_SRVR_NCNT)
         result = res_vo.MessageResponse.parse_obj(result)
         return result
 
@@ -336,8 +345,15 @@ class AIbeemRouter:
         main_version = request_body.MN_VER
         sub_version = request_body.N_VER
         version = main_version + '.' + sub_version
-        result = await self._tf_serving_manager.get_deploy_state.remote(model_id=model_id, version=version)
-        result = res_vo.DeployState.parse_obj(result)
+        model_type = getattr(BuiltinModels, model_id)
+        model_type = model_type.model_type
+        result = None
+        if model_type == ModelType.Tensorflow:
+            result = await self._tf_serving_manager.get_deploy_state.remote(model_id=model_id, version=version)
+            result = res_vo.DeployState.parse_obj(result)
+        elif model_type == ModelType.ONNX:
+            result = await self._onx_serving_manager.get_deploy_state.remote(model_id=model_id, version=version)
+            result = res_vo.DeployState.parse_obj(result)
         return result
 
     @router.post("/deploy/add_container", response_model=res_vo.MessageResponse)
@@ -356,15 +372,21 @@ class AIbeemRouter:
         result = res_vo.MessageResponse.parse_obj(result)
         return result
 
-    # sub_version main version change need
     @router.post("/deploy/end_deploy", response_model=res_vo.MessageResponse)
     async def end_deploy(self, request_body: req_vo.BasicModelInfo):
         model_id = request_body.MDL_ID
         main_version = request_body.MN_VER
         sub_version = request_body.N_VER
         version = main_version + '.' + sub_version
-        result = await self._tf_serving_manager.end_deploy.remote(model_id=model_id, version=version)
-        result = res_vo.MessageResponse.parse_obj(result)
+        model_type = getattr(BuiltinModels, model_id)
+        model_type = model_type.model_type
+        result = None
+        if model_type == ModelType.Tensorflow:
+            result = await self._tf_serving_manager.end_deploy.remote(model_id=model_id, version=version)
+            result = res_vo.MessageResponse.parse_obj(result)
+        elif model_type == ModelType.ONNX:
+            result = await self._onx_serving_manager.end_deploy.remote(model_id=model_id, version=version)
+            result = res_vo.MessageResponse.parse_obj(result)
         return result
 
     @router.post("/predict", response_model=res_vo.PredictResponse)
@@ -373,17 +395,28 @@ class AIbeemRouter:
         main_version = request_body.MN_VER
         sub_version = request_body.N_VER
         version = main_version + "." + sub_version
-
         data = request_body.EVNT_THRU_PATH
-        result = await self._tf_serving_manager.predict.remote(model_id=model_id, version=version,
-                                                               data=data)
-        result = res_vo.PredictResponse.parse_obj(result)
+        model_type = getattr(BuiltinModels, model_id)
+        model_type = model_type.model_type
+        result = None
+        if model_type == ModelType.Tensorflow:
+            result = await self._tf_serving_manager.predict.remote(model_id=model_id, version=version,
+                                                                   data=data)
+            result = res_vo.PredictResponse.parse_obj(result)
+        elif model_type == ModelType.ONNX:
+            result = await self._onx_serving_manager.predict.remote(model_id=model_id, version=version,
+                                                                    data=data)
+            result = res_vo.PredictResponse.parse_obj(result)
         return result
 
     @router.post("/tensorboard", response_model=res_vo.PathResponse)
     async def create_tensorboard(self, request_body: req_vo.BasicModelInfo):
         self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="get request: create tensorboard")
         model_id = request_body.MDL_ID
+        model_type = getattr(BuiltinModels, model_id)
+        model_type = model_type.model_type
+        if model_type != ModelType.Tensorflow:
+            return res_vo.PathResponse(CODE="FAIL", ERROR_MSG="TensorBoard only supports TensorFlow models", PATH="")
         main_version = request_body.MN_VER
         sub_version = request_body.N_VER
         version = main_version + "." + sub_version

@@ -1,7 +1,6 @@
 import os
 
 import ray
-from ray import actor
 import onnx
 import onnxruntime as rt
 import numpy as np
@@ -21,7 +20,7 @@ class OnnxServing:
         self._labels: dict | None = None
         self._session = None
 
-    def init(self, model_id: str, version: str) -> int | tuple:
+    def init(self, model_id: str, version: str) -> tuple:
         encoded_version = version_encode(version)
         self._model_path = ROOT_DIR + "/saved_models/" + model_id + "/" + str(encoded_version)
         model_name = None
@@ -40,8 +39,8 @@ class OnnxServing:
             self._load_model()
         except Exception as exc:
             return -1, exc.__str__()
-
-        return 0
+        else:
+            return 0, "success"
 
     def _load_model(self):
         self._metadata = eval(onnx.load(self._model_path).metadata_props[0].value)

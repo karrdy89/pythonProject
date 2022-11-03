@@ -421,7 +421,7 @@ class TfServingManager:
             result["CODE"] = "FAIL"
             result["ERROR_MSG"] = "the model is not deployed"
             return result
-        elif model_deploy_state.state == StateCode.UN_AVAILABLE:
+        elif model_deploy_state.state == StateCode.UNAVAILABLE:
             self._logger.log.remote(level=logging.WARN, worker=self._worker,
                                     msg="all containers are currently un available : " + model_id + ":" + version)
             result["CODE"] = "FAIL"
@@ -447,10 +447,14 @@ class TfServingManager:
                                                                                           + model_id + ":" + version)
                     result["CODE"] = "FAIL"
                     result["ERROR_MSG"] = "an error occur when making inspection. please check input values"
+                    async with self._lock:
+                        container.ref_count -= 1
                 elif predict_result == -1:
                     self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg="connection error : "
                                                                                           + model_id + ":" + version)
                     await self.fail_back(model_id, version, container_name)
+                    async with self._lock:
+                        container.ref_count -= 1
                     result = await self.predict(model_id, version, data.get("inputs")[0])
                 else:
                     async with self._lock:
@@ -588,21 +592,21 @@ class TfServingManager:
                                 msg="trying to fail back container : " + model_id + ":" + version)
         model_deploy_state = self._deploy_states.get(model_id + "_" + version)
         if model_deploy_state is not None:
-            if model_deploy_state.state != StateCode.SHUTDOWN and model_deploy_state.state != StateCode.UN_AVAILABLE:
+            if model_deploy_state.state != StateCode.SHUTDOWN and model_deploy_state.state != StateCode.UNAVAILABLE:
                 container = model_deploy_state.containers.get(container_name)
                 container.state = StateCode.SHUTDOWN
                 container_total = len(model_deploy_state.containers)
-                un_available_container = 0
+                unavailable_container = 0
                 for container_key, container in model_deploy_state.containers.items():
                     if container.state == StateCode.SHUTDOWN:
-                        un_available_container += 1
-                if container_total == un_available_container:
-                    model_deploy_state.state = StateCode.UN_AVAILABLE
+                        unavailable_container += 1
+                if container_total == unavailable_container:
+                    model_deploy_state.state = StateCode.UNAVAILABLE
                 result = await self._set_cycle(model_id, version)
                 if result == 0:
                     self._gc_list.append((ManageType.CONTAINER, container_name))
                 result_add_container = await self.add_container(model_id, version, 1)
-                if result_add_container.get("CODE") != "SUCCESS":
+                if result_add_container.get("CODE") == "SUCCESS":
                     model_deploy_state.state = StateCode.AVAILABLE
 
     async def check_container_state(self, model_id: str, version: str, container_name: str,
@@ -870,7 +874,7 @@ class StateCode:
     ALREADY_EXIST = 1
     IN_PROGRESS = 3
     AVAILABLE = 0
-    UN_AVAILABLE = -1
+    UNAVAILABLE = -1
     SHUTDOWN = 4
 
 

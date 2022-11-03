@@ -7,6 +7,7 @@ import ray
 import uvicorn
 
 from tf_serving_manger import TfServingManager
+from onnx_serving_manager import OnnxServingManager
 from db import DBUtil
 from logger import Logger, BootLogger
 from shared_state import SharedState
@@ -90,10 +91,13 @@ if init_processes == -1:
 
 
 tf_serving_manager = TfServingManager.options(name=Actors.TF_SERVING_MANAGER).remote()
+onx_serving_manager = OnnxServingManager.options(name=Actors.ONNX_SERVING_MANAGER).remote()
 shared_state = SharedState.options(name=Actors.GLOBAL_STATE).remote()
 
 boot_logger.info("(Main Server) init services...")
-init_processes = ray.get([tf_serving_manager.init.remote(), shared_state.init.remote()])
+init_processes = ray.get([tf_serving_manager.init.remote(),
+                          onx_serving_manager.init.remote(),
+                          shared_state.init.remote()])
 api_service = None
 try:
     api_service = UvicornServer.options(name=Actors.SERVER).remote(config=config)
