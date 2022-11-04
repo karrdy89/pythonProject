@@ -53,22 +53,36 @@ dataset_path = ROOT_DIR + "/dataset/fd_test/fd_dataset_trimmed.csv"
 df = pd.read_csv(dataset_path)
 df.fillna("", inplace=True)
 df["EVENT"] = df.메뉴.str.cat(df.프로그램명)
+df['시간'] = pd.to_datetime(df['시간'], errors='coerce')
+df['DATE'] = df['시간'].dt.strftime("%Y-%m-%d")
+
 sequences = df["SEQ"].unique().tolist()
 df_sep_seq = []
 for sequence in sequences:
     df_sep_seq.append(df[df["SEQ"] == sequence].reset_index(drop=True))
-
-
 start_events = ["CCMLO0101", "CCWLO0101", "CCMMS0101SL01", "CCWMS0101SL01"]
 end_event = ["CCMLN0101PC01", "CCWLN0101PC01", "CCWRD0201PC01", "CCMRD0201PC01"]
+
+count = 0
 for idx, df_seq in enumerate(df_sep_seq):
-    # sep by ip
-    ips = df_seq["로그인IP"].unique().tolist()
-    df_sep_ip_list = []
-    for ip in ips:
-        df_sep_ip_list.append(df_seq[df_seq["로그인IP"] == ip].reset_index(drop=True))
-    for df_sep_ip in df_sep_ip_list:
-        print(df_sep_ip.index[df_sep_ip["EVENT"].isin(start_events)])
+    # sep by date
+    dates = df_seq["DATE"].unique().tolist()
+    df_sep_date_list = []
+    for date in dates:
+        df_sep_date_list.append(df_seq[df_seq["DATE"] == date].reset_index(drop=True))
+
+    for df_sep_date in df_sep_date_list:
+        # sep by ip
+        ips = df_sep_date["로그인IP"].unique().tolist()
+        df_sep_ip_list = []
+        for ip in ips:
+            df_sep_ip_list.append(df_sep_date[df_sep_date["로그인IP"] == ip].reset_index(drop=True))
+        for df_sep_ip in df_sep_ip_list:
+            start_idx_list = df_sep_ip.index[df_sep_ip["EVENT"].isin(start_events)].tolist()
+            end_idx_list = df_sep_ip.index[df_sep_ip["EVENT"].isin(end_event)].tolist()
+            if len(start_idx_list) != 0 and len(end_idx_list) != 0:
+                start_idx = start_idx_list[0]
+
 
 
 
