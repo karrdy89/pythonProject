@@ -59,11 +59,13 @@ df['DATE'] = df['시간'].dt.strftime("%Y-%m-%d")
 sequences = df["SEQ"].unique().tolist()
 df_sep_seq = []
 for sequence in sequences:
+    # multi cust id in same ip -> pass check number
     df_sep_seq.append(df[df["SEQ"] == sequence].reset_index(drop=True))
 start_events = ["CCMLO0101", "CCWLO0101", "CCMMS0101SL01", "CCWMS0101SL01"]
 end_event = ["CCMLN0101PC01", "CCWLN0101PC01", "CCWRD0201PC01", "CCMRD0201PC01"]
 
 count = 0
+n_df_list = []
 for idx, df_seq in enumerate(df_sep_seq):
     # sep by date
     dates = df_seq["DATE"].unique().tolist()
@@ -82,11 +84,28 @@ for idx, df_seq in enumerate(df_sep_seq):
             end_idx_list = df_sep_ip.index[df_sep_ip["EVENT"].isin(end_event)].tolist()
             if len(start_idx_list) != 0 and len(end_idx_list) != 0:
                 start_idx = start_idx_list[0]
+                for t_idx, end_idx in enumerate(end_idx_list):
+                    if start_idx >= end_idx + 1:
+                        break
+                    count += 1
+                    temp_df = df_sep_ip[start_idx:end_idx + 1]
+                    temp_df.loc[:, "SEQ"] = count
+                    n_df_list.append(temp_df)
+                    for t_start_idx in start_idx_list:
+                        if t_start_idx >= end_idx + 1:
+                            start_idx = t_start_idx
+                            break
 
 
-
-
-
+print("done")
+print(len(n_df_list))
+n_df = pd.concat(n_df_list, ignore_index=True)
+n_df["SEQ"].unique()
+n_df["로그인유형"].replace("", "N/A")
+n_df["비고"].replace("", "N/A")
+assert not n_df.isnull().values.any()
+n_df.to_csv(ROOT_DIR + "/dataset/fd_test/fraud_dataset_refine.csv", index=False, encoding="utf-8-sig")
+n_df.keys()
 # drop seq
 # df.drop(["SEQ"], axis=1)
 
