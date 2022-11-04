@@ -1,11 +1,89 @@
 # # make dataset
 #
 # import pandas as pd
-from statics import ROOT_DIR
+# from statics import ROOT_DIR
 
-# dataset_path = ROOT_DIR + "/dataset/fd_test/fd_dataset.csv"
-saved_model_path = ROOT_DIR + "/saved_models/td_test/"
+# dataset_path = ROOT_DIR + "/dataset/fd_test/fraud_dataset.csv"
+# saved_model_path = ROOT_DIR + "/saved_models/td_test/"
 # df = pd.read_csv(dataset_path)
+# df["고객ID"].fillna(-1, inplace=True)
+# df["고객ID"] = df["고객ID"].astype('int32')
+# # check duplicated seq
+# sequences = df["SEQ"].unique().tolist()
+#
+# df_sep_seq = []
+# for sequence in sequences:
+#     df_sep_seq.append(df[df["SEQ"] == sequence].reset_index(drop=True))
+#
+# print(len(df_sep_seq))
+# dup_cust_ids = []
+# for idx, df_seq in enumerate(df_sep_seq):
+#     cust_id_list = df_seq["고객ID"].unique().tolist()
+#     for t_df_seq in df_sep_seq[idx + 1:]:
+#         for cust_id in cust_id_list:
+#             if cust_id == -1:
+#                 continue
+#             elif cust_id in t_df_seq["고객ID"].values:
+#                 dup_cust_ids.append([df_seq["SEQ"].iloc[0], t_df_seq["SEQ"].iloc[0], cust_id])
+#                 break
+#
+#
+# print(len(dup_cust_ids))
+# duped = pd.DataFrame(dup_cust_ids, columns=["SEQ", "SEQ_DUP", "CUST_ID"])
+# duped.to_csv(ROOT_DIR + "/dataset/fd_test/duplicated.csv", index=False)
+
+# drop duplicate
+#
+# for dupe in dup_cust_ids:
+#     seq_be_del = dupe[1]
+#     print(seq_be_del)
+#     if seq_be_del < 1000:
+#         df.drop(df[df.SEQ == seq_be_del].index, inplace=True)
+#
+# searchfor = ['CCM', 'CCW']
+# df = df[df.메뉴.str.contains('|'.join(searchfor))]
+# df.to_csv(ROOT_DIR + "/dataset/fd_test/fd_dataset_trimmed.csv", index=False)
+#
+
+
+# with trimmed dataset
+import pandas as pd
+from statics import ROOT_DIR
+dataset_path = ROOT_DIR + "/dataset/fd_test/fd_dataset_trimmed.csv"
+df = pd.read_csv(dataset_path)
+df.fillna("", inplace=True)
+df["EVENT"] = df.메뉴.str.cat(df.프로그램명)
+sequences = df["SEQ"].unique().tolist()
+df_sep_seq = []
+for sequence in sequences:
+    df_sep_seq.append(df[df["SEQ"] == sequence].reset_index(drop=True))
+
+
+start_events = ["CCMLO0101", "CCWLO0101", "CCMMS0101SL01", "CCWMS0101SL01"]
+end_event = ["CCMLN0101PC01", "CCWLN0101PC01", "CCWRD0201PC01", "CCMRD0201PC01"]
+for idx, df_seq in enumerate(df_sep_seq):
+    # sep by ip
+    ips = df_seq["로그인IP"].unique().tolist()
+    df_sep_ip_list = []
+    for ip in ips:
+        df_sep_ip_list.append(df_seq[df_seq["로그인IP"] == ip].reset_index(drop=True))
+    for df_sep_ip in df_sep_ip_list:
+        print(df_sep_ip.index[df_sep_ip["EVENT"].isin(start_events)])
+
+
+
+
+# drop seq
+# df.drop(["SEQ"], axis=1)
+
+
+
+
+# df.keys()
+# df["메뉴"] = df["메뉴"].str.replace("CCW", "CCM")
+
+
+
 # print(df.keys())
 # df = df[["MID", "IP", "PID", "PR", "Class"]]
 #
@@ -105,18 +183,18 @@ from imblearn.over_sampling import SMOTE  # pip install imbalanced-learn
 # use under bagging random forest
 
 # build logics with sample dataset
-from collections import Counter
-from sklearn.datasets import make_classification
-from imblearn.over_sampling import SMOTE
+# from collections import Counter
+# from sklearn.datasets import make_classification
+# from imblearn.over_sampling import SMOTE
 
-n_features = 50
-X, y = make_classification(n_classes=2, class_sep=3, weights=[0.01, 0.99], n_informative=2, n_redundant=1, flip_y=0,
-                           n_features=n_features, n_clusters_per_class=1, n_samples=1000, random_state=10)
-print('Original dataset shape %s' % Counter(y))
-
-
-from sklearn.preprocessing import StandardScaler
-X = StandardScaler().fit_transform(X)
+# n_features = 50
+# X, y = make_classification(n_classes=2, class_sep=3, weights=[0.01, 0.99], n_informative=2, n_redundant=1, flip_y=0,
+#                            n_features=n_features, n_clusters_per_class=1, n_samples=1000, random_state=10)
+# print('Original dataset shape %s' % Counter(y))
+#
+#
+# from sklearn.preprocessing import StandardScaler
+# X = StandardScaler().fit_transform(X)
 #
 # columns = [str(x) for x in range(n_features)]
 # df = pd.DataFrame(X, columns=columns)
@@ -158,9 +236,9 @@ X = StandardScaler().fit_transform(X)
 
 # oversampling all
 # don't oversampling with smote to much
-sm = SMOTE(random_state=42)
-X_res, y_res = sm.fit_resample(X, y)
-print('Resampled dataset shape %s' % Counter(y_res))
+# sm = SMOTE(random_state=42)
+# X_res, y_res = sm.fit_resample(X, y)
+# print('Resampled dataset shape %s' % Counter(y_res))
 
 # columns = [str(x) for x in range(n_features)]
 # df = pd.DataFrame(X_res, columns=columns)
@@ -294,17 +372,17 @@ print('Resampled dataset shape %s' % Counter(y_res))
 # print("predict_proba", pred_onx[1][:1])
 
 # save with metadata
-import onnx
-model = onnx.load(saved_model_path + "ft_test_xgboost.onnx")
-meta = model.metadata_props.add()
-meta.key = "cfg"
-cfg = {"input_type": "float", "input_shape": [None, n_features], "labels": {0: "fraud", 1: "normal"}}
-meta.value = str(cfg)
-onnx.save(model, saved_model_path + "ft_test_xgboost_1.onnx")
-
-# loading
-cfg_s = eval(onnx.load(saved_model_path + "ft_test_xgboost_1.onnx").metadata_props[0].value)
-print(cfg_s)
+# import onnx
+# model = onnx.load(saved_model_path + "ft_test_xgboost.onnx")
+# meta = model.metadata_props.add()
+# meta.key = "cfg"
+# cfg = {"input_type": "float", "input_shape": [None, n_features], "labels": {0: "fraud", 1: "normal"}}
+# meta.value = str(cfg)
+# onnx.save(model, saved_model_path + "ft_test_xgboost_1.onnx")
+#
+# # loading
+# cfg_s = eval(onnx.load(saved_model_path + "ft_test_xgboost_1.onnx").metadata_props[0].value)
+# print(cfg_s)
 
 # evaluate model
 # scores = cross_val_score(model, X_res, y_res, scoring='roc_auc', cv=cv, n_jobs=1)
