@@ -1,5 +1,6 @@
 # # make dataset
 #
+# data trimming
 # import pandas as pd
 # from statics import ROOT_DIR
 
@@ -43,132 +44,106 @@
 # searchfor = ['CCM', 'CCW']
 # df = df[df.메뉴.str.contains('|'.join(searchfor))]
 # df.to_csv(ROOT_DIR + "/dataset/fd_test/fd_dataset_trimmed.csv", index=False)
+
+
+# refine data with trimmed dataset
+# import pandas as pd
+# from statics import ROOT_DIR
+# dataset_path = ROOT_DIR + "/dataset/fd_test/fd_dataset_trimmed.csv"
+# df = pd.read_csv(dataset_path)
+# df.fillna("", inplace=True)
+# df["EVENT"] = df.메뉴.str.cat(df.프로그램명)
+# df['시간'] = pd.to_datetime(df['시간'], errors='coerce')
+# df['DATE'] = df['시간'].dt.strftime("%Y-%m-%d")
 #
-
-
-# with trimmed dataset
-import pandas as pd
-from statics import ROOT_DIR
-dataset_path = ROOT_DIR + "/dataset/fd_test/fd_dataset_trimmed.csv"
-df = pd.read_csv(dataset_path)
-df.fillna("", inplace=True)
-df["EVENT"] = df.메뉴.str.cat(df.프로그램명)
-df['시간'] = pd.to_datetime(df['시간'], errors='coerce')
-df['DATE'] = df['시간'].dt.strftime("%Y-%m-%d")
-
-sequences = df["SEQ"].unique().tolist()
-df_sep_seq = []
-for sequence in sequences:
-    # multi cust id in same ip -> pass check number
-    df_sep_seq.append(df[df["SEQ"] == sequence].reset_index(drop=True))
-start_events = ["CCMLO0101", "CCWLO0101", "CCMMS0101SL01", "CCWMS0101SL01"]
-end_event = ["CCMLN0101PC01", "CCWLN0101PC01", "CCWRD0201PC01", "CCMRD0201PC01"]
-
-count = 0
-n_df_list = []
-for idx, df_seq in enumerate(df_sep_seq):
-    # sep by date
-    dates = df_seq["DATE"].unique().tolist()
-    df_sep_date_list = []
-    for date in dates:
-        df_sep_date_list.append(df_seq[df_seq["DATE"] == date].reset_index(drop=True))
-
-    for df_sep_date in df_sep_date_list:
-        # sep by ip
-        ips = df_sep_date["로그인IP"].unique().tolist()
-        df_sep_ip_list = []
-        for ip in ips:
-            df_sep_ip_list.append(df_sep_date[df_sep_date["로그인IP"] == ip].reset_index(drop=True))
-        for df_sep_ip in df_sep_ip_list:
-            start_idx_list = df_sep_ip.index[df_sep_ip["EVENT"].isin(start_events)].tolist()
-            end_idx_list = df_sep_ip.index[df_sep_ip["EVENT"].isin(end_event)].tolist()
-            if len(start_idx_list) != 0 and len(end_idx_list) != 0:
-                start_idx = start_idx_list[0]
-                for t_idx, end_idx in enumerate(end_idx_list):
-                    if start_idx >= end_idx + 1:
-                        break
-                    count += 1
-                    temp_df = df_sep_ip[start_idx:end_idx + 1]
-                    temp_df.loc[:, "SEQ"] = count
-                    n_df_list.append(temp_df)
-                    for t_start_idx in start_idx_list:
-                        if t_start_idx >= end_idx + 1:
-                            start_idx = t_start_idx
-                            break
-
-
-print("done")
-print(len(n_df_list))
-n_df = pd.concat(n_df_list, ignore_index=True)
-n_df["SEQ"].unique()
-n_df["로그인유형"].replace("", "N/A")
-n_df["비고"].replace("", "N/A")
-assert not n_df.isnull().values.any()
-n_df.to_csv(ROOT_DIR + "/dataset/fd_test/fraud_dataset_refine.csv", index=False, encoding="utf-8-sig")
-n_df.keys()
-# drop seq
-# df.drop(["SEQ"], axis=1)
-
-
-
-
-# df.keys()
-# df["메뉴"] = df["메뉴"].str.replace("CCW", "CCM")
-
-
-
-# print(df.keys())
-# df = df[["MID", "IP", "PID", "PR", "Class"]]
+# sequences = df["SEQ"].unique().tolist()
+# df_sep_seq = []
+# for sequence in sequences:
+#     df_sep_seq.append(df[df["SEQ"] == sequence].reset_index(drop=True))
+# start_events = ["CCMLO0101", "CCWLO0101", "CCMMS0101SL01", "CCWMS0101SL01"]
+# end_event = ["CCMLN0101PC01", "CCWLN0101PC01", "CCWRD0201PC01", "CCMRD0201PC01"]
 #
-# # CCM -> CCW check it is good to go
-# df["MID"] = df["MID"].str.replace("CCW", "CCM")
-# df[["PID"]] = df[["PID"]].fillna(value="NA")
-# df["EVT"] = df.MID.str.cat(df.PID, sep='-')
+# count = 0
+# num_multi_cust_id = 0
+# n_df_list = []
+# for idx, df_seq in enumerate(df_sep_seq):
+#     # sep by date
+#     dates = df_seq["DATE"].unique().tolist()
+#     df_sep_date_list = []
+#     for date in dates:
+#         df_sep_date_list.append(df_seq[df_seq["DATE"] == date].reset_index(drop=True))
 #
-# # check null
-# assert not df.isnull().values.any()
+#     for df_sep_date in df_sep_date_list:
+#         # sep by ip
+#         ips = df_sep_date["로그인IP"].unique().tolist()
+#         df_sep_ip_list = []
+#         for ip in ips:
+#             df_sep_ip_list.append(df_sep_date[df_sep_date["로그인IP"] == ip].reset_index(drop=True))
+#         for df_sep_ip in df_sep_ip_list:
+#             if len(df_sep_ip["고객ID"].unique().tolist()) > 2:
+#                 num_multi_cust_id += 1
+#                 continue
+#             start_idx_list = df_sep_ip.index[df_sep_ip["EVENT"].isin(start_events)].tolist()
+#             end_idx_list = df_sep_ip.index[df_sep_ip["EVENT"].isin(end_event)].tolist()
+#             if len(start_idx_list) != 0 and len(end_idx_list) != 0:
+#                 start_idx = start_idx_list[0]
+#                 for end_idx in end_idx_list:
+#                     count += 1
+#                     temp_df = df_sep_ip[start_idx:end_idx + 1]
+#                     temp_df.loc[:, "SEQ"] = count
+#                     n_df_list.append(temp_df.copy())
 #
-# # uniques to col
-# events = df["EVT"].unique().tolist()
-# len(events)
+# print("done")
+# print(num_multi_cust_id)
+# print(len(n_df_list))
+# n_df = pd.concat(n_df_list, ignore_index=True)
+# n_df["SEQ"].unique()
+# n_df["로그인유형"].replace("", "N/A")
+# n_df["비고"].replace("", "N/A")
+# assert not n_df.isnull().values.any()
+# n_df.to_csv(ROOT_DIR + "/dataset/fd_test/fraud_dataset_refine.csv", index=False, encoding="utf-8-sig")
+# n_df.keys()
+
+
+# make dataset to tabular
+# import pandas as pd
+# from statics import ROOT_DIR
+# dataset_path = ROOT_DIR + "/dataset/fd_test/fraud_dataset_refine.csv"
+# df = pd.read_csv(dataset_path)
+# df.drop(['메뉴', '메뉴명', "고객ID", "로그인IP", "프로그램명", "시간", "금액", "로그인유형", "비고", "DATE"], axis=1, inplace=True)
+# df["EVENT"] = df["EVENT"].str.replace("CCW", "CCM")
+# classes = {"정상": 0, "금융사기": 1}
+# df["정상여부"] = df["정상여부"].apply(classes.get).astype(int)
 #
-# # sep with ip
-# ips = df["IP"].unique().tolist()
+# events = df["EVENT"].unique().tolist()
+# tabular_dataset = pd.DataFrame(columns=["SEQ"] + events + ["label"])
+#
+# # sep with seq
+# seqs = df["SEQ"].unique().tolist()
 # tdfs = []
-# for ip in ips:
-#     tdfs.append(df[df['IP'] == ip].reset_index(drop=True))
+# for seq in seqs:
+#     tdfs.append(df[df["SEQ"] == seq].reset_index(drop=True))
 #
-# begin_event = "CCMLO0101"   # login
-# dataset = pd.DataFrame(columns=["IP"] + events + ["label"])
+# total = len(tdfs)
+# for _, tdf in enumerate(tdfs):
+#     print(_+1, "/", total)
+#     seq = tdf["SEQ"].iloc[0]
+#     label = tdf["정상여부"].iloc[0]
+#     counted_items = (dict(tdf["EVENT"].value_counts()))
+#     data_row = {"SEQ": seq, "label": label}
+#     data_row.update(counted_items)
+#     data_row = pd.DataFrame([data_row])
+#     tabular_dataset = pd.concat([tabular_dataset, data_row], ignore_index=True)
 #
-# for tdf in tdfs:
-#     ip = tdf["IP"].iloc[0]
-#     label = tdf["Class"].iloc[0]
-#     start_idxes = tdf.index[tdf["MID"] == begin_event].tolist()
-#     end_idxes = tdf.index[tdf["PR"] != 0].tolist()
-#     start_idx = start_idxes[0]
-#     if len(start_idxes) == 0:
-#         continue
-#     if len(end_idxes) == 0:
-#         temp_df = tdf[start_idx:]
-#         counted_items = (dict(temp_df["EVT"].value_counts()))
-#         data_row = {"IP": ip, "label": label}
-#         data_row.update(counted_items)
-#         data_row = pd.DataFrame([data_row])
-#         dataset = pd.concat([dataset, data_row], ignore_index=True)
-#     else:
-#         for end_idx in end_idxes:
-#             temp_df = tdf[start_idx:end_idx+1]
-#             counted_items = (dict(temp_df["EVT"].value_counts()))
-#             data_row = {"IP": ip, "label": label}
-#             data_row.update(counted_items)
-#             data_row = pd.DataFrame([data_row])
-#             dataset = pd.concat([dataset, data_row], ignore_index=True)
-#             for it_start_idx in start_idxes:
-#                 if it_start_idx > end_idx+1:
-#                     start_idx = it_start_idx
+# tabular_dataset.to_csv(ROOT_DIR + "/dataset/fd_test/fraud_dataset_tabular.csv", sep=",",
+#                        index=False, encoding="utf-8-sig")
 #
-# dataset.to_csv(ROOT_DIR + "/dataset/fd_test/fd_dataset_tabular.csv", na_rep=0, sep=",", index=False)
+# print("done")
+
+
+# feature engineering
+
+
 
 
 # make model
