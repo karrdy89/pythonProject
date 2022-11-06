@@ -142,9 +142,82 @@
 
 
 # feature engineering
+# count it one col that not included in abnormal
+# import pandas as pd
+# from statics import ROOT_DIR
+#
+# dataset_path = ROOT_DIR + "/dataset/fd_test/fraud_dataset_tabular.csv"
+# df = pd.read_csv(dataset_path)
+# df.fillna(0, inplace=True)
+# df_abnormal = df[df["label"] == 1].reset_index(drop=True)
+#
+# nc_cols = []
+# for column in df_abnormal:
+#     if column != "label" and column != "SEQ":
+#         if df_abnormal[column].sum() == 0:
+#             nc_cols.append(column)
+#
+# nc_df = df.loc[:, nc_cols]
+# df["ETC"] = nc_df.sum(axis="columns")
+# df.drop(nc_cols, axis=1, inplace=True)
+# cols = df.columns.tolist()
+# cols = cols[:-2] + [cols[-1]] + [cols[-2]]
+# df = df[cols]
+# df.to_csv(ROOT_DIR + "/dataset/fd_test/fraud_dataset_tabular_fc.csv", sep=",", index=False, encoding="utf-8-sig")
+
+# try pca or lda
+# try feature selection(get feature importance)
+# try t-sne
 
 
+import pandas as pd
+import numpy as np
+from statics import ROOT_DIR
 
+dataset_path = ROOT_DIR + "/dataset/fd_test/fraud_dataset_tabular_fc.csv"
+df = pd.read_csv(dataset_path)
+# random forest with random undersampling for imbalanced classification
+df_labels = df[["label"]]
+df.drop(["SEQ", "label"], axis=1, inplace=True)
+X = np.array(df.values.tolist())
+y = np.array(df_labels.values.tolist()).ravel()
+X_test_pos = X[:17]
+y_test_pos = y[:17]
+X_test_neg = X[-17:]
+y_test_neg = y[-17:]
+
+
+from sklearn.preprocessing import RobustScaler
+X = RobustScaler().fit_transform(X)
+
+from sklearn.utils import shuffle
+X, y = shuffle(X, y)
+
+from numpy import mean
+from sklearn.model_selection import cross_val_score, cross_validate
+from sklearn.model_selection import RepeatedStratifiedKFold
+from imblearn.ensemble import BalancedRandomForestClassifier
+
+# define model
+model = BalancedRandomForestClassifier(n_estimators=10)
+# define evaluation procedure
+cv = RepeatedStratifiedKFold(n_splits=10, n_repeats=3, random_state=1)
+# evaluate model
+# scores = cross_val_score(model, X, y, scoring='roc_auc', cv=cv, n_jobs=1)
+
+# summarize performance
+# print('Mean ROC AUC: %.3f' % mean(scores))
+
+cv_result = cross_validate(model, X, y, scoring='roc_auc', cv=cv, n_jobs=1, return_estimator=True,
+                           return_train_score=True)
+# print(cv_result["estimator"])
+# print(cv_result["train_score"])
+# print(cv_result["test_score"])
+# summarize performance
+print('Mean Train ROC AUC: %.3f' % mean(cv_result["train_score"]))
+est_0 = cv_result["estimator"][0]
+est_0.predict(X_test_pos)
+est_0.predict_proba(X_test_neg)
 
 # make model
 
