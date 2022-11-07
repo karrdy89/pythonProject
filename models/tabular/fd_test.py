@@ -165,43 +165,151 @@
 # df = df[cols]
 # df.to_csv(ROOT_DIR + "/dataset/fd_test/fraud_dataset_tabular_fc.csv", sep=",", index=False, encoding="utf-8-sig")
 
+#
+# import pandas as pd
+# import numpy as np
+# import matplotlib.pyplot as plt
+# from statics import ROOT_DIR
+#
+# dataset_path = ROOT_DIR + "/dataset/fd_test/fraud_dataset_tabular_fc.csv"
+# df = pd.read_csv(dataset_path)
+# df_labels = df[["label"]]
+# dft = df.drop(["SEQ", "label"], axis=1)
+# feature_list = dft.keys().tolist()
+# X = np.array(dft.values.tolist())
+# y = np.array(df_labels.values.tolist()).ravel()
+# X_test_pos = X[:17]
+# y_test_pos = y[:17]
+# X_test_neg = X[-17:]
+# y_test_neg = y[-17:]
+#
+# # visualization original data
+# # from sklearn.manifold import TSNE
+# #
+# #
+# # t_sne_1 = TSNE(n_components=2, perplexity=5, n_iter=3000, learning_rate="auto", init="pca")
+# # res_0 = t_sne_1.fit_transform(X[:-17])
+# #
+# # t_sne_2 = TSNE(n_components=2, perplexity=1, n_iter=3000, learning_rate="auto", init="pca")
+# # res_1 = t_sne_2.fit_transform(X[-17:])
+# #
+# # plt.scatter(res_0[:, 0], res_0[:, 1])
+# # plt.scatter(res_1[:, 0], res_1[:, 1])
+# # plt.show()
+#
+#
+# from sklearn.preprocessing import RobustScaler
+# X = RobustScaler().fit_transform(X)
+#
+# from sklearn.utils import shuffle
+# X, y = shuffle(X, y)
+#
+# from numpy import mean
+# from sklearn.model_selection import cross_validate
+# from sklearn.model_selection import RepeatedStratifiedKFold
+# from imblearn.ensemble import BalancedRandomForestClassifier
+#
+# # random forest with random undersampling for imbalanced classification
+# model = BalancedRandomForestClassifier(n_estimators=10)
+# # define evaluation procedure
+# cv = RepeatedStratifiedKFold(n_splits=10, n_repeats=3, random_state=1)
+#
+# cv_result = cross_validate(model, X, y, scoring='roc_auc', cv=cv, n_jobs=1, return_estimator=True,
+#                            return_train_score=True)
+# # print(cv_result["estimator"])
+# # print(cv_result["train_score"])
+# # print(cv_result["test_score"])
+# # summarize performance
+# print('Mean Train ROC AUC: %.3f' % mean(cv_result["train_score"]))
+# est_0 = cv_result["estimator"][0]
+# est_0.predict(X_test_neg)
+# est_0.predict_proba(X_test_neg)
+#
+# # get feature importance and drop non imp feature
+# importance = est_0.feature_importances_
+# fi_std = np.std([tree.feature_importances_ for tree in est_0.estimators_], axis=0)
+# indices = np.argsort(importance)[::-1]
+#
+# forest_importances = pd.Series(importance, index=feature_list)
+#
+# print("feature ranking")
+# for i in range(len(feature_list)):
+#     print("{}. feature {} ({:.3f}) ".format(i+1, feature_list[indices[i]], importance[indices[i]]))
 
+# import matplotlib.pyplot as plt
+# fig, ax = plt.subplots()
+# forest_importances.plot.bar(yerr=fi_std, ax=ax)
+# ax.set_title("Feature importances using MDI")
+# ax.set_ylabel("Mean decrease in impurity")
+# fig.tight_layout()
+# plt.show()
+#
+# non_imp_feature = []
+# for i, f in enumerate(fi_std):
+#     if f == 0:
+#         non_imp_feature.append(feature_list[i])
+#
+# print(non_imp_feature)
+#
+# df.drop(non_imp_feature, axis=1, inplace=True)
+# df.to_csv(ROOT_DIR + "/dataset/fd_test/fraud_dataset_tabular_fc_fs.csv", sep=",", index=False, encoding="utf-8-sig")
+#
+# print("done")
+
+
+from imblearn.over_sampling import ADASYN, SMOTE
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from statics import ROOT_DIR
 
-dataset_path = ROOT_DIR + "/dataset/fd_test/fraud_dataset_tabular_fc.csv"
+dataset_path = ROOT_DIR + "/dataset/fd_test/fraud_dataset_tabular_fc_fs.csv"
 df = pd.read_csv(dataset_path)
 df_labels = df[["label"]]
-df.drop(["SEQ", "label"], axis=1, inplace=True)
-feature_list = df.keys().tolist()
-X = np.array(df.values.tolist())
+dft = df.drop(["SEQ", "label"], axis=1)
+feature_list = dft.keys().tolist()
+X = np.array(dft.values.tolist())
 y = np.array(df_labels.values.tolist()).ravel()
-X_test_pos = X[:17]
-y_test_pos = y[:17]
-X_test_neg = X[-17:]
-y_test_neg = y[-17:]
+X_org = X
+y_org = y
+original_data_idx = len(X_org)
+num_testdata = len(df[df["label"] == 1])
+# try t-sne on adasyn, smote
+# adasyn_100, adasyn_25, smote_100, smote_25
+sm = SMOTE(random_state=42)
+sm_25 = SMOTE(random_state=42, sampling_strategy=0.25)
+ad = ADASYN(random_state=43)
+ad_25 = ADASYN(random_state=43, sampling_strategy=0.25)
+X_smote_100, y_smote_100 = sm.fit_resample(X, y)
+X_smote_25, y_smote_25 = sm_25.fit_resample(X, y)
+X_adasyn_100, y_adasyn_100 = ad.fit_resample(X, y)
+X_adasyn_25, y_adasyn_25 = ad_25.fit_resample(X, y)
+
+X_smote_100_expt_org = np.concatenate([X_smote_100[:original_data_idx - num_testdata], X_smote_100[original_data_idx:]])
+y_smote_100_expt_org = np.concatenate([y_smote_100[:original_data_idx - num_testdata], y_smote_100[original_data_idx:]])
+
+X_smote_25_expt_org = np.concatenate([X_smote_25[:original_data_idx - num_testdata], X_smote_25[original_data_idx:]])
+y_smote_25_expt_org = np.concatenate([y_smote_25[:original_data_idx - num_testdata], y_smote_25[original_data_idx:]])
+
+X_adasyn_100_expt_org = np.concatenate([X_adasyn_100[:original_data_idx - num_testdata], X_adasyn_100[original_data_idx:]])
+y_adasyn_100_expt_org = np.concatenate([y_adasyn_100[:original_data_idx - num_testdata], y_adasyn_100[original_data_idx:]])
+
+X_adasyn_25_expt_org = np.concatenate([X_adasyn_25[:original_data_idx - num_testdata], X_adasyn_25[original_data_idx:]])
+y_adasyn_25_expt_org = np.concatenate([y_adasyn_25[:original_data_idx - num_testdata], y_adasyn_25[original_data_idx:]])
 
 # visualization original data
-from sklearn.manifold import TSNE
-
-
-t_sne_1 = TSNE(n_components=2, perplexity=5, n_iter=3000, learning_rate="auto", init="pca")
-res_0 = t_sne_1.fit_transform(X[:-17])
-
-t_sne_2 = TSNE(n_components=2, perplexity=1, n_iter=3000, learning_rate="auto", init="pca")
-res_1 = t_sne_2.fit_transform(X[-17:])
-
-plt.scatter(res_0[:, 0], res_0[:, 1])
-plt.scatter(res_1[:, 0], res_1[:, 1])
-plt.show()
-
-# delete non_imp_feature and visualization
-
-
-# try t-sne on adasyn, smote
-
+# from sklearn.manifold import TSNE
+#
+#
+# t_sne_1 = TSNE(n_components=2, perplexity=5, n_iter=3000, learning_rate="auto", init="pca")
+# res_0 = t_sne_1.fit_transform(X[:-17])
+#
+# t_sne_2 = TSNE(n_components=2, perplexity=1, n_iter=3000, learning_rate="auto", init="pca")
+# res_1 = t_sne_2.fit_transform(X[-17:])
+#
+# plt.scatter(res_0[:, 0], res_0[:, 1], label="0")
+# plt.scatter(res_1[:, 0], res_1[:, 1], label="1")
+# plt.show()
 
 
 from sklearn.preprocessing import RobustScaler
@@ -211,54 +319,29 @@ from sklearn.utils import shuffle
 X, y = shuffle(X, y)
 
 from numpy import mean
-from sklearn.model_selection import cross_val_score, cross_validate
+from sklearn.model_selection import cross_validate
 from sklearn.model_selection import RepeatedStratifiedKFold
+from sklearn.ensemble import RandomForestClassifier
 from imblearn.ensemble import BalancedRandomForestClassifier
 
+clf = RandomForestClassifier(n_estimators=10)
 # random forest with random undersampling for imbalanced classification
-model = BalancedRandomForestClassifier(n_estimators=10)
+brdc_model = BalancedRandomForestClassifier(n_estimators=10)
 # define evaluation procedure
 cv = RepeatedStratifiedKFold(n_splits=10, n_repeats=3, random_state=1)
 
-cv_result = cross_validate(model, X, y, scoring='roc_auc', cv=cv, n_jobs=1, return_estimator=True,
-                           return_train_score=True)
-# print(cv_result["estimator"])
-# print(cv_result["train_score"])
-# print(cv_result["test_score"])
+cv_result = cross_validate(brdc_model, X_smote_25_expt_org, y_smote_25_expt_org, scoring='roc_auc', cv=cv, n_jobs=1,
+                           return_estimator=True, return_train_score=True)
 # summarize performance
 print('Mean Train ROC AUC: %.3f' % mean(cv_result["train_score"]))
 est_0 = cv_result["estimator"][0]
-est_0.predict(X_test_pos)
-est_0.predict_proba(X_test_neg)
-
-# get feature importance
-importance = est_0.feature_importances_
-fi_std = np.std([tree.feature_importances_ for tree in est_0.estimators_], axis=0)
-indices = np.argsort(importance)[::-1]
-
-forest_importances = pd.Series(importance, index=feature_list)
-
-print("feature ranking")
-for i in range(len(feature_list)):
-    print("{}. feature {} ({:.3f}) ".format(i+1, feature_list[indices[i]], importance[indices[i]]))
-
-# import matplotlib.pyplot as plt
-# fig, ax = plt.subplots()
-# forest_importances.plot.bar(yerr=fi_std, ax=ax)
-# ax.set_title("Feature importances using MDI")
-# ax.set_ylabel("Mean decrease in impurity")
-# fig.tight_layout()
-# plt.show()
-
-non_imp_feature = []
-for i, f in enumerate(fi_std):
-    if f == 0:
-        non_imp_feature.append(feature_list[i])
-
-print(non_imp_feature)
+est_0.predict(X_org[-17:])
+est_0.predict_proba(X_org[-17:])
 
 
+# try XGBoost
 
+# tuning and conclusion
 
 
 
