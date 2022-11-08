@@ -610,8 +610,8 @@ from sklearn.utils import shuffle
 X_oversampled_expt_org, y_oversampled_expt_org = shuffle(X_oversampled_expt_org, y_oversampled_expt_org)
 X_sp_ov_train, y_sp_ov_train = shuffle(X_sp_ov_train, y_sp_ov_train)
 
-# pos_neg_count = Counter(y_sp_ov_train)
-# print('Resampled dataset shape %s' % pos_neg_count)
+pos_neg_count = Counter(y_sp_ov_train)
+print('Resampled dataset shape %s' % pos_neg_count)
 # scale_pos_weight = pos_neg_count.get(0) / pos_neg_count.get(1)
 # print(scale_pos_weight)
 
