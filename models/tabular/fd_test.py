@@ -553,7 +553,8 @@ from sklearn.pipeline import Pipeline
 dataset_path = ROOT_DIR + "/dataset/fd_test/fraud_dataset_tabular_fc_fs.csv"
 df = pd.read_csv(dataset_path)
 df_labels = df[["label"]]
-dft = df.drop(["SEQ", "label"], axis=1)
+# dft = df.drop(["SEQ", "label"], axis=1)
+dft = df.drop(["SEQ", "label", "ETC"], axis=1)
 feature_list = dft.keys().tolist()
 X = np.array(dft.values.tolist())
 y = np.array(df_labels.values.tolist()).ravel()
@@ -609,11 +610,11 @@ pipe.predict(X_org[-17:len(X_org)])
 y_org[-17:len(y_org)]
 # game set
 
-# just randomly extract normal data (100), and scoring, draw confusion matrix, more tuning
-
 
 # tuning and conclusion
-
+# just randomly extract normal data (100), and scoring, draw confusion matrix, more tuning
+# data visualization, get result of drop ECT col -> doesn't matter
+# save XGBoost model
 
 
 
