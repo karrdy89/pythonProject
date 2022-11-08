@@ -578,39 +578,48 @@ def split_train_test(X_array, y_array, num_neg, num_pos_test, num_neg_test, retu
     X_pos_data = np.delete(X_pos_data, pos_indices, 0)
     y_pos_data = np.delete(y_pos_data, pos_indices, 0)
 
-    neg_indices = np.random.choice(len(X_neg_data)-1, num_neg_test, replace=False)
-    X_neg_test = X_neg_data[neg_indices, :]
-    y_neg_test = y_neg_data[neg_indices, :]
-    X_neg_data = np.delete(X_neg_data, neg_indices, 0)
-    y_neg_data = np.delete(y_neg_data, neg_indices, 0)
-
-    X_train = np.concatenate([X_pos_data, X_neg_data])
-    y_train = np.concatenate([y_pos_data.ravel(), y_neg_data.ravel()])
-    X_test = np.concatenate([X_pos_test, X_neg_test])
-    y_test = np.concatenate([y_pos_test.ravel(), y_neg_test.ravel()])
+    if num_neg_test != -1:
+        neg_indices = np.random.choice(len(X_neg_data)-1, num_neg_test, replace=False)
+        X_neg_test = X_neg_data[neg_indices, :]
+        y_neg_test = y_neg_data[neg_indices, :]
+        X_neg_data = np.delete(X_neg_data, neg_indices, 0)
+        y_neg_data = np.delete(y_neg_data, neg_indices, 0)
+        X_train = np.concatenate([X_pos_data, X_neg_data])
+        y_train = np.concatenate([y_pos_data.ravel(), y_neg_data.ravel()])
+        X_test = np.concatenate([X_pos_test, X_neg_test])
+        y_test = np.concatenate([y_pos_test.ravel(), y_neg_test.ravel()])
+    else:
+        X_neg_test = X_neg_data
+        y_neg_test = y_neg_data
+        X_train = X_pos_data
+        y_train = y_pos_data.ravel()
+        X_test = np.concatenate([X_pos_test, X_neg_test])
+        y_test = np.concatenate([y_pos_test.ravel(), y_neg_test.ravel()])
     if return_test:
         return X_train, y_train, X_test, y_test
     else:
         return X_train, y_train
 
 sm = SMOTE(random_state=42, sampling_strategy=0.6)
-ad = ADASYN(random_state=43, sampling_strategy=0.35)
+ad = ADASYN(random_state=43, sampling_strategy=0.4)
 X_oversampled, y_oversampled = ad.fit_resample(X, y)
 
-X_oversampled_expt_org = np.concatenate([X_oversampled[:original_data_idx - num_testdata], X_oversampled[original_data_idx:]])
-y_oversampled_expt_org = np.concatenate([y_oversampled[:original_data_idx - num_testdata], y_oversampled[original_data_idx:]])
-
-X_sp_ov_train, y_sp_ov_train, x_t_test, y_t_test = \
-    split_train_test(X_oversampled[:original_data_idx], y_oversampled[:original_data_idx], num_testdata, 50, 10, True)
+X_sp_ov_train, y_sp_ov_train, X_sp_ov_t_test, y_sp_ov_t_test = \
+    split_train_test(X_oversampled[:original_data_idx], y_oversampled[:original_data_idx], num_testdata, 500, 10, True)
 X_sp_ov_train = np.concatenate([X_sp_ov_train, X_oversampled[original_data_idx:]])
 y_sp_ov_train = np.concatenate([y_sp_ov_train, y_oversampled[original_data_idx:]])
 
+X_ov_train, y_ov_train, X_ov_t_test, y_ov_t_test = \
+    split_train_test(X_oversampled[:original_data_idx], y_oversampled[:original_data_idx], num_testdata, 500, -1, True)
+X_ov_train = np.concatenate([X_ov_train, X_oversampled[original_data_idx:]])
+y_ov_train = np.concatenate([y_ov_train, y_oversampled[original_data_idx:]])
+
 
 from sklearn.utils import shuffle
-X_oversampled_expt_org, y_oversampled_expt_org = shuffle(X_oversampled_expt_org, y_oversampled_expt_org)
+X_ov_train, y_ov_train = shuffle(X_ov_train, y_ov_train)
 X_sp_ov_train, y_sp_ov_train = shuffle(X_sp_ov_train, y_sp_ov_train)
 
-pos_neg_count = Counter(y_sp_ov_train)
+pos_neg_count = Counter(y_ov_train)
 print('Resampled dataset shape %s' % pos_neg_count)
 # scale_pos_weight = pos_neg_count.get(0) / pos_neg_count.get(1)
 # print(scale_pos_weight)
@@ -619,10 +628,10 @@ model = XGBClassifier(learning_rate=0.01,
                       colsample_bytree=1,
                       subsample=1,
                       objective='binary:logistic',
-                      n_estimators=800,
+                      n_estimators=1300,
                       reg_alpha=0.3,
-                      max_depth=4,
-                      scale_pos_weight=700,
+                      max_depth=5,
+                      scale_pos_weight=720,
                       gamma=0.25)
 
 # br on test
@@ -649,20 +658,18 @@ pipe = Pipeline([('scaler', RobustScaler()),
                  ('rf_classifier', model)])
 # define evaluation procedure
 cv = RepeatedStratifiedKFold(n_splits=10, n_repeats=3, random_state=1)
-roc_auc_scores = cross_val_score(pipe, X_sp_ov_train, y_sp_ov_train, scoring='roc_auc', cv=cv, n_jobs=1)
-f1_scores = cross_val_score(pipe, X_sp_ov_train, y_sp_ov_train, scoring='f1', cv=cv, n_jobs=1)
+roc_auc_scores = cross_val_score(pipe, X_ov_train, y_ov_train, scoring='roc_auc', cv=cv, n_jobs=1)
+f1_scores = cross_val_score(pipe, X_ov_train, y_ov_train, scoring='f1', cv=cv, n_jobs=1)
 print('Mean ROC AUC: %.3f' % mean(roc_auc_scores))
 print('Mean F1: %.3f' % mean(f1_scores))
 
-pipe.fit(X_sp_ov_train, y_sp_ov_train)
-# pipe.predict(X_org[-17:len(X_org)])
-# y_org[-17:len(y_org)]
+pipe.fit(X_ov_train, y_ov_train)
 
 from sklearn.metrics import f1_score
 from sklearn.metrics import confusion_matrix
-pred_test = pipe.predict(x_t_test)
-print(f1_score(y_t_test, pred_test, average='binary', zero_division=1))
-conf_matrix = confusion_matrix(y_true=y_t_test, y_pred=pred_test)
+pred_test = pipe.predict(X_ov_t_test)
+print(f1_score(y_ov_t_test, pred_test, average='binary', zero_division=1))
+conf_matrix = confusion_matrix(y_true=y_ov_t_test, y_pred=pred_test)
 print(conf_matrix.ravel())
 import matplotlib.pyplot as plt
 fig, ax = plt.subplots(figsize=(5, 5))
@@ -700,13 +707,13 @@ plt.show()
 # if not os.path.exists(saved_model_path):
 #     os.makedirs(saved_model_path)
 #
-# with open(saved_model_path + "fd_xgboost.onnx", "wb") as f:
+# with open(saved_model_path + "fd_xgboost_ov.onnx", "wb") as f:
 #     f.write(model_onnx.SerializeToString())
-#
-#
+
+
 # import onnxruntime as rt
 # sess = rt.InferenceSession(saved_model_path + "fd_xgboost.onnx")
 # pred_onx = sess.run(None, {"input": x_t_test.astype(np.float32)})
 # print("predict", pred_onx[0])
 # print("predict_proba", pred_onx[1][:1])
-#
+
