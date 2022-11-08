@@ -391,7 +391,7 @@ y_org = y
 original_data_idx = len(X_org)
 num_testdata = len(df[df["label"] == 1])
 
-# adasyn_100, adasyn_25, smote_100, smote_25
+# best result on adasyn 40
 sm = SMOTE(random_state=42, sampling_strategy=0.40)
 ad = ADASYN(random_state=43, sampling_strategy=0.40)
 X_smote, y_smote = sm.fit_resample(X, y)
@@ -472,7 +472,7 @@ est_0.predict(X_neg_test)
 
 
 # try XGBoost 1. no oversample 2. only oversample, 3. train test set
-
+# add f1 score
 
 
 
