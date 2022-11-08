@@ -165,7 +165,8 @@
 # df = df[cols]
 # df.to_csv(ROOT_DIR + "/dataset/fd_test/fraud_dataset_tabular_fc.csv", sep=",", index=False, encoding="utf-8-sig")
 
-#
+
+# feature selection
 # import pandas as pd
 # import numpy as np
 # import matplotlib.pyplot as plt
@@ -373,11 +374,130 @@
 
 
 # split with 50% test_neg(9), test_pos(1000) <- random extract and delete
-from imblearn.over_sampling import ADASYN, SMOTE
+# from imblearn.over_sampling import ADASYN, SMOTE
+# import pandas as pd
+# import numpy as np
+# import matplotlib.pyplot as plt
+# from statics import ROOT_DIR
+#
+# dataset_path = ROOT_DIR + "/dataset/fd_test/fraud_dataset_tabular_fc_fs.csv"
+# df = pd.read_csv(dataset_path)
+# df_labels = df[["label"]]
+# dft = df.drop(["SEQ", "label"], axis=1)
+# feature_list = dft.keys().tolist()
+# X = np.array(dft.values.tolist())
+# y = np.array(df_labels.values.tolist()).ravel()
+# X_org = X
+# y_org = y
+# original_data_idx = len(X_org)
+# num_testdata = len(df[df["label"] == 1])
+#
+# # best result on adasyn 40
+# sm = SMOTE(random_state=42, sampling_strategy=0.40)
+# ad = ADASYN(random_state=43, sampling_strategy=0.40)
+# X_smote, y_smote = sm.fit_resample(X, y)
+# X_adasyn, y_adasyn = ad.fit_resample(X, y)
+#
+#
+# def split_train_test(X_array, y_array, num_neg, num_pos_test, num_neg_test, return_test):
+#     X_origin_data = X_array
+#     y_origin_data = y_array
+#     X_pos_data = X_origin_data[:-num_neg]
+#     y_pos_data = y_origin_data[:-num_neg]
+#     y_pos_data = y_pos_data.reshape(y_pos_data.shape[0], -1)
+#     X_neg_data = X_origin_data[-num_neg:]
+#     y_neg_data = y_origin_data[-num_neg:]
+#     y_neg_data = y_neg_data.reshape(y_neg_data.shape[0], -1)
+#     pos_indices = np.random.choice(len(X_pos_data)-1, num_pos_test, replace=False)
+#     X_pos_test = X_pos_data[pos_indices, :]
+#     y_pos_test = y_pos_data[pos_indices, :]
+#     X_pos_data = np.delete(X_pos_data, pos_indices, 0)
+#     y_pos_data = np.delete(y_pos_data, pos_indices, 0)
+#
+#     neg_indices = np.random.choice(len(X_neg_data)-1, num_neg_test, replace=False)
+#     X_neg_test = X_neg_data[neg_indices, :]
+#     y_neg_test = y_neg_data[neg_indices, :]
+#     X_neg_data = np.delete(X_neg_data, neg_indices, 0)
+#     y_neg_data = np.delete(y_neg_data, neg_indices, 0)
+#
+#     X_train = np.concatenate([X_pos_data, X_neg_data])
+#     y_train = np.concatenate([y_pos_data.ravel(), y_neg_data.ravel()])
+#     if return_test:
+#         return X_train, y_train, X_pos_test, y_pos_test.ravel(), X_neg_test, y_neg_test.ravel()
+#     else:
+#         return X_train, y_train
+#
+#
+# # split train_test
+# X_smote_expt_org_train, y_smote_expt_org_train, X_pos_test, y_pos_test, X_neg_test, y_neg_test = \
+#     split_train_test(X_smote[:original_data_idx], y_smote[:original_data_idx], num_testdata, 1000, 9, True)
+# X_smote_expt_org = np.concatenate([X_smote_expt_org_train, X_smote[original_data_idx:]])
+# y_smote_expt_org = np.concatenate([y_smote_expt_org_train, y_smote[original_data_idx:]])
+#
+#
+# X_adasyn_expt_org_train, y_adasyn_expt_org_train = \
+#     split_train_test(X_adasyn[:original_data_idx], y_adasyn[:original_data_idx], num_testdata, 1000, 9, False)
+# X_adasyn_expt_org = np.concatenate([X_adasyn[:original_data_idx - num_testdata], X_adasyn[original_data_idx:]])
+# y_adasyn_expt_org = np.concatenate([y_adasyn[:original_data_idx - num_testdata], y_adasyn[original_data_idx:]])
+#
+#
+# from numpy import mean
+# from sklearn.preprocessing import RobustScaler
+# from sklearn.model_selection import cross_validate
+# from sklearn.model_selection import RepeatedStratifiedKFold
+# from sklearn.ensemble import RandomForestClassifier
+# from imblearn.ensemble import BalancedRandomForestClassifier
+# from sklearn.pipeline import Pipeline
+#
+# rf_clf = RandomForestClassifier(n_estimators=10)
+# # random forest with random undersampling for imbalanced classification
+# brdc_model = BalancedRandomForestClassifier(n_estimators=10, random_state=2)
+# # define evaluation procedure
+# cv = RepeatedStratifiedKFold(n_splits=10, n_repeats=3, random_state=1)
+#
+#
+# pipe = Pipeline([('scaler', RobustScaler()),
+#                  ('rf_classifier', brdc_model)])
+#
+#
+# # evaluate model
+# cv_result = cross_validate(pipe, X_adasyn_expt_org, y_adasyn_expt_org, scoring='roc_auc', cv=cv, n_jobs=1,
+#                            return_estimator=True, return_train_score=True)
+# # summarize performance
+# print('Mean Train ROC AUC: %.3f' % mean(cv_result["train_score"]))
+# est_0 = cv_result["estimator"][0]
+# pred_x_pos = est_0.predict(X_pos_test)
+# pred_x_neg = est_0.predict(X_neg_test)
+#
+# from sklearn.metrics import f1_score
+# from sklearn.metrics import confusion_matrix
+# f1_score(np.concatenate([y_pos_test, y_neg_test]), np.concatenate([pred_x_pos, pred_x_neg]), average='binary', zero_division=1)
+#
+# conf_matrix = confusion_matrix(y_true=np.concatenate([y_pos_test, y_neg_test]), y_pred=np.concatenate([pred_x_pos, pred_x_neg]))
+# fig, ax = plt.subplots(figsize=(5, 5))
+# ax.matshow(conf_matrix, cmap=plt.cm.Oranges, alpha=0.3)
+# for i in range(conf_matrix.shape[0]):
+#     for j in range(conf_matrix.shape[1]):
+#         ax.text(x=j, y=i, s=conf_matrix[i, j], va='center', ha='center', size='xx-large')
+#
+# plt.xlabel('Predictions', fontsize=18)
+# plt.ylabel('Actuals', fontsize=18)
+# plt.title('Confusion Matrix', fontsize=18)
+# plt.show()
+
+
+# try XGBoost 1. no oversample 2. only oversample, 3. train test set
+# without oversampled data
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 from statics import ROOT_DIR
+
+from numpy import mean
+from sklearn.model_selection import RepeatedStratifiedKFold
+from xgboost import XGBClassifier  # pip install xgboost
+from sklearn.model_selection import GridSearchCV, cross_val_score
+from sklearn.preprocessing import RobustScaler
+from sklearn.pipeline import Pipeline
 
 dataset_path = ROOT_DIR + "/dataset/fd_test/fraud_dataset_tabular_fc_fs.csv"
 df = pd.read_csv(dataset_path)
@@ -388,109 +508,35 @@ X = np.array(dft.values.tolist())
 y = np.array(df_labels.values.tolist()).ravel()
 X_org = X
 y_org = y
-original_data_idx = len(X_org)
-num_testdata = len(df[df["label"] == 1])
 
-# best result on adasyn 40
-sm = SMOTE(random_state=42, sampling_strategy=0.40)
-ad = ADASYN(random_state=43, sampling_strategy=0.40)
-X_smote, y_smote = sm.fit_resample(X, y)
-X_adasyn, y_adasyn = ad.fit_resample(X, y)
+model = XGBClassifier(learning_rate=0.05,
+                      colsample_bytree=1,
+                      subsample=1,
+                      objective='binary:logistic',
+                      n_estimators=1000,
+                      reg_alpha=0.3,
+                      max_depth=5,
+                      scale_pos_weight=1000,
+                      gamma=0)
 
+from skl2onnx import convert_sklearn, update_registered_converter
+from skl2onnx.common.shape_calculator import calculate_linear_classifier_output_shapes
+from onnxmltools.convert.xgboost.operator_converters.XGBoost import convert_xgboost  # pip install onnxmltools
 
-def split_train_test(X_array, y_array, num_neg, num_pos_test, num_neg_test, return_test):
-    X_origin_data = X_array
-    y_origin_data = y_array
-    X_pos_data = X_origin_data[:-num_neg]
-    y_pos_data = y_origin_data[:-num_neg]
-    y_pos_data = y_pos_data.reshape(y_pos_data.shape[0], -1)
-    X_neg_data = X_origin_data[-num_neg:]
-    y_neg_data = y_origin_data[-num_neg:]
-    y_neg_data = y_neg_data.reshape(y_neg_data.shape[0], -1)
-    pos_indices = np.random.choice(len(X_pos_data)-1, num_pos_test, replace=False)
-    X_pos_test = X_pos_data[pos_indices, :]
-    y_pos_test = y_pos_data[pos_indices, :]
-    X_pos_data = np.delete(X_pos_data, pos_indices, 0)
-    y_pos_data = np.delete(y_pos_data, pos_indices, 0)
-
-    neg_indices = np.random.choice(len(X_neg_data)-1, num_neg_test, replace=False)
-    X_neg_test = X_neg_data[neg_indices, :]
-    y_neg_test = y_neg_data[neg_indices, :]
-    X_neg_data = np.delete(X_neg_data, neg_indices, 0)
-    y_neg_data = np.delete(y_neg_data, neg_indices, 0)
-
-    X_train = np.concatenate([X_pos_data, X_neg_data])
-    y_train = np.concatenate([y_pos_data.ravel(), y_neg_data.ravel()])
-    if return_test:
-        return X_train, y_train, X_pos_test, y_pos_test.ravel(), X_neg_test, y_neg_test.ravel()
-    else:
-        return X_train, y_train
-
-
-# split train_test
-X_smote_expt_org_train, y_smote_expt_org_train, X_pos_test, y_pos_test, X_neg_test, y_neg_test = \
-    split_train_test(X_smote[:original_data_idx], y_smote[:original_data_idx], num_testdata, 1000, 9, True)
-X_smote_expt_org = np.concatenate([X_smote_expt_org_train, X_smote[original_data_idx:]])
-y_smote_expt_org = np.concatenate([y_smote_expt_org_train, y_smote[original_data_idx:]])
-
-
-X_adasyn_expt_org_train, y_adasyn_expt_org_train = \
-    split_train_test(X_adasyn[:original_data_idx], y_adasyn[:original_data_idx], num_testdata, 1000, 9, False)
-X_adasyn_expt_org = np.concatenate([X_adasyn[:original_data_idx - num_testdata], X_adasyn[original_data_idx:]])
-y_adasyn_expt_org = np.concatenate([y_adasyn[:original_data_idx - num_testdata], y_adasyn[original_data_idx:]])
-
-
-from numpy import mean
-from sklearn.preprocessing import RobustScaler
-from sklearn.model_selection import cross_validate
-from sklearn.model_selection import RepeatedStratifiedKFold
-from sklearn.ensemble import RandomForestClassifier
-from imblearn.ensemble import BalancedRandomForestClassifier
-from sklearn.pipeline import Pipeline
-
-rf_clf = RandomForestClassifier(n_estimators=10)
-# random forest with random undersampling for imbalanced classification
-brdc_model = BalancedRandomForestClassifier(n_estimators=10, random_state=2)
-# define evaluation procedure
-cv = RepeatedStratifiedKFold(n_splits=10, n_repeats=3, random_state=1)
-
+update_registered_converter(
+    XGBClassifier, 'XGBoostXGBClassifier',
+    calculate_linear_classifier_output_shapes, convert_xgboost,
+    options={'nocl': [True, False], 'zipmap': [True, False, 'columns']})
 
 pipe = Pipeline([('scaler', RobustScaler()),
-                 ('rf_classifier', brdc_model)])
-
-
-# evaluate model
-cv_result = cross_validate(pipe, X_adasyn_expt_org, y_adasyn_expt_org, scoring='roc_auc', cv=cv, n_jobs=1,
-                           return_estimator=True, return_train_score=True)
-# summarize performance
-print('Mean Train ROC AUC: %.3f' % mean(cv_result["train_score"]))
-est_0 = cv_result["estimator"][0]
-pred_x_pos = est_0.predict(X_pos_test)
-pred_x_neg = est_0.predict(X_neg_test)
-# est_0.predict_proba(X_org[-17:])
-
-from sklearn.metrics import f1_score
-from sklearn.metrics import confusion_matrix
-f1_score(np.concatenate([y_pos_test, y_neg_test]), np.concatenate([pred_x_pos, pred_x_neg]), average='binary', zero_division=1)
-
-conf_matrix = confusion_matrix(y_true=np.concatenate([y_pos_test, y_neg_test]), y_pred=np.concatenate([pred_x_pos, pred_x_neg]))
-fig, ax = plt.subplots(figsize=(5, 5))
-ax.matshow(conf_matrix, cmap=plt.cm.Oranges, alpha=0.3)
-for i in range(conf_matrix.shape[0]):
-    for j in range(conf_matrix.shape[1]):
-        ax.text(x=j, y=i, s=conf_matrix[i, j], va='center', ha='center', size='xx-large')
-
-plt.xlabel('Predictions', fontsize=18)
-plt.ylabel('Actuals', fontsize=18)
-plt.title('Confusion Matrix', fontsize=18)
-plt.show()
-
-
-# try XGBoost 1. no oversample 2. only oversample, 3. train test set
-# no oversampled data
-
-
-
+                 ('rf_classifier', model)])
+# define evaluation procedure
+cv = RepeatedStratifiedKFold(n_splits=10, n_repeats=3, random_state=1)
+scores = cross_val_score(pipe, X, y, scoring='roc_auc', cv=cv, n_jobs=1)
+print('Mean ROC AUC: %.3f' % mean(scores))
+pipe.fit(X, y)
+pipe.predict(X_org[-17:len(X_org)])
+y_org[-17:len(y_org)]
 
 
 
@@ -498,125 +544,9 @@ plt.show()
 
 
 
-# smote
-import pandas as pd
-from sklearn.manifold import TSNE
-import numpy as np
-from imblearn.over_sampling import SMOTE  # pip install imbalanced-learn
-
-# use ADASYN for additional data, smote will be better
-# use XGBoost
-# use PCA or LDA
-# use t-sne to visualization
-# use under bagging random forest
-
-# build logics with sample dataset
-# from collections import Counter
-# from sklearn.datasets import make_classification
-# from imblearn.over_sampling import SMOTE
-
-# n_features = 50
-# X, y = make_classification(n_classes=2, class_sep=3, weights=[0.01, 0.99], n_informative=2, n_redundant=1, flip_y=0,
-#                            n_features=n_features, n_clusters_per_class=1, n_samples=1000, random_state=10)
-# print('Original dataset shape %s' % Counter(y))
-#
-#
-# from sklearn.preprocessing import StandardScaler
-# X = StandardScaler().fit_transform(X)
-#
-# columns = [str(x) for x in range(n_features)]
-# df = pd.DataFrame(X, columns=columns)
-# df["labels"] = y
-#
-# df_label_0 = df[df["labels"] == 0].reset_index(drop=True)
-# df_label_1 = df[df["labels"] == 1].reset_index(drop=True)
-#
-# df_X_label_0 = df_label_0.iloc[:, :-1]
-# list_X_label_0 = df_X_label_0.values.tolist()
-#
-# df_X_label_1 = df_label_1.iloc[:, :-1]
-# list_X_label_1 = df_X_label_1.values.tolist()
-#
-# # visualization
-# # use t-sne
-# model = TSNE(n_components=2, perplexity=1, n_iter=3000, learning_rate="auto", init="pca")
-# res_0 = model.fit_transform(np.array(list_X_label_0))
-#
-# model = TSNE(n_components=2, perplexity=5, n_iter=3000, learning_rate="auto", init="pca")
-# res_1 = model.fit_transform(np.array(list_X_label_1))
-#
-# import matplotlib.pyplot as plt
-#
-# plt.scatter(res_0[:, 0], res_0[:, 1])
-# plt.scatter(res_1[:, 0], res_1[:, 1])
-# plt.show()
-
-# use pca -> t-sne is better
-# from sklearn.decomposition import PCA
-# pca = PCA(n_components=2) # 주성분을 몇개로 할지 결정
-# res_0 = pca.fit_transform(np.array(list_X_label_0))
-# res_1 = pca.fit_transform(np.array(list_X_label_1))
-#
-# plt.scatter(res_0[:, 0], res_0[:, 1])
-# plt.scatter(res_1[:, 0], res_1[:, 1])
-# plt.show()
 
 
-# oversampling all
-# don't oversampling with smote to much
-# sm = SMOTE(random_state=42)
-# X_res, y_res = sm.fit_resample(X, y)
-# print('Resampled dataset shape %s' % Counter(y_res))
 
-# columns = [str(x) for x in range(n_features)]
-# df = pd.DataFrame(X_res, columns=columns)
-# df["labels"] = y_res
-#
-# df_label_0 = df[df["labels"] == 0].reset_index(drop=True)
-# df_label_1 = df[df["labels"] == 1].reset_index(drop=True)
-#
-# df_X_label_0 = df_label_0.iloc[:, :-1]
-# list_X_label_0 = df_X_label_0.values.tolist()
-#
-# df_X_label_1 = df_label_1.iloc[:, :-1]
-# list_X_label_1 = df_X_label_1.values.tolist()
-
-# model = TSNE(n_components=2, perplexity=5, n_iter=3000, learning_rate="auto", init="pca")
-# x_res_0 = model.fit_transform(np.array(list_X_label_0))
-#
-# model = TSNE(n_components=2, perplexity=5, n_iter=3000, learning_rate="auto", init="pca")
-# x_res_1 = model.fit_transform(np.array(list_X_label_1))
-#
-# import matplotlib.pyplot as plt
-#
-# plt.scatter(res_0[:, 0], res_0[:, 1])
-# plt.scatter(res_1[:, 0], res_1[:, 1])
-# plt.show()
-
-# random forest with smote
-# from numpy import mean
-# from sklearn.model_selection import cross_val_score, train_test_split, cross_validate
-# from sklearn.model_selection import RepeatedStratifiedKFold
-# from sklearn.ensemble import RandomForestClassifier
-# from sklearn.pipeline import Pipeline
-#
-# # define model
-# model = RandomForestClassifier(n_estimators=10)
-# # define evaluation procedure
-# pipe = Pipeline([('scaler', StandardScaler()),
-#                  ('rf_classifier', model)])
-#
-# cv = RepeatedStratifiedKFold(n_splits=10, n_repeats=3, random_state=1)
-# # evaluate model
-# cv_result = cross_validate(pipe, X_res, y_res, scoring='roc_auc', cv=cv, n_jobs=1, return_estimator=True,
-#                            return_train_score=True)
-# # print(cv_result["estimator"])
-# # print(cv_result["train_score"])
-# # print(cv_result["test_score"])
-# # summarize performance
-# print('Mean Train ROC AUC: %.3f' % mean(cv_result["train_score"]))
-# est_0 = cv_result["estimator"][0]
-# est_0.score(X, y)
 # # export to onnx
 # from skl2onnx import convert_sklearn
 # from skl2onnx.common.data_types import FloatTensorType
@@ -716,12 +646,3 @@ from imblearn.over_sampling import SMOTE  # pip install imbalanced-learn
 # scores = cross_val_score(model, X_res, y_res, scoring='roc_auc', cv=cv, n_jobs=1)
 # summarize performance
 # print('Mean ROC AUC: %.5f' % mean(scores))
-
-
-# under bagging with imb data
-
-# weighted XGBoost with imb data
-
-# XGBoost model to onnx model -> save
-
-# make deploy logic
