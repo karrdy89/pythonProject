@@ -257,6 +257,122 @@
 # print("done")
 
 
+# check pca or lda with fc
+# import pandas as pd
+# import numpy as np
+# from statics import ROOT_DIR
+#
+# dataset_path = ROOT_DIR + "/dataset/fd_test/fraud_dataset_tabular_fc_fs.csv"
+# df = pd.read_csv(dataset_path)
+# df_labels = df[["label"]]
+# dft = df.drop(["SEQ", "label"], axis=1)
+# feature_list = dft.keys().tolist()
+# X = np.array(dft.values.tolist())
+# y = np.array(df_labels.values.tolist()).ravel()
+# X_org = X
+# y_org = y
+#
+# from sklearn.decomposition import PCA
+# from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+# pca = PCA(n_components=30)
+# X_pca = pca.fit_transform(X)
+#
+# lda = LinearDiscriminantAnalysis()
+# X_lda = lda.fit_transform(X, y)
+#
+# from sklearn.preprocessing import RobustScaler
+# X_lda = RobustScaler().fit_transform(X_lda)
+#
+#
+# from numpy import mean
+# from sklearn.model_selection import cross_validate
+# from sklearn.model_selection import RepeatedStratifiedKFold
+# from sklearn.ensemble import RandomForestClassifier
+# from imblearn.ensemble import BalancedRandomForestClassifier
+#
+# brdc_model = BalancedRandomForestClassifier(n_estimators=10, random_state=2)
+# # define evaluation procedure
+# cv = RepeatedStratifiedKFold(n_splits=10, n_repeats=3, random_state=1)
+#
+# cv_result = cross_validate(brdc_model, X_lda, y, scoring='roc_auc', cv=cv, n_jobs=3,
+#                            return_estimator=True, return_train_score=True)
+# # summarize performance
+# print('Mean Train ROC AUC: %.3f' % mean(cv_result["train_score"]))
+# est_0 = cv_result["estimator"][0]
+
+
+# test without test data(only oversampled)
+# from imblearn.over_sampling import ADASYN, SMOTE
+# import pandas as pd
+# import numpy as np
+# import matplotlib.pyplot as plt
+# from statics import ROOT_DIR
+#
+# dataset_path = ROOT_DIR + "/dataset/fd_test/fraud_dataset_tabular_fc_fs.csv"
+# df = pd.read_csv(dataset_path)
+# df_labels = df[["label"]]
+# dft = df.drop(["SEQ", "label"], axis=1)
+# feature_list = dft.keys().tolist()
+# X = np.array(dft.values.tolist())
+# y = np.array(df_labels.values.tolist()).ravel()
+# X_org = X
+# y_org = y
+# original_data_idx = len(X_org)
+# num_testdata = len(df[df["label"] == 1])
+#
+# # adasyn_100, adasyn_25, smote_100, smote_25
+# sm = SMOTE(random_state=42)
+# sm_25 = SMOTE(random_state=42, sampling_strategy=0.25)
+# ad = ADASYN(random_state=43)
+# ad_25 = ADASYN(random_state=43, sampling_strategy=0.25)
+# X_smote_100, y_smote_100 = sm.fit_resample(X, y)
+# X_smote_25, y_smote_25 = sm_25.fit_resample(X, y)
+# X_adasyn_100, y_adasyn_100 = ad.fit_resample(X, y)
+# X_adasyn_25, y_adasyn_25 = ad_25.fit_resample(X, y)
+#
+# X_smote_100_expt_org = np.concatenate([X_smote_100[:original_data_idx - num_testdata], X_smote_100[original_data_idx:]])
+# y_smote_100_expt_org = np.concatenate([y_smote_100[:original_data_idx - num_testdata], y_smote_100[original_data_idx:]])
+#
+# X_smote_25_expt_org = np.concatenate([X_smote_25[:original_data_idx - num_testdata], X_smote_25[original_data_idx:]])
+# y_smote_25_expt_org = np.concatenate([y_smote_25[:original_data_idx - num_testdata], y_smote_25[original_data_idx:]])
+#
+# X_adasyn_100_expt_org = np.concatenate([X_adasyn_100[:original_data_idx - num_testdata], X_adasyn_100[original_data_idx:]])
+# y_adasyn_100_expt_org = np.concatenate([y_adasyn_100[:original_data_idx - num_testdata], y_adasyn_100[original_data_idx:]])
+#
+# X_adasyn_25_expt_org = np.concatenate([X_adasyn_25[:original_data_idx - num_testdata], X_adasyn_25[original_data_idx:]])
+# y_adasyn_25_expt_org = np.concatenate([y_adasyn_25[:original_data_idx - num_testdata], y_adasyn_25[original_data_idx:]])
+#
+#
+# from numpy import mean
+# from sklearn.preprocessing import RobustScaler
+# from sklearn.model_selection import cross_validate
+# from sklearn.model_selection import RepeatedStratifiedKFold
+# from sklearn.ensemble import RandomForestClassifier
+# from imblearn.ensemble import BalancedRandomForestClassifier
+# from sklearn.pipeline import Pipeline
+#
+# rf_clf = RandomForestClassifier(n_estimators=10)
+# # random forest with random undersampling for imbalanced classification
+# brdc_model = BalancedRandomForestClassifier(n_estimators=10, random_state=2)
+# # define evaluation procedure
+# cv = RepeatedStratifiedKFold(n_splits=10, n_repeats=3, random_state=1)
+#
+#
+# pipe = Pipeline([('scaler', RobustScaler()),
+#                  ('rf_classifier', brdc_model)])
+#
+#
+# # evaluate model
+# cv_result = cross_validate(pipe, X_smote_25_expt_org, y_smote_25_expt_org, scoring='roc_auc', cv=cv, n_jobs=3,
+#                            return_estimator=True, return_train_score=True)
+# # summarize performance
+# print('Mean Train ROC AUC: %.3f' % mean(cv_result["train_score"]))
+# est_0 = cv_result["estimator"][0]
+# est_0.predict(X_org[-17:])
+# est_0.predict_proba(X_org[-17:])
+
+
+# split with 50% test_neg(9), test_pos(1000) <- random extract and delete
 from imblearn.over_sampling import ADASYN, SMOTE
 import pandas as pd
 import numpy as np
@@ -274,7 +390,7 @@ X_org = X
 y_org = y
 original_data_idx = len(X_org)
 num_testdata = len(df[df["label"] == 1])
-# try t-sne on adasyn, smote
+
 # adasyn_100, adasyn_25, smote_100, smote_25
 sm = SMOTE(random_state=42)
 sm_25 = SMOTE(random_state=42, sampling_strategy=0.25)
@@ -285,61 +401,86 @@ X_smote_25, y_smote_25 = sm_25.fit_resample(X, y)
 X_adasyn_100, y_adasyn_100 = ad.fit_resample(X, y)
 X_adasyn_25, y_adasyn_25 = ad_25.fit_resample(X, y)
 
-X_smote_100_expt_org = np.concatenate([X_smote_100[:original_data_idx - num_testdata], X_smote_100[original_data_idx:]])
-y_smote_100_expt_org = np.concatenate([y_smote_100[:original_data_idx - num_testdata], y_smote_100[original_data_idx:]])
+# X_smote_100_expt_org = np.concatenate([X_smote_100[:original_data_idx - num_testdata], X_smote_100[original_data_idx:]])
+# y_smote_100_expt_org = np.concatenate([y_smote_100[:original_data_idx - num_testdata], y_smote_100[original_data_idx:]])
+#
+# X_smote_25_expt_org = np.concatenate([X_smote_25[:original_data_idx - num_testdata], X_smote_25[original_data_idx:]])
+# y_smote_25_expt_org = np.concatenate([y_smote_25[:original_data_idx - num_testdata], y_smote_25[original_data_idx:]])
+#
+# X_adasyn_100_expt_org = np.concatenate([X_adasyn_100[:original_data_idx - num_testdata], X_adasyn_100[original_data_idx:]])
+# y_adasyn_100_expt_org = np.concatenate([y_adasyn_100[:original_data_idx - num_testdata], y_adasyn_100[original_data_idx:]])
+#
+# X_adasyn_25_expt_org = np.concatenate([X_adasyn_25[:original_data_idx - num_testdata], X_adasyn_25[original_data_idx:]])
+# y_adasyn_25_expt_org = np.concatenate([y_adasyn_25[:original_data_idx - num_testdata], y_adasyn_25[original_data_idx:]])
 
-X_smote_25_expt_org = np.concatenate([X_smote_25[:original_data_idx - num_testdata], X_smote_25[original_data_idx:]])
-y_smote_25_expt_org = np.concatenate([y_smote_25[:original_data_idx - num_testdata], y_smote_25[original_data_idx:]])
+def split_train_test(X_array, y_array, num_neg, num_pos_test, num_neg_test, return_test):
+    X_origin_data = X_array
+    y_origin_data = y_array
+    X_pos_data = X_origin_data[:-num_neg]
+    y_pos_data = y_origin_data[:-num_neg]
+    y_pos_data = y_pos_data.reshape(y_pos_data.shape[0], -1)
+    X_neg_data = X_origin_data[-num_neg:]
+    y_neg_data = y_origin_data[-num_neg:]
+    y_neg_data = y_neg_data.reshape(y_neg_data.shape[0], -1)
+    pos_indices = np.random.choice(len(X_pos_data)-1, num_pos_test, replace=False)
+    X_pos_test = X_pos_data[pos_indices, :]
+    y_pos_test = y_pos_data[pos_indices, :]
+    X_pos_data = np.delete(X_pos_data, pos_indices, 0)
+    y_pos_data = np.delete(y_pos_data, pos_indices, 0)
 
-X_adasyn_100_expt_org = np.concatenate([X_adasyn_100[:original_data_idx - num_testdata], X_adasyn_100[original_data_idx:]])
-y_adasyn_100_expt_org = np.concatenate([y_adasyn_100[:original_data_idx - num_testdata], y_adasyn_100[original_data_idx:]])
+    neg_indices = np.random.choice(len(X_neg_data)-1, num_neg_test, replace=False)
+    X_neg_test = X_neg_data[neg_indices, :]
+    y_neg_test = y_neg_data[neg_indices, :]
+    X_neg_data = np.delete(X_neg_data, neg_indices, 0)
+    y_neg_data = np.delete(y_neg_data, neg_indices, 0)
 
-X_adasyn_25_expt_org = np.concatenate([X_adasyn_25[:original_data_idx - num_testdata], X_adasyn_25[original_data_idx:]])
-y_adasyn_25_expt_org = np.concatenate([y_adasyn_25[:original_data_idx - num_testdata], y_adasyn_25[original_data_idx:]])
+    X_train = np.concatenate([X_pos_data, X_neg_data])
+    y_train = np.concatenate([y_pos_data.ravel(), y_neg_data.ravel()])
+    if return_test:
+        return X_train, y_train, X_pos_test, y_pos_test.ravel(), X_neg_test, y_neg_test.ravel()
+    else:
+        return X_train, y_train
 
-# visualization original data
-# from sklearn.manifold import TSNE
+split_train_test(X_smote_100[:original_data_idx], y_smote_100[:original_data_idx], num_testdata, 1000, 9, True)
+len(X_smote_100[:original_data_idx])
+#
+# from numpy import mean
+# from sklearn.preprocessing import RobustScaler
+# from sklearn.model_selection import cross_validate
+# from sklearn.model_selection import RepeatedStratifiedKFold
+# from sklearn.ensemble import RandomForestClassifier
+# from imblearn.ensemble import BalancedRandomForestClassifier
+# from sklearn.pipeline import Pipeline
+#
+# rf_clf = RandomForestClassifier(n_estimators=10)
+# # random forest with random undersampling for imbalanced classification
+# brdc_model = BalancedRandomForestClassifier(n_estimators=10, random_state=2)
+# # define evaluation procedure
+# cv = RepeatedStratifiedKFold(n_splits=10, n_repeats=3, random_state=1)
 #
 #
-# t_sne_1 = TSNE(n_components=2, perplexity=5, n_iter=3000, learning_rate="auto", init="pca")
-# res_0 = t_sne_1.fit_transform(X[:-17])
+# pipe = Pipeline([('scaler', RobustScaler()),
+#                  ('rf_classifier', brdc_model)])
 #
-# t_sne_2 = TSNE(n_components=2, perplexity=1, n_iter=3000, learning_rate="auto", init="pca")
-# res_1 = t_sne_2.fit_transform(X[-17:])
 #
-# plt.scatter(res_0[:, 0], res_0[:, 1], label="0")
-# plt.scatter(res_1[:, 0], res_1[:, 1], label="1")
-# plt.show()
+# # evaluate model
+# cv_result = cross_validate(pipe, X_smote_25_expt_org, y_smote_25_expt_org, scoring='roc_auc', cv=cv, n_jobs=3,
+#                            return_estimator=True, return_train_score=True)
+# # summarize performance
+# print('Mean Train ROC AUC: %.3f' % mean(cv_result["train_score"]))
+# est_0 = cv_result["estimator"][0]
+# est_0.predict(X_org[-17:])
+# est_0.predict_proba(X_org[-17:])
 
 
-from sklearn.preprocessing import RobustScaler
-X = RobustScaler().fit_transform(X)
-
-from sklearn.utils import shuffle
-X, y = shuffle(X, y)
-
-from numpy import mean
-from sklearn.model_selection import cross_validate
-from sklearn.model_selection import RepeatedStratifiedKFold
-from sklearn.ensemble import RandomForestClassifier
-from imblearn.ensemble import BalancedRandomForestClassifier
-
-clf = RandomForestClassifier(n_estimators=10)
-# random forest with random undersampling for imbalanced classification
-brdc_model = BalancedRandomForestClassifier(n_estimators=10)
-# define evaluation procedure
-cv = RepeatedStratifiedKFold(n_splits=10, n_repeats=3, random_state=1)
-
-cv_result = cross_validate(brdc_model, X_smote_25_expt_org, y_smote_25_expt_org, scoring='roc_auc', cv=cv, n_jobs=1,
-                           return_estimator=True, return_train_score=True)
-# summarize performance
-print('Mean Train ROC AUC: %.3f' % mean(cv_result["train_score"]))
-est_0 = cv_result["estimator"][0]
-est_0.predict(X_org[-17:])
-est_0.predict_proba(X_org[-17:])
 
 
 # try XGBoost
+
+
+
+
+
 
 # tuning and conclusion
 
