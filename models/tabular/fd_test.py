@@ -558,6 +558,7 @@ original_data_idx = len(X_org)
 num_testdata = len(df[df["label"] == 1])
 
 from imblearn.over_sampling import ADASYN, SMOTE
+from imblearn.combine import SMOTEENN, SMOTETomek
 import pandas as pd
 import numpy as np
 from statics import ROOT_DIR
@@ -602,6 +603,7 @@ def split_train_test(X_array, y_array, num_neg, num_pos_test, num_neg_test, retu
 
 sm = SMOTE(random_state=42, sampling_strategy=0.6)
 ad = ADASYN(random_state=43, sampling_strategy=0.4)
+# smote tomek, enn
 X_oversampled, y_oversampled = ad.fit_resample(X, y)
 
 X_sp_ov_train, y_sp_ov_train, X_sp_ov_t_test, y_sp_ov_t_test = \
