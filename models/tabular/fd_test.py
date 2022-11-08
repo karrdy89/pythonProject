@@ -583,7 +583,7 @@ model = XGBClassifier(learning_rate=0.03,
                       colsample_bytree=1,
                       subsample=1,
                       objective='binary:logistic',
-                      n_estimators=100,
+                      n_estimators=150,
                       reg_alpha=0.3,
                       max_depth=5,
                       scale_pos_weight=500,
@@ -608,6 +608,9 @@ pipe.fit(X, y)
 pipe.predict(X_org[-17:len(X_org)])
 y_org[-17:len(y_org)]
 # game set
+
+# just randomly extract normal data (100), and scoring, draw confusion matrix, more tuning
+
 
 # tuning and conclusion
 
