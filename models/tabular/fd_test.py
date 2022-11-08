@@ -519,14 +519,6 @@
 #                       scale_pos_weight=1000,
 #                       gamma=0)
 #
-# from skl2onnx import convert_sklearn, update_registered_converter
-# from skl2onnx.common.shape_calculator import calculate_linear_classifier_output_shapes
-# from onnxmltools.convert.xgboost.operator_converters.XGBoost import convert_xgboost  # pip install onnxmltools
-#
-# update_registered_converter(
-#     XGBClassifier, 'XGBoostXGBClassifier',
-#     calculate_linear_classifier_output_shapes, convert_xgboost,
-#     options={'nocl': [True, False], 'zipmap': [True, False, 'columns']})
 #
 # pipe = Pipeline([('scaler', RobustScaler()),
 #                  ('rf_classifier', model)])
@@ -538,7 +530,9 @@
 # pipe.predict(X_org[-17:len(X_org)])
 # y_org[-17:len(y_org)]
 
-# with only oversampled data
+# XGBoost
+from collections import Counter
+
 import pandas as pd
 import numpy as np
 from statics import ROOT_DIR
@@ -569,42 +563,78 @@ import numpy as np
 from statics import ROOT_DIR
 
 
-sm = SMOTE(random_state=42, sampling_strategy=0.35)
+def split_train_test(X_array, y_array, num_neg, num_pos_test, num_neg_test, return_test):
+    X_origin_data = X_array
+    y_origin_data = y_array
+    X_pos_data = X_origin_data[:-num_neg]
+    y_pos_data = y_origin_data[:-num_neg]
+    y_pos_data = y_pos_data.reshape(y_pos_data.shape[0], -1)
+    X_neg_data = X_origin_data[-num_neg:]
+    y_neg_data = y_origin_data[-num_neg:]
+    y_neg_data = y_neg_data.reshape(y_neg_data.shape[0], -1)
+    pos_indices = np.random.choice(len(X_pos_data)-1, num_pos_test, replace=False)
+    X_pos_test = X_pos_data[pos_indices, :]
+    y_pos_test = y_pos_data[pos_indices, :]
+    X_pos_data = np.delete(X_pos_data, pos_indices, 0)
+    y_pos_data = np.delete(y_pos_data, pos_indices, 0)
+
+    neg_indices = np.random.choice(len(X_neg_data)-1, num_neg_test, replace=False)
+    X_neg_test = X_neg_data[neg_indices, :]
+    y_neg_test = y_neg_data[neg_indices, :]
+    X_neg_data = np.delete(X_neg_data, neg_indices, 0)
+    y_neg_data = np.delete(y_neg_data, neg_indices, 0)
+
+    X_train = np.concatenate([X_pos_data, X_neg_data])
+    y_train = np.concatenate([y_pos_data.ravel(), y_neg_data.ravel()])
+    X_test = np.concatenate([X_pos_test, X_neg_test])
+    y_test = np.concatenate([y_pos_test.ravel(), y_neg_test.ravel()])
+    if return_test:
+        return X_train, y_train, X_test, y_test
+    else:
+        return X_train, y_train
+
+sm = SMOTE(random_state=42, sampling_strategy=0.6)
 ad = ADASYN(random_state=43, sampling_strategy=0.35)
-X_smote, y_smote = sm.fit_resample(X, y)
-X_adasyn, y_adasyn = ad.fit_resample(X, y)
+X_oversampled, y_oversampled = ad.fit_resample(X, y)
 
-X_smote_expt_org = np.concatenate([X_smote[:original_data_idx - num_testdata], X_smote[original_data_idx:]])
-y_smote_expt_org = np.concatenate([y_smote[:original_data_idx - num_testdata], y_smote[original_data_idx:]])
+X_oversampled_expt_org = np.concatenate([X_oversampled[:original_data_idx - num_testdata], X_oversampled[original_data_idx:]])
+y_oversampled_expt_org = np.concatenate([y_oversampled[:original_data_idx - num_testdata], y_oversampled[original_data_idx:]])
 
-X_adasyn_expt_org = np.concatenate([X_adasyn[:original_data_idx - num_testdata], X_adasyn[original_data_idx:]])
-y_adasyn_expt_org = np.concatenate([y_adasyn[:original_data_idx - num_testdata], y_adasyn[original_data_idx:]])
+X_sp_ov_train, y_sp_ov_train, x_t_test, y_t_test = \
+    split_train_test(X_oversampled[:original_data_idx], y_oversampled[:original_data_idx], num_testdata, 50, 10, True)
+X_sp_ov_train = np.concatenate([X_sp_ov_train, X_oversampled[original_data_idx:]])
+y_sp_ov_train = np.concatenate([y_sp_ov_train, y_oversampled[original_data_idx:]])
 
-X_pos_data = X_adasyn_expt_org[:original_data_idx - num_testdata]
-y_pos_data = y_adasyn_expt_org[:original_data_idx - num_testdata]
-y_pos_data = y_pos_data.reshape(y_pos_data.shape[0], -1)
-pos_indices = np.random.choice(len(X_pos_data)-1, 100, replace=False)
-X_pos_test = X_pos_data[pos_indices, :]
-y_pos_test = y_pos_data[pos_indices, :]
-y_pos_test = y_pos_test.ravel()
-X_pos_data = np.delete(X_pos_data, pos_indices, 0)
-y_pos_data = np.delete(y_pos_data, pos_indices, 0)
-
-X_adasyn_expt_org = X_pos_data
-y_adasyn_expt_org = y_pos_data.ravel()
 
 from sklearn.utils import shuffle
-X_adasyn_expt_org, y_adasyn_expt_org = shuffle(X_adasyn_expt_org, y_adasyn_expt_org)
+X_oversampled_expt_org, y_oversampled_expt_org = shuffle(X_oversampled_expt_org, y_oversampled_expt_org)
+X_sp_ov_train, y_sp_ov_train = shuffle(X_sp_ov_train, y_sp_ov_train)
 
-model = XGBClassifier(learning_rate=0.025,
+# pos_neg_count = Counter(y_sp_ov_train)
+# print('Resampled dataset shape %s' % pos_neg_count)
+# scale_pos_weight = pos_neg_count.get(0) / pos_neg_count.get(1)
+# print(scale_pos_weight)
+
+model = XGBClassifier(learning_rate=0.01,
                       colsample_bytree=1,
                       subsample=1,
                       objective='binary:logistic',
-                      n_estimators=200,
+                      n_estimators=800,
                       reg_alpha=0.3,
-                      max_depth=5,
-                      scale_pos_weight=500,
-                      gamma=0)
+                      max_depth=4,
+                      scale_pos_weight=700,
+                      gamma=0.25)
+
+# br on test
+# model = XGBClassifier(learning_rate=0.01,
+#                       colsample_bytree=1,
+#                       subsample=1,
+#                       objective='binary:logistic',
+#                       n_estimators=800,
+#                       reg_alpha=0.3,
+#                       max_depth=5,
+#                       scale_pos_weight=450,
+#                       gamma=0.23)
 
 from skl2onnx import convert_sklearn, update_registered_converter
 from skl2onnx.common.shape_calculator import calculate_linear_classifier_output_shapes
@@ -619,119 +649,64 @@ pipe = Pipeline([('scaler', RobustScaler()),
                  ('rf_classifier', model)])
 # define evaluation procedure
 cv = RepeatedStratifiedKFold(n_splits=10, n_repeats=3, random_state=1)
-scores = cross_val_score(pipe, X_adasyn, y_adasyn, scoring='roc_auc', cv=cv, n_jobs=1)
-print('Mean ROC AUC: %.3f' % mean(scores))
-pipe.fit(X, y)
-pipe.predict(X_org[-17:len(X_org)])
-y_org[-17:len(y_org)]
-# game set
+roc_auc_scores = cross_val_score(pipe, X_sp_ov_train, y_sp_ov_train, scoring='roc_auc', cv=cv, n_jobs=1)
+f1_scores = cross_val_score(pipe, X_sp_ov_train, y_sp_ov_train, scoring='f1', cv=cv, n_jobs=1)
+print('Mean ROC AUC: %.3f' % mean(roc_auc_scores))
+print('Mean F1: %.3f' % mean(f1_scores))
+
+pipe.fit(X_sp_ov_train, y_sp_ov_train)
+# pipe.predict(X_org[-17:len(X_org)])
+# y_org[-17:len(y_org)]
+
+from sklearn.metrics import f1_score
+from sklearn.metrics import confusion_matrix
+pred_test = pipe.predict(x_t_test)
+print(f1_score(y_t_test, pred_test, average='binary', zero_division=1))
+conf_matrix = confusion_matrix(y_true=y_t_test, y_pred=pred_test)
+print(conf_matrix.ravel())
+import matplotlib.pyplot as plt
+fig, ax = plt.subplots(figsize=(5, 5))
+ax.matshow(conf_matrix, cmap=plt.cm.Oranges, alpha=0.3)
+for i in range(conf_matrix.shape[0]):
+    for j in range(conf_matrix.shape[1]):
+        ax.text(x=j, y=i, s=conf_matrix[i, j], va='center', ha='center', size='xx-large')
+
+plt.xlabel('Predictions', fontsize=18)
+plt.ylabel('Actuals', fontsize=18)
+plt.title('Confusion Matrix', fontsize=18)
+plt.show()
 
 
-# tuning and conclusion
-# just randomly extract normal data (100), and scoring, draw confusion matrix, more tuning
-# data visualization, get result of drop ECT col -> doesn't matter
 # save XGBoost model
-
-
-
-
-
-# # export to onnx
-# from skl2onnx import convert_sklearn
-# from skl2onnx.common.data_types import FloatTensorType
-# model_onnx = convert_sklearn(est_0, 'pipeline_estimator',
-#                 [('input', FloatTensorType([None, n_features]))])
-#
-# import os
-# if not os.path.exists(saved_model_path):
-#     os.makedirs(saved_model_path)
-#
-# with open(saved_model_path + "ft_test_random_frest.onnx", "wb") as f:
-#     f.write(model_onnx.SerializeToString())
-#
-# import onnxruntime as rt    # pip install onnxruntime
-# print("predict", est_0.predict(X[:5]))
-# print("predict_proba", est_0.predict_proba(X[:5]))
-#
-# sess = rt.InferenceSession(saved_model_path + "ft_test_random_frest.onnx")
-# pred_onx = sess.run(None, {"input": X[:5].astype(np.float32)})
-# print("predict", pred_onx[0])
-# print("predict_proba", pred_onx[1][:1])
-#
-
-# XGBoost with smote
-# from numpy import mean
-# from sklearn.datasets import make_classification
-# from sklearn.model_selection import cross_val_score
-# from sklearn.model_selection import RepeatedStratifiedKFold
-# from xgboost import XGBClassifier   #pip install xgboost
-# from sklearn.model_selection import GridSearchCV
-# from skl2onnx.common.data_types import FloatTensorType
-#
-# model = XGBClassifier()
-# weights = [1, 10, 25, 50, 75, 99, 100, 1000]
-# param_grid = dict(scale_pos_weight=weights)
-# # define evaluation procedure
-# cv = RepeatedStratifiedKFold(n_splits=10, n_repeats=3, random_state=1)
-# grid = GridSearchCV(estimator=model, param_grid=param_grid, n_jobs=1, cv=cv, scoring='roc_auc')
-# # execute the grid search
-# grid_result = grid.fit(X, y)
-# # report the best configuration
-# print("Best: %f using %s" % (grid_result.best_score_, grid_result.best_params_))
-# # report all configurations
-# means = grid_result.cv_results_['mean_test_score']
-# stds = grid_result.cv_results_['std_test_score']
-# params = grid_result.cv_results_['params']
-# for mean, stdev, param in zip(means, stds, params):
-#     print("%f (%f) with: %r" % (mean, stdev, param))
-#
-# from sklearn.pipeline import Pipeline
-# pipe = Pipeline([('scaler', StandardScaler()),
-#                  ('XGB_Classifier', model)])
-# pipe.fit(X, y)
 #
 # from skl2onnx import convert_sklearn, update_registered_converter
 # from skl2onnx.common.shape_calculator import calculate_linear_classifier_output_shapes
-# from onnxmltools.convert.xgboost.operator_converters.XGBoost import convert_xgboost # pip install onnxmltools
+# from onnxmltools.convert.xgboost.operator_converters.XGBoost import convert_xgboost  # pip install onnxmltools
+# from skl2onnx.common.data_types import FloatTensorType
 #
 # update_registered_converter(
 #     XGBClassifier, 'XGBoostXGBClassifier',
 #     calculate_linear_classifier_output_shapes, convert_xgboost,
 #     options={'nocl': [True, False], 'zipmap': [True, False, 'columns']})
 #
-# model_onnx = convert_sklearn(pipe, 'pipeline_xgb',
-#                 [('input', FloatTensorType([None, n_features]))])
+# model_onnx = convert_sklearn(pipe, 'pipeline_xgb', [('input', FloatTensorType([None, len(feature_list)]))])
+# meta = model_onnx.metadata_props.add()
+# meta.key = "model_info"
+# cfg = {"input_type": "float", "input_shape": [None, len(feature_list)], "labels": {0: "fraud", 1: "normal"}}
+# meta.value = str(cfg)
 #
+# saved_model_path = ROOT_DIR + "/saved_models/td_test/"
 # import os
 # if not os.path.exists(saved_model_path):
 #     os.makedirs(saved_model_path)
 #
-# with open(saved_model_path + "ft_test_xgboost.onnx", "wb") as f:
+# with open(saved_model_path + "fd_xgboost.onnx", "wb") as f:
 #     f.write(model_onnx.SerializeToString())
 #
-# print("predict", pipe.predict(X[:5]))
-# print("predict_proba", pipe.predict_proba(X[:1]))
 #
 # import onnxruntime as rt
-# sess = rt.InferenceSession(saved_model_path + "ft_test_xgboost.onnx")
-# pred_onx = sess.run(None, {"input": X[:5].astype(np.float32)})
+# sess = rt.InferenceSession(saved_model_path + "fd_xgboost.onnx")
+# pred_onx = sess.run(None, {"input": x_t_test.astype(np.float32)})
 # print("predict", pred_onx[0])
 # print("predict_proba", pred_onx[1][:1])
-
-# save with metadata
-# import onnx
-# model = onnx.load(saved_model_path + "ft_test_xgboost.onnx")
-# meta = model.metadata_props.add()
-# meta.key = "cfg"
-# cfg = {"input_type": "float", "input_shape": [None, n_features], "labels": {0: "fraud", 1: "normal"}}
-# meta.value = str(cfg)
-# onnx.save(model, saved_model_path + "ft_test_xgboost_1.onnx")
 #
-# # loading
-# cfg_s = eval(onnx.load(saved_model_path + "ft_test_xgboost_1.onnx").metadata_props[0].value)
-# print(cfg_s)
-
-# evaluate model
-# scores = cross_val_score(model, X_res, y_res, scoring='roc_auc', cv=cv, n_jobs=1)
-# summarize performance
-# print('Mean ROC AUC: %.5f' % mean(scores))
