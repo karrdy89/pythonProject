@@ -487,7 +487,58 @@
 
 
 # try XGBoost 1. no oversample 2. only oversample, 3. train test set
-# without oversampled data
+# 1. without oversampled data
+# import pandas as pd
+# import numpy as np
+# from statics import ROOT_DIR
+#
+# from numpy import mean
+# from sklearn.model_selection import RepeatedStratifiedKFold
+# from xgboost import XGBClassifier  # pip install xgboost
+# from sklearn.model_selection import GridSearchCV, cross_val_score
+# from sklearn.preprocessing import RobustScaler
+# from sklearn.pipeline import Pipeline
+#
+# dataset_path = ROOT_DIR + "/dataset/fd_test/fraud_dataset_tabular_fc_fs.csv"
+# df = pd.read_csv(dataset_path)
+# df_labels = df[["label"]]
+# dft = df.drop(["SEQ", "label"], axis=1)
+# feature_list = dft.keys().tolist()
+# X = np.array(dft.values.tolist())
+# y = np.array(df_labels.values.tolist()).ravel()
+# X_org = X
+# y_org = y
+#
+# model = XGBClassifier(learning_rate=0.05,
+#                       colsample_bytree=1,
+#                       subsample=1,
+#                       objective='binary:logistic',
+#                       n_estimators=1000,
+#                       reg_alpha=0.3,
+#                       max_depth=5,
+#                       scale_pos_weight=1000,
+#                       gamma=0)
+#
+# from skl2onnx import convert_sklearn, update_registered_converter
+# from skl2onnx.common.shape_calculator import calculate_linear_classifier_output_shapes
+# from onnxmltools.convert.xgboost.operator_converters.XGBoost import convert_xgboost  # pip install onnxmltools
+#
+# update_registered_converter(
+#     XGBClassifier, 'XGBoostXGBClassifier',
+#     calculate_linear_classifier_output_shapes, convert_xgboost,
+#     options={'nocl': [True, False], 'zipmap': [True, False, 'columns']})
+#
+# pipe = Pipeline([('scaler', RobustScaler()),
+#                  ('rf_classifier', model)])
+# # define evaluation procedure
+# cv = RepeatedStratifiedKFold(n_splits=10, n_repeats=3, random_state=1)
+# scores = cross_val_score(pipe, X, y, scoring='roc_auc', cv=cv, n_jobs=1)
+# print('Mean ROC AUC: %.3f' % mean(scores))
+# pipe.fit(X, y)
+# pipe.predict(X_org[-17:len(X_org)])
+# y_org[-17:len(y_org)]
+
+# with only oversampled data
 import pandas as pd
 import numpy as np
 from statics import ROOT_DIR
@@ -508,15 +559,34 @@ X = np.array(dft.values.tolist())
 y = np.array(df_labels.values.tolist()).ravel()
 X_org = X
 y_org = y
+original_data_idx = len(X_org)
+num_testdata = len(df[df["label"] == 1])
 
-model = XGBClassifier(learning_rate=0.05,
+from imblearn.over_sampling import ADASYN, SMOTE
+import pandas as pd
+import numpy as np
+from statics import ROOT_DIR
+
+
+sm = SMOTE(random_state=42, sampling_strategy=0.35)
+ad = ADASYN(random_state=43, sampling_strategy=0.35)
+X_smote, y_smote = sm.fit_resample(X, y)
+X_adasyn, y_adasyn = ad.fit_resample(X, y)
+
+X_smote_expt_org = np.concatenate([X_smote[:original_data_idx - num_testdata], X_smote[original_data_idx:]])
+y_smote_expt_org = np.concatenate([y_smote[:original_data_idx - num_testdata], y_smote[original_data_idx:]])
+
+X_adasyn_expt_org = np.concatenate([X_adasyn[:original_data_idx - num_testdata], X_adasyn[original_data_idx:]])
+y_adasyn_expt_org = np.concatenate([y_adasyn[:original_data_idx - num_testdata], y_adasyn[original_data_idx:]])
+
+model = XGBClassifier(learning_rate=0.03,
                       colsample_bytree=1,
                       subsample=1,
                       objective='binary:logistic',
-                      n_estimators=1000,
+                      n_estimators=100,
                       reg_alpha=0.3,
                       max_depth=5,
-                      scale_pos_weight=1000,
+                      scale_pos_weight=500,
                       gamma=0)
 
 from skl2onnx import convert_sklearn, update_registered_converter
@@ -532,13 +602,12 @@ pipe = Pipeline([('scaler', RobustScaler()),
                  ('rf_classifier', model)])
 # define evaluation procedure
 cv = RepeatedStratifiedKFold(n_splits=10, n_repeats=3, random_state=1)
-scores = cross_val_score(pipe, X, y, scoring='roc_auc', cv=cv, n_jobs=1)
+scores = cross_val_score(pipe, X_adasyn, y_adasyn, scoring='roc_auc', cv=cv, n_jobs=1)
 print('Mean ROC AUC: %.3f' % mean(scores))
 pipe.fit(X, y)
 pipe.predict(X_org[-17:len(X_org)])
 y_org[-17:len(y_org)]
-
-
+# game set
 
 # tuning and conclusion
 
