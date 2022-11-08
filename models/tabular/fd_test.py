@@ -580,11 +580,11 @@ y_smote_expt_org = np.concatenate([y_smote[:original_data_idx - num_testdata], y
 X_adasyn_expt_org = np.concatenate([X_adasyn[:original_data_idx - num_testdata], X_adasyn[original_data_idx:]])
 y_adasyn_expt_org = np.concatenate([y_adasyn[:original_data_idx - num_testdata], y_adasyn[original_data_idx:]])
 
-model = XGBClassifier(learning_rate=0.03,
+model = XGBClassifier(learning_rate=0.025,
                       colsample_bytree=1,
                       subsample=1,
                       objective='binary:logistic',
-                      n_estimators=150,
+                      n_estimators=200,
                       reg_alpha=0.3,
                       max_depth=5,
                       scale_pos_weight=500,
