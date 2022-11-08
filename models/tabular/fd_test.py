@@ -465,14 +465,30 @@ cv_result = cross_validate(pipe, X_adasyn_expt_org, y_adasyn_expt_org, scoring='
 # summarize performance
 print('Mean Train ROC AUC: %.3f' % mean(cv_result["train_score"]))
 est_0 = cv_result["estimator"][0]
-est_0.predict(X_neg_test)
+pred_x_pos = est_0.predict(X_pos_test)
+pred_x_neg = est_0.predict(X_neg_test)
 # est_0.predict_proba(X_org[-17:])
 
+from sklearn.metrics import f1_score
+from sklearn.metrics import confusion_matrix
+f1_score(np.concatenate([y_pos_test, y_neg_test]), np.concatenate([pred_x_pos, pred_x_neg]), average='binary', zero_division=1)
 
+conf_matrix = confusion_matrix(y_true=np.concatenate([y_pos_test, y_neg_test]), y_pred=np.concatenate([pred_x_pos, pred_x_neg]))
+fig, ax = plt.subplots(figsize=(5, 5))
+ax.matshow(conf_matrix, cmap=plt.cm.Oranges, alpha=0.3)
+for i in range(conf_matrix.shape[0]):
+    for j in range(conf_matrix.shape[1]):
+        ax.text(x=j, y=i, s=conf_matrix[i, j], va='center', ha='center', size='xx-large')
+
+plt.xlabel('Predictions', fontsize=18)
+plt.ylabel('Actuals', fontsize=18)
+plt.title('Confusion Matrix', fontsize=18)
+plt.show()
 
 
 # try XGBoost 1. no oversample 2. only oversample, 3. train test set
-# add f1 score
+# no oversampled data
+
 
 
 
