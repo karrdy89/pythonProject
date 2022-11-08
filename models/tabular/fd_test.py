@@ -580,6 +580,22 @@ y_smote_expt_org = np.concatenate([y_smote[:original_data_idx - num_testdata], y
 X_adasyn_expt_org = np.concatenate([X_adasyn[:original_data_idx - num_testdata], X_adasyn[original_data_idx:]])
 y_adasyn_expt_org = np.concatenate([y_adasyn[:original_data_idx - num_testdata], y_adasyn[original_data_idx:]])
 
+X_pos_data = X_adasyn_expt_org[:original_data_idx - num_testdata]
+y_pos_data = y_adasyn_expt_org[:original_data_idx - num_testdata]
+y_pos_data = y_pos_data.reshape(y_pos_data.shape[0], -1)
+pos_indices = np.random.choice(len(X_pos_data)-1, 100, replace=False)
+X_pos_test = X_pos_data[pos_indices, :]
+y_pos_test = y_pos_data[pos_indices, :]
+y_pos_test = y_pos_test.ravel()
+X_pos_data = np.delete(X_pos_data, pos_indices, 0)
+y_pos_data = np.delete(y_pos_data, pos_indices, 0)
+
+X_adasyn_expt_org = X_pos_data
+y_adasyn_expt_org = y_pos_data.ravel()
+
+from sklearn.utils import shuffle
+X_adasyn_expt_org, y_adasyn_expt_org = shuffle(X_adasyn_expt_org, y_adasyn_expt_org)
+
 model = XGBClassifier(learning_rate=0.025,
                       colsample_bytree=1,
                       subsample=1,
