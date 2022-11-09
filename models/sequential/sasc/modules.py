@@ -1,5 +1,6 @@
 import tensorflow as tf
 
+
 def multihead_attention(queries, keys, attention_dim: int, num_heads: int, dropout_rate: float):
     # Linear projections
     Q = tf.keras.layers.Dense(attention_dim, activation=None)(queries) # (N, T_q, C)
