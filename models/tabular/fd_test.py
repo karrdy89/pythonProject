@@ -594,8 +594,8 @@ def split_train_test(X_array, y_array, num_neg, num_pos_test, num_neg_test, retu
         return X_train, y_train
 
 
-sm = SMOTE(random_state=42, sampling_strategy=0.11, k_neighbors=5)
-ad = ADASYN(random_state=43, sampling_strategy=0.11)
+sm = SMOTE(random_state=42, sampling_strategy=0.12, k_neighbors=5)
+ad = ADASYN(random_state=43, sampling_strategy=0.12)
 smt = SMOTETomek(random_state=44, sampling_strategy=0.05)
 
 X_oversampled, y_oversampled = ad.fit_resample(X, y)
@@ -639,15 +639,26 @@ print('Resampled dataset shape %s' % pos_neg_count)
 # scale_pos_weight = pos_neg_count.get(0) / pos_neg_count.get(1)
 # print(scale_pos_weight)
 
-model = XGBClassifier(learning_rate=0.013,
+model = XGBClassifier(learning_rate=0.01,
                       colsample_bytree=1,
                       subsample=1,
                       objective='binary:logistic',
                       n_estimators=800,
                       reg_alpha=0.25,
                       max_depth=4,
-                      scale_pos_weight=250,
+                      scale_pos_weight=280,
                       gamma=0.3)
+
+# br on ov
+# model = XGBClassifier(learning_rate=0.013,
+#                       colsample_bytree=1,
+#                       subsample=1,
+#                       objective='binary:logistic',
+#                       n_estimators=800,
+#                       reg_alpha=0.25,
+#                       max_depth=4,
+#                       scale_pos_weight=250,
+#                       gamma=0.3)
 
 # br on ac
 # model = XGBClassifier(learning_rate=0.018,
@@ -678,6 +689,7 @@ pipe = Pipeline([('scaler', RobustScaler()),
 # f1_scores = cross_val_score(pipe, X_ov_train_stacked, y_ov_train_stacked, scoring='f1', cv=cv, n_jobs=1)
 # print('Mean ROC AUC: %.3f' % mean(roc_auc_scores))
 # print('Mean F1: %.3f' % mean(f1_scores))
+
 
 pipe.fit(X_ov_train_stacked, y_ov_train_stacked)
 
@@ -717,6 +729,8 @@ plt.xlabel('Predictions', fontsize=18)
 plt.ylabel('Actuals', fontsize=18)
 plt.title('Confusion Matrix', fontsize=18)
 plt.show()
+
+from sklearn.metrics import roc_curve
 
 
 # save XGBoost model
