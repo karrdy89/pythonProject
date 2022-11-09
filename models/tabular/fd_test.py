@@ -557,6 +557,7 @@ y_org = y
 original_data_idx = len(X_org)
 num_testdata = len(df[df["label"] == 1])
 num_neg = num_testdata
+num_pos = len(X[:-num_neg])
 
 from imblearn.over_sampling import ADASYN, SMOTE
 from imblearn.combine import SMOTETomek
@@ -631,7 +632,7 @@ X_sp_ov_train = np.concatenate([X_sp_ov_train, X_oversampled[original_data_idx:]
 y_sp_ov_train = np.concatenate([y_sp_ov_train, y_oversampled[original_data_idx:]])
 
 X_ov_train, y_ov_train, X_ov_t_test, y_ov_t_test = \
-    split_train_test(X_oversampled[:original_data_idx], y_oversampled[:original_data_idx], num_testdata, 500, -1, True)
+    split_train_test(X_oversampled[:original_data_idx], y_oversampled[:original_data_idx], num_testdata, int(num_pos/10), -1, True)
 X_ov_train = np.concatenate([X_ov_train, X_oversampled[original_data_idx:]])
 y_ov_train = np.concatenate([y_ov_train, y_oversampled[original_data_idx:]])
 
