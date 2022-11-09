@@ -45,8 +45,8 @@
 # df = df[df.메뉴.str.contains('|'.join(searchfor))]
 # df.to_csv(ROOT_DIR + "/dataset/fd_test/fd_dataset_trimmed.csv", index=False)
 
-
-# refine data with trimmed dataset
+#
+# # refine data with trimmed dataset
 # import pandas as pd
 # from statics import ROOT_DIR
 # dataset_path = ROOT_DIR + "/dataset/fd_test/fd_dataset_trimmed.csv"
@@ -60,7 +60,7 @@
 # df_sep_seq = []
 # for sequence in sequences:
 #     df_sep_seq.append(df[df["SEQ"] == sequence].reset_index(drop=True))
-# start_events = ["CCMLO0101", "CCWLO0101", "CCMMS0101SL01", "CCWMS0101SL01"]
+# start_events = ["CCMLO0101", "CCWLO0101", "CCMMS0101SL01", "CCWMS0101SL01", "CCWSA0101", "CCMSA0101"]
 # end_event = ["CCMLN0101PC01", "CCWLN0101PC01", "CCWRD0201PC01", "CCMRD0201PC01"]
 #
 # count = 0
@@ -101,14 +101,13 @@
 # n_df["로그인유형"].replace("", "N/A")
 # n_df["비고"].replace("", "N/A")
 # assert not n_df.isnull().values.any()
-# n_df.to_csv(ROOT_DIR + "/dataset/fd_test/fraud_dataset_refine.csv", index=False, encoding="utf-8-sig")
-# n_df.keys()
+# n_df.to_csv(ROOT_DIR + "/dataset/fd_test/fraud_dataset_refine_fixed.csv", index=False, encoding="utf-8-sig")
 
 
 # make dataset to tabular
 # import pandas as pd
 # from statics import ROOT_DIR
-# dataset_path = ROOT_DIR + "/dataset/fd_test/fraud_dataset_refine.csv"
+# dataset_path = ROOT_DIR + "/dataset/fd_test/fraud_dataset_refine_fixed.csv"
 # df = pd.read_csv(dataset_path)
 # df.drop(['메뉴', '메뉴명', "고객ID", "로그인IP", "프로그램명", "시간", "금액", "로그인유형", "비고", "DATE"], axis=1, inplace=True)
 # df["EVENT"] = df["EVENT"].str.replace("CCW", "CCM")
@@ -135,7 +134,7 @@
 #     data_row = pd.DataFrame([data_row])
 #     tabular_dataset = pd.concat([tabular_dataset, data_row], ignore_index=True)
 #
-# tabular_dataset.to_csv(ROOT_DIR + "/dataset/fd_test/fraud_dataset_tabular.csv", sep=",",
+# tabular_dataset.to_csv(ROOT_DIR + "/dataset/fd_test/fraud_dataset_tabular_fixed.csv", sep=",",
 #                        index=False, encoding="utf-8-sig")
 #
 # print("done")
@@ -146,7 +145,7 @@
 # import pandas as pd
 # from statics import ROOT_DIR
 #
-# dataset_path = ROOT_DIR + "/dataset/fd_test/fraud_dataset_tabular.csv"
+# dataset_path = ROOT_DIR + "/dataset/fd_test/fraud_dataset_tabular_fixed.csv"
 # df = pd.read_csv(dataset_path)
 # df.fillna(0, inplace=True)
 # df_abnormal = df[df["label"] == 1].reset_index(drop=True)
@@ -163,26 +162,22 @@
 # cols = df.columns.tolist()
 # cols = cols[:-2] + [cols[-1]] + [cols[-2]]
 # df = df[cols]
-# df.to_csv(ROOT_DIR + "/dataset/fd_test/fraud_dataset_tabular_fc.csv", sep=",", index=False, encoding="utf-8-sig")
+# df.to_csv(ROOT_DIR + "/dataset/fd_test/fraud_dataset_tabular_fixed_fc.csv", sep=",", index=False, encoding="utf-8-sig")
+# print("done")
 
-
-# feature selection
+#
+# # feature selection
 # import pandas as pd
 # import numpy as np
-# import matplotlib.pyplot as plt
 # from statics import ROOT_DIR
 #
-# dataset_path = ROOT_DIR + "/dataset/fd_test/fraud_dataset_tabular_fc.csv"
+# dataset_path = ROOT_DIR + "/dataset/fd_test/fraud_dataset_tabular_fixed_fc.csv"
 # df = pd.read_csv(dataset_path)
 # df_labels = df[["label"]]
 # dft = df.drop(["SEQ", "label"], axis=1)
 # feature_list = dft.keys().tolist()
 # X = np.array(dft.values.tolist())
 # y = np.array(df_labels.values.tolist()).ravel()
-# X_test_pos = X[:17]
-# y_test_pos = y[:17]
-# X_test_neg = X[-17:]
-# y_test_neg = y[-17:]
 #
 # # visualization original data
 # # from sklearn.manifold import TSNE
@@ -202,9 +197,6 @@
 # from sklearn.preprocessing import RobustScaler
 # X = RobustScaler().fit_transform(X)
 #
-# from sklearn.utils import shuffle
-# X, y = shuffle(X, y)
-#
 # from numpy import mean
 # from sklearn.model_selection import cross_validate
 # from sklearn.model_selection import RepeatedStratifiedKFold
@@ -218,13 +210,11 @@
 # cv_result = cross_validate(model, X, y, scoring='roc_auc', cv=cv, n_jobs=1, return_estimator=True,
 #                            return_train_score=True)
 # # print(cv_result["estimator"])
-# # print(cv_result["train_score"])
-# # print(cv_result["test_score"])
+# print(cv_result["train_score"])
+# print(cv_result["test_score"])
 # # summarize performance
 # print('Mean Train ROC AUC: %.3f' % mean(cv_result["train_score"]))
-# est_0 = cv_result["estimator"][0]
-# est_0.predict(X_test_neg)
-# est_0.predict_proba(X_test_neg)
+# est_0 = cv_result["estimator"][11]
 #
 # # get feature importance and drop non imp feature
 # importance = est_0.feature_importances_
@@ -236,14 +226,14 @@
 # print("feature ranking")
 # for i in range(len(feature_list)):
 #     print("{}. feature {} ({:.3f}) ".format(i+1, feature_list[indices[i]], importance[indices[i]]))
-
-# import matplotlib.pyplot as plt
-# fig, ax = plt.subplots()
-# forest_importances.plot.bar(yerr=fi_std, ax=ax)
-# ax.set_title("Feature importances using MDI")
-# ax.set_ylabel("Mean decrease in impurity")
-# fig.tight_layout()
-# plt.show()
+#
+# # import matplotlib.pyplot as plt
+# # fig, ax = plt.subplots()
+# # forest_importances.plot.bar(yerr=fi_std, ax=ax)
+# # ax.set_title("Feature importances using MDI")
+# # ax.set_ylabel("Mean decrease in impurity")
+# # fig.tight_layout()
+# # plt.show()
 #
 # non_imp_feature = []
 # for i, f in enumerate(fi_std):
@@ -253,7 +243,7 @@
 # print(non_imp_feature)
 #
 # df.drop(non_imp_feature, axis=1, inplace=True)
-# df.to_csv(ROOT_DIR + "/dataset/fd_test/fraud_dataset_tabular_fc_fs.csv", sep=",", index=False, encoding="utf-8-sig")
+# df.to_csv(ROOT_DIR + "/dataset/fd_test/fraud_dataset_tabular_fixed_fc_fs.csv", sep=",", index=False, encoding="utf-8-sig")
 #
 # print("done")
 
@@ -529,8 +519,8 @@
 # pipe.fit(X, y)
 # pipe.predict(X_org[-17:len(X_org)])
 # y_org[-17:len(y_org)]
-
-# XGBoost
+#
+# # XGBoost
 from collections import Counter
 
 import pandas as pd
@@ -544,7 +534,7 @@ from sklearn.model_selection import GridSearchCV, cross_val_score
 from sklearn.preprocessing import RobustScaler
 from sklearn.pipeline import Pipeline
 
-dataset_path = ROOT_DIR + "/dataset/fd_test/fraud_dataset_tabular_fc_fs.csv"
+dataset_path = ROOT_DIR + "/dataset/fd_test/fraud_dataset_tabular_fixed_fc_fs.csv"
 df = pd.read_csv(dataset_path)
 df_labels = df[["label"]]
 # dft = df.drop(["SEQ", "label"], axis=1)
@@ -604,9 +594,9 @@ def split_train_test(X_array, y_array, num_neg, num_pos_test, num_neg_test, retu
         return X_train, y_train
 
 
-sm = SMOTE(random_state=42, sampling_strategy=0.1, k_neighbors=5)
-ad = ADASYN(random_state=43, sampling_strategy=0.1)
-smt = SMOTETomek(random_state=44, sampling_strategy=0.1)
+sm = SMOTE(random_state=42, sampling_strategy=0.11, k_neighbors=5)
+ad = ADASYN(random_state=43, sampling_strategy=0.11)
+smt = SMOTETomek(random_state=44, sampling_strategy=0.05)
 
 X_oversampled, y_oversampled = ad.fit_resample(X, y)
 
@@ -649,26 +639,26 @@ print('Resampled dataset shape %s' % pos_neg_count)
 # scale_pos_weight = pos_neg_count.get(0) / pos_neg_count.get(1)
 # print(scale_pos_weight)
 
-model = XGBClassifier(learning_rate=0.01,
+model = XGBClassifier(learning_rate=0.013,
                       colsample_bytree=1,
                       subsample=1,
                       objective='binary:logistic',
-                      n_estimators=600,
-                      reg_alpha=0.3,
+                      n_estimators=800,
+                      reg_alpha=0.25,
                       max_depth=4,
-                      scale_pos_weight=10,
-                      gamma=0.25)
+                      scale_pos_weight=250,
+                      gamma=0.3)
 
-# br on test
-# model = XGBClassifier(learning_rate=0.01,
+# br on ac
+# model = XGBClassifier(learning_rate=0.018,
 #                       colsample_bytree=1,
 #                       subsample=1,
 #                       objective='binary:logistic',
-#                       n_estimators=800,
-#                       reg_alpha=0.3,
-#                       max_depth=5,
-#                       scale_pos_weight=450,
-#                       gamma=0.23)
+#                       n_estimators=2000,
+#                       reg_alpha=0.25,
+#                       max_depth=4,
+#                       scale_pos_weight=250,
+#                       gamma=0.22)
 
 from skl2onnx import convert_sklearn, update_registered_converter
 from skl2onnx.common.shape_calculator import calculate_linear_classifier_output_shapes
@@ -690,6 +680,25 @@ pipe = Pipeline([('scaler', RobustScaler()),
 # print('Mean F1: %.3f' % mean(f1_scores))
 
 pipe.fit(X_ov_train_stacked, y_ov_train_stacked)
+
+# feature selection
+# from sklearn.metrics import f1_score
+# model.fit(X, y)
+# pred_x = model.predict(X)
+# print(f1_score(pred_x, y, average='binary', zero_division=1))
+# importance = model.feature_importances_
+# indices = np.argsort(importance)[::-1]
+#
+# XGB_importances = pd.Series(importance, index=feature_list)
+# npc = XGB_importances.loc[XGB_importances[:] == 0]
+# npc = npc.keys().tolist()
+# print("feature ranking")
+# for i in range(len(feature_list)):
+#     print("{}. feature {} ({:.3f}) ".format(i+1, feature_list[indices[i]], importance[indices[i]]))
+# len(npc)
+# # df.drop(npc, axis=1, inplace=True)
+# # df.to_csv(ROOT_DIR + "/dataset/fd_test/fraud_dataset_tabular_fixed_fc_fs.csv", sep=",", index=False, encoding="utf-8-sig")
+
 
 from sklearn.metrics import f1_score
 from sklearn.metrics import confusion_matrix
@@ -742,4 +751,4 @@ plt.show()
 # pred_onx = sess.run(None, {"input": X_ov_t_test.astype(np.float32)})
 # print("predict", pred_onx[0])
 # print("predict_proba", pred_onx[1][:1])
-#
+
