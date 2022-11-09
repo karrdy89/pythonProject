@@ -556,9 +556,10 @@ X_org = X
 y_org = y
 original_data_idx = len(X_org)
 num_testdata = len(df[df["label"] == 1])
+num_neg = num_testdata
 
 from imblearn.over_sampling import ADASYN, SMOTE
-from imblearn.combine import SMOTEENN, SMOTETomek
+from imblearn.combine import SMOTETomek
 import pandas as pd
 import numpy as np
 from statics import ROOT_DIR
@@ -601,10 +602,28 @@ def split_train_test(X_array, y_array, num_neg, num_pos_test, num_neg_test, retu
     else:
         return X_train, y_train
 
-sm = SMOTE(random_state=42, sampling_strategy=0.6)
-ad = ADASYN(random_state=43, sampling_strategy=0.4)
-# smote tomek, enn
+
+sm = SMOTE(random_state=42, sampling_strategy=0.1, k_neighbors=5)
+ad = ADASYN(random_state=43, sampling_strategy=0.1)
+smt = SMOTETomek(random_state=44, sampling_strategy=0.1)
+
 X_oversampled, y_oversampled = ad.fit_resample(X, y)
+
+for i, org in enumerate(X[-num_neg:]):
+    assert np.array_equal(org, X_oversampled[original_data_idx-num_neg:original_data_idx][i]), "on splice ov test"
+
+X_ovs_stack_sm, y_ovs_stack_sm = sm.fit_resample(X, y)
+for i, org in enumerate(X[-num_neg:]):
+    assert np.array_equal(org, X_ovs_stack_sm[original_data_idx-num_neg:original_data_idx][i]), "on splice sm test"
+X_ovs_stack_sm = X_ovs_stack_sm[original_data_idx:]
+y_ovs_stack_sm = y_ovs_stack_sm[original_data_idx:]
+
+X_ovs_stack_smt, y_ovs_stack_smt = smt.fit_resample(X, y)
+for i, org in enumerate(X[-num_neg:]):
+    assert np.array_equal(org, X_ovs_stack_smt[original_data_idx-num_neg:original_data_idx][i]), "on splice smt test"
+X_ovs_stack_smt = X_ovs_stack_smt[original_data_idx:]
+y_ovs_stack_smt = y_ovs_stack_smt[original_data_idx:]
+
 
 X_sp_ov_train, y_sp_ov_train, X_sp_ov_t_test, y_sp_ov_t_test = \
     split_train_test(X_oversampled[:original_data_idx], y_oversampled[:original_data_idx], num_testdata, 500, 10, True)
@@ -616,12 +635,15 @@ X_ov_train, y_ov_train, X_ov_t_test, y_ov_t_test = \
 X_ov_train = np.concatenate([X_ov_train, X_oversampled[original_data_idx:]])
 y_ov_train = np.concatenate([y_ov_train, y_oversampled[original_data_idx:]])
 
+X_ov_train_stacked = np.concatenate([X_ov_train, X_ovs_stack_sm, X_ovs_stack_smt])
+y_ov_train_stacked = np.concatenate([y_ov_train, y_ovs_stack_sm, y_ovs_stack_smt])
 
 from sklearn.utils import shuffle
 X_ov_train, y_ov_train = shuffle(X_ov_train, y_ov_train)
 X_sp_ov_train, y_sp_ov_train = shuffle(X_sp_ov_train, y_sp_ov_train)
+X_ov_train_stacked, y_ov_train_stacked = shuffle(X_ov_train_stacked, y_ov_train_stacked)
 
-pos_neg_count = Counter(y_ov_train)
+pos_neg_count = Counter(y_ov_train_stacked)
 print('Resampled dataset shape %s' % pos_neg_count)
 # scale_pos_weight = pos_neg_count.get(0) / pos_neg_count.get(1)
 # print(scale_pos_weight)
@@ -630,10 +652,10 @@ model = XGBClassifier(learning_rate=0.01,
                       colsample_bytree=1,
                       subsample=1,
                       objective='binary:logistic',
-                      n_estimators=1300,
+                      n_estimators=600,
                       reg_alpha=0.3,
-                      max_depth=5,
-                      scale_pos_weight=720,
+                      max_depth=4,
+                      scale_pos_weight=10,
                       gamma=0.25)
 
 # br on test
@@ -658,14 +680,15 @@ update_registered_converter(
 
 pipe = Pipeline([('scaler', RobustScaler()),
                  ('rf_classifier', model)])
-# define evaluation procedure
-cv = RepeatedStratifiedKFold(n_splits=10, n_repeats=3, random_state=1)
-roc_auc_scores = cross_val_score(pipe, X_ov_train, y_ov_train, scoring='roc_auc', cv=cv, n_jobs=1)
-f1_scores = cross_val_score(pipe, X_ov_train, y_ov_train, scoring='f1', cv=cv, n_jobs=1)
-print('Mean ROC AUC: %.3f' % mean(roc_auc_scores))
-print('Mean F1: %.3f' % mean(f1_scores))
 
-pipe.fit(X_ov_train, y_ov_train)
+# define evaluation procedure
+# cv = RepeatedStratifiedKFold(n_splits=10, n_repeats=3, random_state=1)
+# roc_auc_scores = cross_val_score(pipe, X_ov_train_stacked, y_ov_train_stacked, scoring='roc_auc', cv=cv, n_jobs=1)
+# f1_scores = cross_val_score(pipe, X_ov_train_stacked, y_ov_train_stacked, scoring='f1', cv=cv, n_jobs=1)
+# print('Mean ROC AUC: %.3f' % mean(roc_auc_scores))
+# print('Mean F1: %.3f' % mean(f1_scores))
+
+pipe.fit(X_ov_train_stacked, y_ov_train_stacked)
 
 from sklearn.metrics import f1_score
 from sklearn.metrics import confusion_matrix
@@ -701,7 +724,7 @@ plt.show()
 # model_onnx = convert_sklearn(pipe, 'pipeline_xgb', [('input', FloatTensorType([None, len(feature_list)]))])
 # meta = model_onnx.metadata_props.add()
 # meta.key = "model_info"
-# cfg = {"input_type": "float", "input_shape": [None, len(feature_list)], "labels": {0: "fraud", 1: "normal"}}
+# cfg = {"input_type": "float", "input_shape": [None, len(feature_list)], "labels": {0: "normal", 1: "fraud"}}
 # meta.value = str(cfg)
 #
 # saved_model_path = ROOT_DIR + "/saved_models/td_test/"
@@ -712,10 +735,10 @@ plt.show()
 # with open(saved_model_path + "fd_xgboost_ov.onnx", "wb") as f:
 #     f.write(model_onnx.SerializeToString())
 
-
+#
 # import onnxruntime as rt
-# sess = rt.InferenceSession(saved_model_path + "fd_xgboost.onnx")
-# pred_onx = sess.run(None, {"input": x_t_test.astype(np.float32)})
+# sess = rt.InferenceSession(saved_model_path + "fd_xgboost_ov.onnx")
+# pred_onx = sess.run(None, {"input": X_ov_t_test.astype(np.float32)})
 # print("predict", pred_onx[0])
 # print("predict_proba", pred_onx[1][:1])
-
+#
