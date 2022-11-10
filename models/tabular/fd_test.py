@@ -549,6 +549,21 @@ num_testdata = len(df[df["label"] == 1])
 num_neg = num_testdata
 num_pos = len(X[:-num_neg])
 
+
+from sklearn.manifold import TSNE
+import matplotlib.pyplot as plt
+
+t_sne_1 = TSNE(n_components=2, perplexity=5, n_iter=3000, learning_rate="auto", init="pca")
+res_0 = t_sne_1.fit_transform(X[:-num_neg])
+
+t_sne_2 = TSNE(n_components=2, perplexity=1, n_iter=3000, learning_rate="auto", init="pca")
+res_1 = t_sne_2.fit_transform(X[-num_neg:])
+
+plt.scatter(res_0[:, 0], res_0[:, 1], label="didt")
+plt.scatter(res_1[:, 0], res_1[:, 1], label=1)
+plt.show()
+
+
 from imblearn.over_sampling import ADASYN, SMOTE
 from imblearn.combine import SMOTETomek
 import pandas as pd
