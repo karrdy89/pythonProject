@@ -141,7 +141,7 @@
 
 
 # feature engineering
-# count it one col that not included in abnormal
+#
 # import pandas as pd
 # from statics import ROOT_DIR
 #
