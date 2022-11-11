@@ -40,6 +40,8 @@ boot_logger.info("(Main Server) init ray...")
 os.environ["RAY_LOG_TO_STDERR"] = "0"
 ray.init(dashboard_host="127.0.0.1", dashboard_port=8265)
 
+# add scheduler for clear ray log(check log amount every hour if exceed remove all logs)
+
 
 @ray.remote
 class UvicornServer(uvicorn.Server):

@@ -199,7 +199,7 @@ class OnnxServingManager:
         result = None
         if model_deploy_state is not None:
             if model_deploy_state.state == StateCode.AVAILABLE:
-                diff = deploy_num - self._current_deploy_num
+                diff = deploy_num - len(model_deploy_state.actors)
                 if diff > 0:
                     try:
                         result = self.add_actor(model_id, version, diff)

@@ -254,7 +254,8 @@ class TfServingManager:
         result = None
         if model_deploy_state is not None:
             if model_deploy_state.state == StateCode.AVAILABLE:
-                diff = deploy_num - self._current_container_num
+                deploy_num = abs(deploy_num)
+                diff = deploy_num - len(model_deploy_state.containers)
                 if diff > 0:
                     try:
                         result = await self.add_container(model_id, version, diff)
