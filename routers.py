@@ -217,13 +217,6 @@ class AIbeemRouter:
         name = model_id + ":" + main_version + '.' + sub_version
         start_dtm = request_body.STYMD
         end_dtm = request_body.EDYMD
-        # remove hard code like pipeline
-        # make definition file
-        # check actor creation can support eval
-        # if possible read definition file
-        # how can get input of actor method?
-        # define input as dict?
-        # no. because make input with check key is must be hard coding
         # make utils in dataset_maker, make definition file and make every dataset_maker has same input <- better way
         # util get model name and find definition in file and make actor and run
         if model_name == "NBO":
