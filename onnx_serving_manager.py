@@ -1,3 +1,13 @@
+# *********************************************************************************************************************
+# Program Name : onnx_serving_manager
+# Creator : yum kiyeon
+# Create Date : 2022. 11. 10
+# Modify Desc :
+# *********************************************************************************************************************
+# ---------------------------------------------------------------------------------------------------------------------
+# Date  | Updator   | Remark
+#
+# ---------------------------------------------------------------------------------------------------------------------
 import configparser
 import uuid
 import logging
@@ -18,6 +28,89 @@ from onnx_serving import OnnxServing
 
 @ray.remote
 class OnnxServingManager:
+    """
+    A ray actor class to deploy and manage onnx model
+
+    Attributes
+    ----------
+    _worker : str
+        The class name of instance.
+    _logger : actor
+        A Logger class for logging
+    _boot_logger : logger
+        The pre-defined Logger class for logging init process.
+    _db : DBUtil
+        The DBUtil for read deploy state table
+    _lock : Lock
+        Thread lock for synchronization.
+    _deploy_requests : list[tuple[str, str]]
+        A list of deploy requests. if deploy done, the request will remove from this list.
+        (Ex. [(model_1, version), (model_2, version), ...])
+    _deploy_states : dict[str, ModelDeployState]
+        A dictionary of current deploy state.
+        (Ex. {model1_version: ModelDeployState}, {model2_version: ModelDeployState})
+    _gc_list : list[tuple[int, str]]
+        A list of container to delete GC will remove container with this list.
+        (Ex. [(ManageType, model1_version), (ManageType, model2_version), ...])
+    _current_deploy_num: int
+        A number of onnx_serving actors currently deployed
+    _manager_handle : AsyncIOScheduler
+        An AsyncIOScheduler instance for managing container
+    _SERVING_ACTOR_MAX: int
+        Configuration of max number of onnx_serving actor
+    _GC_CHECK_INTERVAL : int
+        Configuration of interval of managing container
+
+    Methods
+    -------
+    __init__():
+        Constructs all the necessary attributes.
+    init() -> int
+        Set attributes.
+    deploy(model_id: str, version: str, container_num: int) -> json
+        Carry out deploy request
+    get_deploy_state() -> json:
+        Return _deploy_states.
+    add_container(model_id: str, version: str, container_num: int) -> json:
+        Add containers for the deployed model
+    remove_container(model_id: str, version: str, container_num: int) -> json:
+        Remove containers for the deployed model
+    end_deploy(model_id: str, version: str) -> json:
+        End model deployment
+    predict(model_id: str, version: str, data: dict) -> json:
+        Get inference from container with given data. and return it.
+    deploy_containers(model_id: str, version: str, container_num: int, model_deploy_state):
+        Request to create container in parallel with run_container.
+    run_container(model_id: str, container_name: str, http_port: int, grpc_port: int, deploy_path: str)
+                    -> Container | None:
+        Request to create container with docker server.
+    fail_back(model_id: str, version: str, container_name: str) -> None:
+        Shutting down and restarting unconnected container.
+    get_port_http() -> int:
+        Get port number from available port list.
+    get_port_grpc() -> int:
+        Get port number from available port list.
+    release_port_http(port: int) -> None:
+        Release port number from list of port in use.
+    release_port_grpc(port: int) -> None:
+        Release port number from list of port in use.
+    reset_version_config(host: str, name: str, base_path: str, model_platform: str, model_version_policy: list):
+        Changing the settings of a running TensorFlow Serving Container via grpc.
+    add_version(model_id: str, version: str):
+        Changing model version of a running TensorFlow Serving Container.
+    copy_to_deploy(model_id: str, version: int) -> int:
+        Copy saved model file to deploy directory
+    delete_deployed_model(model_id: str, version: int) -> int:
+        Delete saved model file from deploy directory
+    _set_cycle(model_id: str, version: str) -> int:
+        Set cycle instance for round-robin.
+    gc_container() -> None:
+        Remove containers that need to be cleared.
+    get_container_list():
+        Get a list of currently running containers from the docker client.
+    get_container_names():
+        Get a name of list that currently running containers from the docker client.
+    """
     def __init__(self):
         self._worker: str = type(self).__name__
         self._logger: ray.actor = None

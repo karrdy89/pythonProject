@@ -1,3 +1,13 @@
+# *********************************************************************************************************************
+# Program Name : onnx_serving
+# Creator : yum kiyeon
+# Create Date : 2022. 11. 10
+# Modify Desc :
+# *********************************************************************************************************************
+# ---------------------------------------------------------------------------------------------------------------------
+# Date  | Updator   | Remark
+#
+# ---------------------------------------------------------------------------------------------------------------------
 import os
 
 import ray
@@ -11,11 +21,40 @@ from utils.common import version_encode
 
 @ray.remote
 class OnnxServing:
+    """
+    A ray actor class for serve onnx model
+
+    Attributes
+    ----------
+    _worker : str
+        The class name of instance.
+    _model_path : str
+        The path of model directory.
+    _metadata: dict | None
+        The metadata of model
+    _input_type: str | None
+        Input type of model defined in metadata
+    _input_shape: str | None
+        Input shape of model defined in metadata
+    _labels: str | None
+        Class name of model output defined in metadata
+    _session:
+        The onnx inference session
+
+    Methods
+    -------
+    __init__():
+        Constructs all the necessary attributes.
+    _load_model() -> int
+        Load model and set metadata
+    predict(data: list) -> dict:
+        Return predict result
+    """
     def __init__(self):
         self._worker: str = type(self).__name__
         self._model_path: str = ""
         self._metadata: dict | None = None
-        self._input_type: str = "float"
+        self._input_type: str | None = None
         self._input_shape: list | None = None
         self._labels: dict | None = None
         self._session = None
@@ -43,21 +82,29 @@ class OnnxServing:
             return 0, "success"
 
     def _load_model(self):
-        self._metadata = eval(onnx.load(self._model_path).metadata_props[0].value)
-        self._labels = self._metadata.get("labels")
-        self._input_type = self._metadata.get("input_type")
-        self._input_shape = self._metadata.get("input_shape")
+        try:
+            self._metadata = eval(onnx.load(self._model_path).metadata_props[0].value)
+            self._labels = self._metadata.get("labels")
+            self._input_type = self._metadata.get("input_type")
+            self._input_shape = self._metadata.get("input_shape")
+        except Exception:
+            pass
         self._session = rt.InferenceSession(self._model_path)
 
     def predict(self, data: list) -> dict:
         result = {"CODE": "FAIL", "ERROR_MSG": "N/A", "EVNT_ID": [], "PRBT": []}
-        if len(data) < self._input_shape[-1]:
-            result["CODE"] = "FAIL"
-            result["ERROR_MSG"] = "input shape is incorrect"
-            return result
-        data = data[:self._input_shape[-1]]
+        if self._input_shape is not None:
+            if len(data) < self._input_shape[-1]:
+                result["CODE"] = "FAIL"
+                result["ERROR_MSG"] = "input shape is incorrect"
+                return result
+            else:
+                data = data[:self._input_shape[-1]]
         try:
-            pred_onx = self._session.run(None, {"input":  np.array([data]).astype(np.float32)})
+            if self._input_type != "float":
+                pred_onx = self._session.run(None, {"input": np.array([data]).astype(np.object)})
+            else:
+                pred_onx = self._session.run(None, {"input":  np.array([data]).astype(np.float32)})
         except Exception as exc:
             result["CODE"] = "FAIL"
             result["ERROR_MSG"] = "an error occur when get inference from onnx session : " + exc.__str__()
@@ -67,7 +114,10 @@ class OnnxServing:
         output_class = []
         output_proba = []
         for vals in pred:
-            output_class.append(self._labels.get(vals))
+            if self._labels is not None:
+                output_class.append(self._labels.get(vals))
+            else:
+                output_class.append(vals)
             output_proba.append(pred_proba.get(vals))
 
         result["CODE"] = "SUCCESS"
@@ -75,8 +125,3 @@ class OnnxServing:
         result["EVNT_ID"] = output_class
         result["PRBT"] = output_proba
         return result
-
-
-# onnx_serving = OnnxServing.remote()
-# ray.get(onnx_serving.init.remote(model_id="MDL0000002", version="1.1"))
-# ray.get(onnx_serving.predict.remote(data=[*range(50)]))

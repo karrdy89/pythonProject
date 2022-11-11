@@ -1,4 +1,13 @@
-import json
+# *********************************************************************************************************************
+# Program Name : routers
+# Creator : yum kiyeon
+# Create Date : 2022. 11. 10
+# Modify Desc :
+# *********************************************************************************************************************
+# ---------------------------------------------------------------------------------------------------------------------
+# Date  | Updator   | Remark
+#
+# ---------------------------------------------------------------------------------------------------------------------
 import os
 import logging
 import uuid
@@ -21,7 +30,7 @@ import VO.response_vo as res_vo
 import statics
 from dataset_maker.nbo.data_processing import MakeDatasetNBO
 from pipeline import Pipeline
-from tensorboard_service import TensorBoardTool
+from pipeline.exceptions import SequenceNotExistError
 from utils.common import version_encode
 from pipeline import TrainInfo
 from statics import Actors, TrainStateCode, BuiltinModels, ModelType
@@ -42,14 +51,14 @@ class AIbeemRouter:
     ----------
     _worker : str
         Class name of instance.
-    _server : actor
-        An actor handle of model_serving.
     _logger : actor
         An actor handle of global logger.
+    _tf_serving_manager : actor
+        An actor handle of tf_serving_manager.
+    _onx_serving_manager : actor
+        An actor handle of onx_serving_manager.
     _shared_state : actor
-        An actor handle of global data store.
-    _tensorboard_tool : TensorBoardTool
-        An instance of tensorboard service
+        An actor handle of global state manager.
 
     Methods
     -------
@@ -61,20 +70,20 @@ class AIbeemRouter:
 
     def __init__(self):
         self._worker = type(self).__name__
+        self._logger: ray.actor = ray.get_actor(Actors.LOGGER)
         self._tf_serving_manager: ray.actor = ray.get_actor(Actors.TF_SERVING_MANAGER)
         self._onx_serving_manager: ray.actor = ray.get_actor(Actors.ONNX_SERVING_MANAGER)
-        self._logger: ray.actor = ray.get_actor(Actors.LOGGER)
         self._shared_state: ray.actor = ray.get_actor(Actors.GLOBAL_STATE)
 
     @router.post("/train/run", response_model=res_vo.BaseResponse)
     async def train(self, request_body: req_vo.Train):
-        self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="get request: train run")
+        self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="get request: train")
         model_id = request_body.MDL_ID
         if hasattr(BuiltinModels, model_id):
             model_name = getattr(BuiltinModels, model_id)
             model_name = model_name.model_name
         else:
-            self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg="train run: model not found")
+            self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg="train: model not found")
             return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="model not found")
         main_version = request_body.MN_VER
         sub_version = request_body.N_VER
@@ -86,18 +95,27 @@ class AIbeemRouter:
             pipeline_actor = Pipeline.options(name="pipeline_name").remote()
         except ValueError as exc:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
-                                    msg="train run: failed to make actor: " + exc.__str__())
+                                    msg="train: failed to make actor: " + exc.__str__())
             return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="same process is already running")
         except Exception as exc:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
-                                    msg="train run: failed to make actor: " + exc.__str__())
+                                    msg="train: failed to make actor: " + exc.__str__())
             return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="failed to create process")
 
         set_shared_result = await self._shared_state.set_actor.remote(name=pipeline_name, act=pipeline_actor)
         if set_shared_result == 0:
-            set_pipe_result = await pipeline_actor.set_pipeline.remote(name=model_id,
-                                                                       model_name=model_name, version=version)
-            if set_pipe_result == 0:
+            try:
+                await pipeline_actor.set_pipeline.remote(name=model_id, model_name=model_name, version=version)
+            except SequenceNotExistError as exc:
+                self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                        msg="train: train pipeline not exist on this model : " + exc.__str__())
+                return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="train pipeline not exist on this model")
+            except Exception as exc:
+                self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                        msg="train: an error occur when set train pipeline : " + model_id + exc.__str__())
+                return res_vo.BaseResponse(CODE="FAIL",
+                                           ERROR_MSG="an error occur when set train pipeline : " + model_id)
+            else:
                 train_info = TrainInfo()
                 train_info.name = pipeline_name
                 train_info.epoch = request_body.EPOCH
@@ -113,11 +131,6 @@ class AIbeemRouter:
                 self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                         msg="train run: pipeline stated: " + pipeline_name)
                 return res_vo.BaseResponse(CODE="SUCCESS", ERROR_MSG="")
-            else:
-                self._logger.log.remote(level=logging.ERROR, worker=self._worker,
-                                        msg="train run: failed to set pipeline: " + pipeline_name)
-                await self._shared_state.kill_actor.remote(name=pipeline_name)
-                return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="failed to set train process")
         else:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                     msg="train run: max concurrent exceeded: " + pipeline_name)

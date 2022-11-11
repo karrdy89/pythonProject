@@ -8,6 +8,7 @@ import ray
 
 from pipeline import TrainInfo, PipelineComponent, Version
 from statics import Actors, TrainStateCode
+from pipeline.exceptions import *
 
 
 @ray.remote
@@ -70,22 +71,27 @@ class Pipeline:
                 return yaml.safe_load(stream)
             except yaml.YAMLError as exc:
                 self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg=str(exc))
-            except FileNotFoundError as fe:
-                self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg=str(fe))
-                return {"error": fe}
+                raise exc
+            except FileNotFoundError as exc:
+                self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg=str(exc))
+                raise exc
+            except Exception as exc:
+                self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg=str(exc))
+                raise exc
 
-    def set_pipeline(self, name: str, model_name: str, version: str) -> int:
-        self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="set pipeline..." + self._name)
+    def set_pipeline(self, name: str, model_name: str, version: str):
+        self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="run: set_pipeline..." + self._name)
         self._name = name + ":" + version
-        pipeline_list = self._get_piepline_definition()
-        if "error" in pipeline_list:
+        try:
+            pipeline_list = self._get_piepline_definition()
+        except Exception as exc:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
-                                    msg="an error occur when parsing yaml file")
-            return -1
+                                    msg="an error occur when parsing yaml file: " + exc.__str__())
+            raise exc
         pipeline_list = pipeline_list.get("pipelines", '')
         if pipeline_list == '':
             self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg="there is no pipeline: " + self._name)
-            return -1
+            raise PipelineNotFoundError()
         sequences = []
         for pipeline in pipeline_list:
             if pipeline.get("name") == model_name:
@@ -94,7 +100,7 @@ class Pipeline:
         if len(sequences) == 0:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                     msg="there is no sequence in pipeline: " + self._name)
-            return -1
+            raise SequenceNotExistError()
         try:
             for i, seq in enumerate(sequences):
                 self._sequence_names.append(seq.get("name"))
@@ -107,13 +113,12 @@ class Pipeline:
         except Exception as exc:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                     msg="there is no sequence in pipeline: " + self._name + ": " + exc.__str__())
-            return -1
-        else:
-            return 0
+            raise SetSequenceError()
 
     def trigger_pipeline(self, train_info) -> None:
+        self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="run: trigger_pipeline..." + self._name)
         if not self._components:
-            self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="there is no component: " + self._name)
+            self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg="there is no component: " + self._name)
             self._shared_state.set_train_status.remote(name=self._name,
                                                        status_code=TrainStateCode.TRAINING_FAIL)
             self._shared_state.set_error_message.remote(name=self._name, msg="there is no component: " + self._name)
@@ -180,7 +185,7 @@ class Pipeline:
 
     def kill_process(self) -> int:
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
-                                msg="cancel pipeline : activate")
+                                msg="run: kill_process")
         try:
             current_task_name = self._sequence_names[self._component_idx]
             self._pipeline_state[current_task_name] = StateCode.STOP
@@ -188,7 +193,7 @@ class Pipeline:
             self._shared_state.kill_actor.remote(self._name)
         except Exception as exc:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
-                                    msg="cancel pipeline: fail: " + exc.__str__())
+                                    msg="fail: kill_process: " + exc.__str__())
             return -1
         else:
             return 0
