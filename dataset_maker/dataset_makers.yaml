@@ -1,0 +1,7 @@
+dataset_makers:
+  - name: NBO
+    spec:
+      - name: "train model"
+        task: dataset_maker.nbo.data_processing.MakeDatasetNBO
+
+

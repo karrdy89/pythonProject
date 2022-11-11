@@ -138,36 +138,27 @@ class AIbeemRouter:
 
     @router.post("/train/stop", response_model=res_vo.BaseResponse)
     async def stop_train(self, request_body: req_vo.StopTrain):
-        self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="get request: train stop")
+        self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="get request: stop_train")
         model_id = request_body.MDL_ID
         main_version = request_body.MN_VER
         sub_version = request_body.N_VER
         version = main_version + "." + sub_version
         pipeline_name = model_id + ":" + version
-        # act = await self._shared_state.get_actor.remote(name=pipeline_name)
-        # if act is not None:
-        #     kill_result = await act.kill_process.remote()
-        #     if kill_result == 0:
-        #         return res_vo.BaseResponse(CODE="SUCCESS", ERROR_MSG="")
-        #     else:
-        #         return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="failed to kill task")
-        # else:
-        #     return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="task not found")
         await self._shared_state.set_error_message.remote(name=pipeline_name, msg="interruption due to stop request")
         kill_actor_result = await self._shared_state.kill_actor.remote(name=pipeline_name)
         if kill_actor_result == 0:
             self._logger.log.remote(level=logging.INFO, worker=self._worker,
-                                    msg="get request: train stopped : " + pipeline_name)
+                                    msg="stop_train: success : " + pipeline_name)
             return res_vo.BaseResponse(CODE="SUCCESS", ERROR_MSG="")
         else:
             self._logger.log.remote(level=logging.WARN, worker=self._worker,
-                                    msg="train stopped fail: model not exist: " + pipeline_name)
+                                    msg="stop_train: fail: model not exist: " + pipeline_name)
             return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="training process not exist")
 
     @router.post("/train/progress", response_model=res_vo.TrainProgress)
     async def get_train_progress(self, request_body: req_vo.CheckTrainProgress):
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
-                                msg="get request: train progress")
+                                msg="get request: get_train_progress")
         model_id = request_body.MDL_ID
         main_version = request_body.MN_VER
         sub_version = request_body.N_VER
@@ -188,7 +179,7 @@ class AIbeemRouter:
     @router.post("/train/result", response_model=res_vo.TrainResult)
     async def get_train_result(self, request_body: req_vo.BasicModelInfo):
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
-                                msg="get request: get train result")
+                                msg="get request: get_train_result")
         model_id = request_body.MDL_ID
         main_version = request_body.MN_VER
         sub_version = request_body.N_VER
@@ -198,9 +189,9 @@ class AIbeemRouter:
             train_result = await self._shared_state.get_train_result.remote(name=name)
         except Exception as exc:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
-                                    msg="get request: an error occur while get train result: " + exc.__str__())
+                                    msg="get_train_result: fail: " + exc.__str__())
 
-            return res_vo.TrainResult(CODE="FAIL", ERROR_MSG="IS ERROR SH", RSLT_MSG="")
+            return res_vo.TrainResult(CODE="FAIL", ERROR_MSG=exc.__str__(), RSLT_MSG="")
         else:
             if len(train_result) == 0:
                 return res_vo.TrainResult(CODE="FAIL", ERROR_MSG="model not exist", RSLT_MSG="")
@@ -212,13 +203,13 @@ class AIbeemRouter:
     @router.post("/dataset/make", response_model=res_vo.BaseResponse)
     async def make_dataset(self, request_body: req_vo.MakeDataset):
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
-                                msg="get request: make dataset")
+                                msg="get request: make_dataset")
         model_id = request_body.MDL_ID
         if hasattr(BuiltinModels, model_id):
             model_name = getattr(BuiltinModels, model_id)
             model_name = model_name.model_name
         else:
-            self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg="make dataset: model not found")
+            self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg="make_dataset: fail: model not found")
             return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="model not found")
 
         main_version = request_body.MN_VER
@@ -226,6 +217,12 @@ class AIbeemRouter:
         name = model_id + ":" + main_version + '.' + sub_version
         start_dtm = request_body.STYMD
         end_dtm = request_body.EDYMD
+        # remove hard code like pipeline
+        # make definition file
+        # check actor can support eval
+        # if possible read definition file
+        # how can get input of actor method?
+        # define input as dict?
         if model_name == "NBO":
             try:
                 dataset_maker = MakeDatasetNBO.options(name=name).remote()
