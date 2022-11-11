@@ -219,10 +219,13 @@ class AIbeemRouter:
         end_dtm = request_body.EDYMD
         # remove hard code like pipeline
         # make definition file
-        # check actor can support eval
+        # check actor creation can support eval
         # if possible read definition file
         # how can get input of actor method?
         # define input as dict?
+        # no. because make input with check key is must be hard coding
+        # make utils in dataset_maker, make definition file and make every dataset_maker has same input <- better way
+        # util get model name and find definition in file and make actor and run
         if model_name == "NBO":
             try:
                 dataset_maker = MakeDatasetNBO.options(name=name).remote()
@@ -458,6 +461,9 @@ async def _reverse_proxy(request: Request):
     except httpx.RequestError as exc:
         print(f"An error occurred while requesting {exc.request.url!r}.")
         return f"An error occurred while requesting {exc.request.url!r}."
+    except Exception as exc:
+        print(f"An error occurred while requesting {exc.__str__()!r}.")
+        return f"An error occurred while requesting {exc.__str__()!r}."
     else:
         return StreamingResponse(
             rp_resp.aiter_raw(),

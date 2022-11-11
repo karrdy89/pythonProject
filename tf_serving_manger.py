@@ -136,7 +136,7 @@ class TfServingManager:
     get_container_names():
         Get a name of list that currently running containers from the docker client.
     """
-
+    # remove file io. just, bind saved model volume
     def __init__(self):
         self._worker: str = type(self).__name__
         self._logger: ray.actor = None
