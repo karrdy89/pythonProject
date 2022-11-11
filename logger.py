@@ -1,3 +1,13 @@
+# *********************************************************************************************************************
+# Program Name : logger
+# Creator : yum kiyeon
+# Create Date : 2022. 11. 10
+# Modify Desc :
+# *********************************************************************************************************************
+# ---------------------------------------------------------------------------------------------------------------------
+# Date  | Updator   | Remark
+#
+# ---------------------------------------------------------------------------------------------------------------------
 from datetime import datetime
 
 import ray
@@ -97,7 +107,7 @@ class BootLogger:
      ----------
      logger : Logger
          A Logger class for logging
-     log_base_path : Logger
+     _log_base_path : Logger
          The pre-defined Logger class for logging init process.
 
      Methods
