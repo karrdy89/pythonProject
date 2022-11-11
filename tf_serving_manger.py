@@ -136,7 +136,8 @@ class TfServingManager:
     get_container_names():
         Get a name of list that currently running containers from the docker client.
     """
-    # remove file io. just, bind saved model volume
+    # remove file io. just, bind saved model volume? but built in models as file??
+    # add model repo dir and move model files to saved model folder
     def __init__(self):
         self._worker: str = type(self).__name__
         self._logger: ray.actor = None
