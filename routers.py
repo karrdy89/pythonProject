@@ -28,7 +28,8 @@ from starlette.background import BackgroundTask
 import VO.request_vo as req_vo
 import VO.response_vo as res_vo
 import statics
-from dataset_maker.nbo.data_processing import MakeDatasetNBO
+from dataset_maker.constructor import construct_operator
+# from dataset_maker.nbo.data_processing import MakeDatasetNBO
 from pipeline import Pipeline
 from pipeline.exceptions import SequenceNotExistError
 from utils.common import version_encode
@@ -206,67 +207,45 @@ class AIbeemRouter:
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="get request: make_dataset")
         model_id = request_body.MDL_ID
-        if hasattr(BuiltinModels, model_id):
-            model_name = getattr(BuiltinModels, model_id)
-            model_name = model_name.model_name
-        else:
+        if not hasattr(BuiltinModels, model_id):
             self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg="make_dataset: fail: model not found")
             return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="model not found")
 
-        main_version = request_body.MN_VER
-        sub_version = request_body.N_VER
-        name = model_id + ":" + main_version + '.' + sub_version
-        start_dtm = request_body.STYMD
-        end_dtm = request_body.EDYMD
-        # make utils in dataset_maker, make definition file and make every dataset_maker has same input <- better way
-        # util get model name and find definition in file and make actor and run
-        if model_name == "NBO":
-            try:
-                dataset_maker = MakeDatasetNBO.options(name=name).remote()
-            except ValueError as exc:
-                self._logger.log.remote(level=logging.ERROR, worker=self._worker,
-                                        msg="make dataset: failed to make actor MakeDatasetNBO: " + exc.__str__())
-                return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="same process is already running")
-            except Exception as exc:
-                self._logger.log.remote(level=logging.ERROR, worker=self._worker,
-                                        msg="make dataset: failed to make actor MakeDatasetNBO: " + exc.__str__())
-                return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="failed to create process")
+        try:
+            operator_args = construct_operator(request_body)
+        except Exception as exc:
+            self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                    msg="make_dataset: failed to construct actor: " + exc.__str__())
+            return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="failed to construct actor: " + exc.__str__())
+        else:
+            actor = operator_args.actor_handle
+            actor_name = operator_args.actor_name
+            if await self._shared_state.is_actor_exist.remote(name=operator_args.actor_name):
+                return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="same task is already running")
             else:
-                if await self._shared_state.is_actor_exist.remote(name=name):
-                    return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="same task is already running")
-
-            labels = ["EVT0000001", "EVT0000100", "EVT0000020"]
-            key_index = 0
-            # x_index = [1]   # test
-            x_index = [3]  # build
-            version = main_version
-            num_data_limit = int(request_body.LRNG_DATA_TGT_NCNT)
-            self._logger.log.remote(level=logging.INFO, worker=self._worker,
-                                    msg="make dataset: init MakeDatasetNBO")
-            result = await dataset_maker.init.remote(name=name, dataset_name=model_id, act=dataset_maker, labels=labels,
-                                                     version=version, key_index=key_index, x_index=x_index,
-                                                     num_data_limit=num_data_limit,
-                                                     start_dtm=start_dtm, end_dtm=end_dtm)
-            if result == 0:
-                set_shared_result = await self._shared_state.set_actor.remote(name=name, act=dataset_maker)
-                if set_shared_result == 0:
-                    self._shared_state.set_make_dataset_result.remote(name=name,
-                                                                      state_code=TrainStateCode.MAKING_DATASET)
-                    dataset_maker.fetch_data.remote()
-                    self._logger.log.remote(level=logging.INFO, worker=self._worker,
-                                            msg="make dataset: running")
-                    return res_vo.BaseResponse(CODE="SUCCESS", ERROR_MSG="")
+                result = await actor.init.remote(args=operator_args)
+                if result == 0:
+                    set_shared_result = await self._shared_state.set_actor.remote(name=actor_name, act=actor)
+                    if set_shared_result == 0:
+                        self._shared_state.set_make_dataset_result.remote(name=actor_name,
+                                                                          state_code=TrainStateCode.MAKING_DATASET)
+                        actor.fetch_data.remote()
+                        self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                                msg="make_dataset: running")
+                        return res_vo.BaseResponse(CODE="SUCCESS", ERROR_MSG="")
+                    else:
+                        ray.kill(actor)
+                        return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="max concurrent exceeded")
                 else:
-                    ray.kill(dataset_maker)
-                    return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="max concurrent exceeded")
-            else:
-                self._logger.log.remote(level=logging.INFO, worker=self._worker,
-                                        msg="make dataset: failed to init MakeDatasetNBO")
-                ray.kill(dataset_maker)
-                return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="failed to init process")
+                    self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                            msg="make_dataset: failed to init MakeDatasetNBO")
+                    ray.kill(actor)
+                    return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="failed to init process")
 
     @router.post("/dataset/stop", response_model=res_vo.BaseResponse)
     async def dataset_make_stop(self, request_body: req_vo.BasicModelInfo):
+        self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                msg="get request: dataset_make_stop")
         model_id = request_body.MDL_ID
         main_version = request_body.MN_VER
         sub_version = request_body.N_VER
@@ -278,6 +257,8 @@ class AIbeemRouter:
             if kill_result == 0:
                 return res_vo.BaseResponse(CODE="SUCCESS", ERROR_MSG="")
             else:
+                self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                        msg="dataset_make_stop: failed to kill actor")
                 return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="failed to kill task")
         else:
             return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="task not found")
@@ -285,7 +266,7 @@ class AIbeemRouter:
     @router.post("/dataset/download", response_model=res_vo.PathResponse)
     async def get_dataset_url(self, request_body: req_vo.BasicModelInfo):
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
-                                msg="get request: download dataset url")
+                                msg="get request: get_dataset_url")
         dataset_name = request_body.MDL_ID
         version = request_body.MN_VER
         path = statics.ROOT_DIR + "/dataset/" + dataset_name + "/" + version + "/" + dataset_name + "_" + version + ".zip"
@@ -298,7 +279,7 @@ class AIbeemRouter:
     @router.get("/dataset/{uid}")
     async def download_dataset(self, uid: str):
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
-                                msg="get request: download dataset")
+                                msg="get request: download_dataset")
         path = await self._shared_state.get_dataset_path.remote(uid=uid)
         if path is not None:
             if os.path.exists(path):
@@ -308,22 +289,6 @@ class AIbeemRouter:
                 return "file not exist"
         else:
             return "invalid url"
-
-    @router.delete("/dataset/download/{dataset_name}/{version}")
-    async def delete_dataset(self, dataset_name: str, version: str):
-        self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="get request: delete dataset")
-        path = statics.ROOT_DIR + "/dataset/" + dataset_name + "/" + version
-        if not os.path.exists(path):
-            return "file not exist"
-        else:
-            try:
-                rmtree(path)
-            except Exception as exc:
-                self._logger.log.remote(level=logging.ERROR, worker=self._worker,
-                                        msg="an error occur when delete dataset: " + exc.__str__())
-                return "failed to delete dataset"
-            else:
-                return "deleted"
 
     @router.post("/deploy", response_model=res_vo.MessageResponse)
     async def deploy(self, request_body: req_vo.Deploy):
@@ -356,24 +321,9 @@ class AIbeemRouter:
         result["DEPLOY_STATE"] = deploy_state
         return result
 
-    @router.post("/deploy/add_container", response_model=res_vo.MessageResponse)
-    async def add_container(self, request_body: req_vo.AddContainer):
-        result = await self._tf_serving_manager.add_container.remote(model_id=request_body.model_id,
-                                                                     version=request_body.version,
-                                                                     container_num=request_body.container_num)
-        result = res_vo.MessageResponse.parse_obj(result)
-        return result
-
-    @router.post("/deploy/remove_container", response_model=res_vo.MessageResponse)
-    async def remove_container(self, request_body: req_vo.RemoveContainer):
-        result = await self._tf_serving_manager.remove_container.remote(model_id=request_body.model_id,
-                                                                        version=request_body.version,
-                                                                        container_num=request_body.container_num)
-        result = res_vo.MessageResponse.parse_obj(result)
-        return result
-
     @router.post("/deploy/end_deploy", response_model=res_vo.MessageResponse)
     async def end_deploy(self, request_body: req_vo.BasicModelInfo):
+        self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="get request: end_deploy")
         model_id = request_body.MDL_ID
         main_version = request_body.MN_VER
         sub_version = request_body.N_VER
@@ -391,6 +341,7 @@ class AIbeemRouter:
 
     @router.post("/predict", response_model=res_vo.PredictResponse)
     async def predict(self, request_body: req_vo.Predict):
+        self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="get request: predict")
         model_id = request_body.MDL_ID
         main_version = request_body.MN_VER
         sub_version = request_body.N_VER
@@ -411,7 +362,7 @@ class AIbeemRouter:
 
     @router.post("/tensorboard", response_model=res_vo.PathResponse)
     async def create_tensorboard(self, request_body: req_vo.BasicModelInfo):
-        self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="get request: create tensorboard")
+        self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="get request: delete_dataset")
         model_id = request_body.MDL_ID
         model_type = getattr(BuiltinModels, model_id)
         model_type = model_type.model_type

@@ -1,0 +1,13 @@
+dataset_definitions:
+  - name: NBO
+    definition:
+        operator: dataset_maker.nbo.data_processing.MakeDatasetNBO
+        query_name: "select_test"
+        key_index: 0
+        feature_index:
+          - 1
+        labels:
+          - "EVT0000001"
+          - "EVT0000002"
+          - "EVT0000003"
+

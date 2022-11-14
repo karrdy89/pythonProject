@@ -16,6 +16,7 @@ from ray.util.multiprocessing import Pool
 from db import DBUtil
 from statics import Actors, ROOT_DIR, TrainStateCode
 from dataset_maker.nbo.utils import split_chunk, make_dataset
+from dataset_maker.arg_types import BasicTableType
 
 
 @ray.remote
@@ -50,6 +51,7 @@ class MakeDatasetNBO:
         self._mem_limit: int = 104857600
         self._num_concurrency: int = 1
         self._labels: list | None = None
+        self._query: str | None = None
         self._key_index: int = 0
         self._x_index: list[int] | None = None
         self._version: str = '0'
@@ -59,16 +61,18 @@ class MakeDatasetNBO:
         self._db: DBUtil | None = None
         self._act: ray.actor = None
 
-    def init(self, name: str, dataset_name: str, act: ray.actor, labels: list, version: str, key_index: int,
-             x_index: list[int], num_data_limit: int | None, start_dtm: str, end_dtm: str):
-        self._name = name
-        self._dataset_name: str = dataset_name
-        self._act = act
-        self._labels = labels
-        self._version = version
-        self._key_index = key_index
-        self._x_index = x_index
-        self._num_data_limit = num_data_limit
+    def init(self, args: BasicTableType):
+        # name: str, dataset_name: str, act: ray.actor, labels: list, version: str, key_index: int,
+        # x_index: list[int], num_data_limit: int | None, start_dtm: str, end_dtm: str
+        self._name = args.actor_name
+        self._dataset_name = args.dataset_name
+        self._act = args.actor_handle
+        self._labels = args.labels
+        self._version = args.version
+        self._key_index = args.key_index
+        self._x_index = args.feature_index
+        self._num_data_limit = args.num_data_limit
+        self._query = args.query_name
         try:
             self._logger = ray.get_actor(Actors.LOGGER)
             self._shared_state = ray.get_actor(Actors.GLOBAL_STATE)
@@ -77,11 +81,7 @@ class MakeDatasetNBO:
             return -1
         try:
             self._db = DBUtil()
-            # test
-            # self._db.set_select_chunk(name="select_test", param={"START": start_dtm, "END": end_dtm},
-            #                           array_size=10000, prefetch_row=10000)
-            # build
-            self._db.set_select_chunk(name="select_nbo", param={"START": start_dtm, "END": end_dtm},
+            self._db.set_select_chunk(name=self._query, param={"START": args.start_dtm, "END": args.end_dtm},
                                       array_size=10000, prefetch_row=10000)
         except Exception as exc:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
