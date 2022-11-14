@@ -11,7 +11,6 @@
 import os
 import logging
 import uuid
-from shutil import rmtree
 
 import ray
 import httpx
@@ -29,7 +28,6 @@ import VO.request_vo as req_vo
 import VO.response_vo as res_vo
 import statics
 from dataset_maker.constructor import construct_operator
-# from dataset_maker.nbo.data_processing import MakeDatasetNBO
 from pipeline import Pipeline
 from pipeline.exceptions import SequenceNotExistError
 from utils.common import version_encode
