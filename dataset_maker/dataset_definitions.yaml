@@ -1,11 +1,11 @@
 dataset_definitions:
-  - name: NBO
+  - name: MDL0000001
     definition:
         operator: dataset_maker.nbo.data_processing.MakeDatasetNBO
-        query_name: "select_test"
+        query_name: "select_nbo"
         key_index: 0
         feature_index:
-          - 1
+          - 3
         labels:
           - "EVT0000001"
           - "EVT0000002"

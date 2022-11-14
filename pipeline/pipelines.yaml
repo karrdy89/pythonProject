@@ -7,7 +7,7 @@ pipelines:
         task: preprocess.test.process_test_data
       - name: "train model"
         task: train.test.train_test_model
-  - name: NBO
+  - name: MDL0000001
     sequence:
       - name: "train model"
         task: train.NBO.train_NBO_model

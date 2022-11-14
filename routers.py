@@ -17,7 +17,7 @@ import httpx
 from fastapi import FastAPI
 from fastapi_utils.cbv import cbv
 from fastapi_utils.inferring_router import InferringRouter
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, PlainTextResponse
 from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
 from starlette.middleware.cors import CORSMiddleware
 from starlette.requests import Request
@@ -394,11 +394,9 @@ async def _reverse_proxy(request: Request):
                                   content=await request.body())
     try:
         rp_resp = await client.send(rp_req, stream=True)
-    except httpx.RequestError as exc:
-        print(f"An error occurred while requesting {exc.request.url!r}.")
-        return f"An error occurred while requesting {exc.request.url!r}."
+    except httpx.RequestError:
+        return PlainTextResponse("invalid URL")
     except Exception as exc:
-        print(f"An error occurred while requesting {exc.__str__()!r}.")
         return f"An error occurred while requesting {exc.__str__()!r}."
     else:
         return StreamingResponse(
