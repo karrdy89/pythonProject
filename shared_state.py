@@ -13,7 +13,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 
 from pipeline import TrainResult
 from logger import BootLogger
-from statics import Actors, TrainStateCode, BuiltinModels
+from statics import Actors, TrainStateCode
 from tensorboard_service import TensorBoardTool
 
 
@@ -81,6 +81,8 @@ class SharedState:
         self._PIPELINE_MAX = 1
         self._DATASET_CONCURRENCY_MAX = 1
         self._URL_UPDATE_STATE_LRN = ''
+        self._MAX_DEPLOY = 20
+        self._deploy_num = 0
         self._lock = Lock()
         self._scheduler = BackgroundScheduler()
         self._scheduler.start()
@@ -96,6 +98,7 @@ class SharedState:
             self._PIPELINE_MAX = int(config_parser.get("PIPELINE", "PIPELINE_MAX"))
             self._DATASET_CONCURRENCY_MAX = int(config_parser.get("DATASET_MAKER", "MAX_CONCURRENCY"))
             self._URL_UPDATE_STATE_LRN = str(config_parser.get("MANAGE_SERVER", "URL_UPDATE_STATE_LRN"))
+            self._MAX_DEPLOY = int(config_parser.get("DEPLOY", "MAX_DEPLOY"))
         except configparser.Error as e:
             self._boot_logger.error("(" + self._worker + ") " + "an error occur when set config...: " + str(e))
             return -1
@@ -316,3 +319,18 @@ class SharedState:
                 self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                         msg="http request fail: update train state: "
                                             + str(res.status_code))
+
+    def set_deploy_num(self, diff: int) -> int:
+        self._lock.acquire()
+        if self._deploy_num + diff <= self._MAX_DEPLOY:
+            self._deploy_num += diff
+            if self._deploy_num < 0:
+                self._deploy_num = 0
+            self._lock.release()
+            return 0
+        else:
+            self._lock.release()
+            return -1
+
+    def get_deploy_num(self) -> int:
+        return self._deploy_num

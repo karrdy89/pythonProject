@@ -1,13 +1,10 @@
 import configparser
-import os
 import asyncio
-import shutil
 import uuid
 import functools
 import logging
 import logger
 from dataclasses import dataclass, field
-from shutil import copytree, rmtree
 from concurrent.futures import ThreadPoolExecutor
 from itertools import cycle
 from typing import Optional
@@ -25,7 +22,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from utils.http_util import Http
 from utils.common import version_encode, version_decode
 from logger import BootLogger
-from statics import Actors, BuiltinModels, ModelType
+from statics import Actors, BuiltinModels, ModelType, ROOT_DIR
 from db import DBUtil
 
 
@@ -65,18 +62,12 @@ class TfServingManager:
         A list of available grpc port bind to container.
     _grpc_port_use : list[int]
         A list of grpc port in use by container.
-    _current_container_num : int
-        A number of deployed container currently
-    _project_path : str
-        Absolute path of project
     _manager_handle : AsyncIOScheduler
         An AsyncIOScheduler instance for managing container
     _HTTP_PORT_START : int
         Configuration of http port range
     _GRPC_PORT_START : int
         Configuration of grpc port range
-    _CONTAINER_MAX : int
-        Configuration of max container number
     _GC_CHECK_INTERVAL : int
         Configuration of interval of managing container
     _DEPLOY_PATH : str
@@ -141,6 +132,7 @@ class TfServingManager:
     def __init__(self):
         self._worker: str = type(self).__name__
         self._logger: ray.actor = None
+        self._shared_state: ray.actor = None
         self._boot_logger: logger = BootLogger().logger
         self._db = None
         self._lock: asyncio.Lock = asyncio.Lock()
@@ -153,14 +145,12 @@ class TfServingManager:
         self._http_port_use: list[int] = []
         self._grpc_port: list[int] = []
         self._grpc_port_use: list[int] = []
-        self._current_container_num: int = 0
-        self._project_path: str = os.path.dirname(os.path.abspath(__file__))
         self._manager_handle: AsyncIOScheduler | None = None
         self._HTTP_PORT_START: int = 8500
         self._GRPC_PORT_START: int = 8000
-        self._CONTAINER_MAX: int = 20
         self._GC_CHECK_INTERVAL: int = 10
         self._DEPLOY_PATH: str = ''
+        self._MAX_DEPLOY: int = 20
         self._CONTAINER_IMAGE: str = "tensorflow/serving:2.6.5"
         self._CONTAINER_SERVER_IP: str = ""
         self._RETRY_COUNT: int = 20
@@ -169,6 +159,7 @@ class TfServingManager:
     async def init(self) -> int:
         self._boot_logger.info("(" + self._worker + ") " + "init tensorflow_serving manager actor...")
         self._boot_logger.info("(" + self._worker + ") " + "set global logger...")
+        self._shared_state = ray.get_actor(Actors.GLOBAL_STATE)
         self._logger = ray.get_actor(Actors.LOGGER)
         self._boot_logger.info("(" + self._worker + ") " + "set statics from config...")
         config_parser = configparser.ConfigParser()
@@ -176,9 +167,9 @@ class TfServingManager:
             config_parser.read("config/config.ini")
             self._HTTP_PORT_START = int(config_parser.get("DEPLOY", "HTTP_PORT_START"))
             self._GRPC_PORT_START = int(config_parser.get("DEPLOY", "GRPC_PORT_START"))
-            self._CONTAINER_MAX = int(config_parser.get("DEPLOY", "CONTAINER_MAX"))
             self._GC_CHECK_INTERVAL = int(config_parser.get("DEPLOY", "GC_CHECK_INTERVAL"))
             self._DEPLOY_PATH = str(config_parser.get("DEPLOY", "DEPLOY_PATH"))
+            self._MAX_DEPLOY = int(config_parser.get("DEPLOY", "MAX_DEPLOY"))
             self._CONTAINER_IMAGE = str(config_parser.get("DEPLOY", "CONTAINER_IMAGE"))
             self._CONTAINER_SERVER_IP = str(config_parser.get("DEPLOY", "CONTAINER_SERVER_IP"))
             self._RETRY_COUNT: int = int(config_parser.get("DEPLOY", "RETRY_COUNT"))
@@ -188,7 +179,7 @@ class TfServingManager:
             return -1
 
         self._boot_logger.info("(" + self._worker + ") " + "set container port range...")
-        for i in range(self._CONTAINER_MAX * 2):
+        for i in range(self._MAX_DEPLOY * 2):
             self._grpc_port.append(self._GRPC_PORT_START + i)
             self._http_port.append(self._HTTP_PORT_START + i)
 
@@ -280,29 +271,22 @@ class TfServingManager:
             if deploy_num <= 0:
                 result = {"CODE": "SUCCESS", "ERROR_MSG": "", "MSG": "nothing to change"}
             else:
-                cp_result = self.copy_to_deploy(model_id, encoded_version)
-                if cp_result == -1:
+                model_deploy_state = ModelDeployState(model=(model_id, encoded_version),
+                                                      state=StateCode.AVAILABLE)
+                try:
+                    result = await self.deploy_containers(model_id, version, deploy_num, model_deploy_state)
+                except Exception as exc:
                     self._logger.log.remote(level=logging.ERROR, worker=self._worker,
-                                            msg="an error occur when copying model file :" + model_id + ":" + version)
-                    result = {"CODE": "FAIL", "ERROR_MSG": "model not found", "MSG": ""}
-                elif cp_result == -2:
-                    result = {"CODE": "FAIL", "ERROR_MSG": "an error occur when copying model file", "MSG": ""}
-                else:
-                    model_deploy_state = ModelDeployState(model=(model_id, encoded_version),
-                                                          state=StateCode.AVAILABLE)
-                    try:
-                        result = await self.deploy_containers(model_id, version, deploy_num, model_deploy_state)
-                    except Exception as exc:
-                        self._logger.log.remote(level=logging.ERROR, worker=self._worker,
-                                                msg="deploy error : " + model_id
-                                                    + ":" + version + ":" + exc.__str__())
+                                            msg="deploy error : " + model_id
+                                                + ":" + version + ":" + exc.__str__())
             self._deploy_requests.remove((model_id, version))
             return result
 
-    async def get_deploy_state(self, model_id: str, version: str) -> dict:
+    async def get_deploy_state(self) -> dict:
         self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="get deploy state")
-        model_key = model_id + "_" + version
-        if model_key in self._deploy_states:
+        total_deploy_state = []
+        current_deploy_num = await self._shared_state.get_deploy_num.remote()
+        for model_key in self._deploy_states:
             containers = []
             sep_key = model_key.split("_")
             model_id = sep_key[0]
@@ -310,10 +294,10 @@ class TfServingManager:
             model_deploy_state = self._deploy_states[model_key]
             for k, v in model_deploy_state.containers.items():
                 containers.append((v.name, v.state))
-            deploy_state = {"model_id": model_id, "version": version, "containers": containers, "current_container_num":self._current_container_num}
-            return {"CODE": "SUCCESS", "ERROR_MSG": "", "DEPLOY_STATE": deploy_state}
-        else:
-            return {"CODE": "FAIL", "ERROR_MSG": "model not found", "DEPLOY_STATE": ""}
+            deploy_state = {"model_id": model_id, "version": version, "containers": containers}
+            total_deploy_state.append(deploy_state)
+        return {"CODE": "SUCCESS", "ERROR_MSG": "", "DEPLOY_STATE": total_deploy_state,
+                "CURRENT_DEPLOY_NUM": current_deploy_num}
 
     async def add_container(self, model_id: str, version: str, container_num: int) -> dict:
         model_key = model_id + "_" + version
@@ -366,8 +350,7 @@ class TfServingManager:
         result = await self._set_cycle(model_id, version)
         if result == 0:
             self._gc_list = self._gc_list + gc_list
-            async with self._lock:
-                self._current_container_num -= len(gc_list)
+            await self._shared_state.set_deploy_num.remote(diff=-len(gc_list))
             self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                     msg="shutdown pending on " + str(container_num) + " containers : " + model_id + ":"
                                         + version)
@@ -379,7 +362,6 @@ class TfServingManager:
             return result
 
     async def end_deploy(self, model_id: str, version: str) -> dict:
-        encoded_version = version_encode(version)
         model_key = model_id + "_" + version
         model_deploy_state = self._deploy_states.get(model_key)
         result = None
@@ -394,17 +376,10 @@ class TfServingManager:
                 async with self._lock:
                     model_deploy_state.state = StateCode.SHUTDOWN
                     self._gc_list.append((ManageType.MODEL, model_key))
-                    self._current_container_num -= len(model_deploy_state.containers)
-                try:
-                    self.delete_deployed_model(model_id, encoded_version)
-                except Exception as exc:
-                    self._logger.log.remote(level=logging.WARN, worker=self._worker,
-                                            msg="end deploy : model not deleted: "
-                                                + model_id + ":" + version + ":" + exc.__str__())
-                finally:
-                    self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="end deploy : "
-                                                                                         + model_id + ":" + version)
-                    result = {"CODE": "SUCCESS", "ERROR_MSG": "", "MSG": "end deploy accepted"}
+                await self._shared_state.set_deploy_num.remote(diff=-len(model_deploy_state.containers))
+                self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="end deploy : "
+                                                                                     + model_id + ":" + version)
+                result = {"CODE": "SUCCESS", "ERROR_MSG": "", "MSG": "end deploy accepted"}
         return result
 
     async def predict(self, model_id: str, version: str, data: list) -> dict:
@@ -441,26 +416,22 @@ class TfServingManager:
         container = model_deploy_state.containers[container_name]
         if state == StateCode.AVAILABLE:
             async with Http() as http:
-                async with self._lock:
-                    container.ref_count += 1
+                container.ref_count += 1
                 predict_result = await http.post_json(url, data)
                 if predict_result is None:
                     self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg="http request error : "
                                                                                           + model_id + ":" + version)
                     result["CODE"] = "FAIL"
                     result["ERROR_MSG"] = "an error occur when making inspection. please check input values"
-                    async with self._lock:
-                        container.ref_count -= 1
+                    container.ref_count -= 1
                 elif predict_result == -1:
                     self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg="connection error : "
                                                                                           + model_id + ":" + version)
                     await self.fail_back(model_id, version, container_name)
-                    async with self._lock:
-                        container.ref_count -= 1
+                    container.ref_count -= 1
                     result = await self.predict(model_id, version, data.get("inputs")[0])
                 else:
-                    async with self._lock:
-                        container.ref_count -= 1
+                    container.ref_count -= 1
                     result["CODE"] = "SUCCESS"
                     result["ERROR_MSG"] = ""
                     outputs = predict_result["outputs"]
@@ -472,13 +443,13 @@ class TfServingManager:
             return result
 
     async def deploy_containers(self, model_id: str, version: str, container_num: int, model_deploy_state) -> dict:
-        async with self._lock:
-            if self._current_container_num + container_num > self._CONTAINER_MAX:
-                result = {"CODE": "FAIL", "ERROR_MSG": "max container number exceeded",
-                          "MSG": {"current container": self._current_container_num,
-                                  "max container number": self._CONTAINER_MAX}}
-                return result
-
+        set_deploy_num_result = await self._shared_state.set_deploy_num.remote(diff=container_num)
+        if set_deploy_num_result == -1:
+            current_deploy_num = await self._shared_state.get_deploy_num.remote()
+            result = {"CODE": "FAIL", "ERROR_MSG": "max container number exceeded",
+                      "MSG": {"current container": current_deploy_num,
+                              "max container number": self._MAX_DEPLOY}}
+            return result
         model_key = model_id + "_" + version
         futures = []
         list_container_name = []
@@ -496,7 +467,7 @@ class TfServingManager:
                                                        container_name=container_name,
                                                        http_port=http_port,
                                                        grpc_port=grpc_port,
-                                                       deploy_path=self._project_path + self._DEPLOY_PATH + model_key + "/"))) #test
+                                                       deploy_path=ROOT_DIR + self._DEPLOY_PATH + model_key + "/"))) #test
                                                        # deploy_path=self._DEPLOY_PATH + model_key + "/"))) # build
             list_container_name.append(container_name)
             list_http_url.append((self._CONTAINER_SERVER_IP, http_port))
@@ -555,7 +526,6 @@ class TfServingManager:
             async with self._lock:
                 model_deploy_state.max_input = max_input
                 self._deploy_states[model_key] = model_deploy_state
-                self._current_container_num += container_num
             await self._set_cycle(model_id=model_id, version=version)
             result = {"CODE": "SUCCESS", "ERROR_MSG": "",
                       "MSG": "deploy finished. " + str(deploy_count) + "/" + str(container_num) + " deployed"}
@@ -661,110 +631,110 @@ class TfServingManager:
         self._grpc_port_use.remove(port)
         self._grpc_port.append(port)
 
-    def reset_version_config(self, host: str, name: str, base_path: str,
-                             model_platform: str, model_version_policy: list):
-        channel = grpc.insecure_channel(host)
-        stub = model_service_pb2_grpc.ModelServiceStub(channel)
-        request = model_management_pb2.ReloadConfigRequest()
-        model_server_config = model_server_config_pb2.ModelServerConfig()
-
-        config_list = model_server_config_pb2.ModelConfigList()
-        config = config_list.config.add()
-        config.name = name
-        config.base_path = base_path
-        config.model_platform = model_platform
-        for i in model_version_policy:
-            version = version_encode(i)
-            config.model_version_policy.specific.versions.append(version)
-        model_server_config.model_config_list.CopyFrom(config_list)
-        request.config.CopyFrom(model_server_config)
-        try:
-            response = stub.HandleReloadConfigRequest(request, 20)
-        except grpc.RpcError as rpc_error:
-            if rpc_error.code() == grpc.StateCode.CANCELLED:
-                self._logger.log.remote(level=logging.ERROR, worker=self._worker,
-                                        msg="grpc cancelled : " + name)
-            elif rpc_error.code() == grpc.StateCode.UNAVAILABLE:
-                self._logger.log.remote(level=logging.ERROR, worker=self._worker,
-                                        msg="grpc unavailable : " + name)
-            else:
-                self._logger.log.remote(level=logging.ERROR, worker=self._worker,
-                                        msg="grpc unknown error : " + name)
-            return -1
-        else:
-            if response.status.error_code == 0:
-                self._logger.log.remote(level=logging.INFO, worker=self._worker,
-                                        msg="reset version config success : " + name)
-                return 0
-            else:
-                self._logger.log.remote(level=logging.INFO, worker=self._worker,
-                                        msg="reset version failed : " + response.status.error_message)
-                return -1
-
-    async def add_version(self, model_id: str, version: str):
-        model_deploy_state = self._deploy_states.get(model_id + "_" + version)
-        if model_deploy_state is None:
-            return -1
-
-        if model_deploy_state.state == StateCode.AVAILABLE:
-            result = self.copy_to_deploy(model_id, version_encode(version))
-            if result == -1:
-                return -1
-            for container_name, serving_container in model_deploy_state.containers.items():
-                result = self.reset_version_config(
-                    host=serving_container.grpc_url[0] + ":" + str(serving_container.grpc_url[1]),
-                    name=serving_container.name,
-                    base_path="/models/" + model_id, model_platform="tensorflow",
-                    model_version_policy=[version_encode(version)])
-                if result != 0:
-                    self._logger.log.remote(level=logging.ERROR, worker=self._worker,
-                                            msg="an error occur when reset config :" + model_id)
-            return 0
-        else:
-            self._logger.log.remote(level=logging.WARN, worker=self._worker,
-                                    msg="the model is not usable currently : " + model_id)
-            return -1
-
-    def copy_to_deploy(self, model_id: str, version: int) -> int:
-        model_path = self._project_path + "/saved_models/" + model_id + "/" + str(version)
-        decoded_version = version_decode(version)
-        deploy_key = model_id + "_" + decoded_version
-        deploy_path = self._project_path + "/deploy/" + deploy_key + "/" + model_id + "/" + str(version)
-        try:
-            copytree(model_path, deploy_path)
-        except FileExistsError:
-            self._logger.log.remote(level=logging.WARN, worker=self._worker,
-                                    msg="model file already exist in deploy dir, attempt to overwrite" + model_id + ":" + decoded_version)
-            result = self.delete_deployed_model(model_id, version)
-            if result == 0:
-                self.copy_to_deploy(model_id, version)
-        except FileNotFoundError:
-            self._logger.log.remote(level=logging.ERROR, worker=self._worker,
-                                    msg="model not exist" + model_id + ":" + decoded_version)
-            return -1
-        except shutil.Error as err:
-            src, dist, msg = err
-            self._logger.log.remote(level=logging.ERROR, worker=self._worker,
-                                    msg="an error occur when copy model file. "
-                                        "src:" + src + " target: " + dist + " | error: " + msg)
-            return -2
-        else:
-            return 0
-
-    def delete_deployed_model(self, model_id: str, version: int) -> int:
-        decoded_version = version_decode(version)
-        deploy_key = model_id + "_" + decoded_version
-        deploy_path = self._project_path + "/deploy/" + deploy_key
-        try:
-            rmtree(deploy_path, ignore_errors=False)
-        except shutil.Error as err:
-            src, dist, msg = err
-            self._logger.log.remote(level=logging.ERROR, worker=self._worker,
-                                    msg="an error occur when delete deployed model file. "
-                                        "src:" + src + " target: " + dist + " | error: " + msg)
-            return -1
-        else:
-            return 0
+    # def reset_version_config(self, host: str, name: str, base_path: str,
+    #                          model_platform: str, model_version_policy: list):
+    #     channel = grpc.insecure_channel(host)
+    #     stub = model_service_pb2_grpc.ModelServiceStub(channel)
+    #     request = model_management_pb2.ReloadConfigRequest()
+    #     model_server_config = model_server_config_pb2.ModelServerConfig()
+    #
+    #     config_list = model_server_config_pb2.ModelConfigList()
+    #     config = config_list.config.add()
+    #     config.name = name
+    #     config.base_path = base_path
+    #     config.model_platform = model_platform
+    #     for i in model_version_policy:
+    #         version = version_encode(i)
+    #         config.model_version_policy.specific.versions.append(version)
+    #     model_server_config.model_config_list.CopyFrom(config_list)
+    #     request.config.CopyFrom(model_server_config)
+    #     try:
+    #         response = stub.HandleReloadConfigRequest(request, 20)
+    #     except grpc.RpcError as rpc_error:
+    #         if rpc_error.code() == grpc.StateCode.CANCELLED:
+    #             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+    #                                     msg="grpc cancelled : " + name)
+    #         elif rpc_error.code() == grpc.StateCode.UNAVAILABLE:
+    #             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+    #                                     msg="grpc unavailable : " + name)
+    #         else:
+    #             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+    #                                     msg="grpc unknown error : " + name)
+    #         return -1
+    #     else:
+    #         if response.status.error_code == 0:
+    #             self._logger.log.remote(level=logging.INFO, worker=self._worker,
+    #                                     msg="reset version config success : " + name)
+    #             return 0
+    #         else:
+    #             self._logger.log.remote(level=logging.INFO, worker=self._worker,
+    #                                     msg="reset version failed : " + response.status.error_message)
+    #             return -1
+    #
+    # async def add_version(self, model_id: str, version: str):
+    #     model_deploy_state = self._deploy_states.get(model_id + "_" + version)
+    #     if model_deploy_state is None:
+    #         return -1
+    #
+    #     if model_deploy_state.state == StateCode.AVAILABLE:
+    #         result = self.copy_to_deploy(model_id, version_encode(version))
+    #         if result == -1:
+    #             return -1
+    #         for container_name, serving_container in model_deploy_state.containers.items():
+    #             result = self.reset_version_config(
+    #                 host=serving_container.grpc_url[0] + ":" + str(serving_container.grpc_url[1]),
+    #                 name=serving_container.name,
+    #                 base_path="/models/" + model_id, model_platform="tensorflow",
+    #                 model_version_policy=[version_encode(version)])
+    #             if result != 0:
+    #                 self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+    #                                         msg="an error occur when reset config :" + model_id)
+    #         return 0
+    #     else:
+    #         self._logger.log.remote(level=logging.WARN, worker=self._worker,
+    #                                 msg="the model is not usable currently : " + model_id)
+    #         return -1
+    #
+    # def copy_to_deploy(self, model_id: str, version: int) -> int:
+    #     model_path = self._project_path + "/saved_models/" + model_id + "/" + str(version)
+    #     decoded_version = version_decode(version)
+    #     deploy_key = model_id + "_" + decoded_version
+    #     deploy_path = self._project_path + "/deploy/" + deploy_key + "/" + model_id + "/" + str(version)
+    #     try:
+    #         copytree(model_path, deploy_path)
+    #     except FileExistsError:
+    #         self._logger.log.remote(level=logging.WARN, worker=self._worker,
+    #                                 msg="model file already exist in deploy dir, attempt to overwrite" + model_id + ":" + decoded_version)
+    #         result = self.delete_deployed_model(model_id, version)
+    #         if result == 0:
+    #             self.copy_to_deploy(model_id, version)
+    #     except FileNotFoundError:
+    #         self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+    #                                 msg="model not exist" + model_id + ":" + decoded_version)
+    #         return -1
+    #     except shutil.Error as err:
+    #         src, dist, msg = err
+    #         self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+    #                                 msg="an error occur when copy model file. "
+    #                                     "src:" + src + " target: " + dist + " | error: " + msg)
+    #         return -2
+    #     else:
+    #         return 0
+    #
+    # def delete_deployed_model(self, model_id: str, version: int) -> int:
+    #     decoded_version = version_decode(version)
+    #     deploy_key = model_id + "_" + decoded_version
+    #     deploy_path = self._project_path + "/deploy/" + deploy_key
+    #     try:
+    #         rmtree(deploy_path, ignore_errors=False)
+    #     except shutil.Error as err:
+    #         src, dist, msg = err
+    #         self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+    #                                 msg="an error occur when delete deployed model file. "
+    #                                     "src:" + src + " target: " + dist + " | error: " + msg)
+    #         return -1
+    #     else:
+    #         return 0
 
     async def _set_cycle(self, model_id: str, version: str) -> int:
         cycle_list = []

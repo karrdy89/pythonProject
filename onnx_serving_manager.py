@@ -52,12 +52,8 @@ class OnnxServingManager:
     _gc_list : list[tuple[int, str]]
         A list of container to delete GC will remove container with this list.
         (Ex. [(ManageType, model1_version), (ManageType, model2_version), ...])
-    _current_deploy_num: int
-        A number of onnx_serving actors currently deployed
     _manager_handle : AsyncIOScheduler
         An AsyncIOScheduler instance for managing container
-    _SERVING_ACTOR_MAX: int
-        Configuration of max number of onnx_serving actor
     _GC_CHECK_INTERVAL : int
         Configuration of interval of managing container
 
@@ -114,26 +110,27 @@ class OnnxServingManager:
     def __init__(self):
         self._worker: str = type(self).__name__
         self._logger: ray.actor = None
+        self._shared_state: ray.actor = None
         self._boot_logger: logger = BootLogger().logger
         self._db = None
         self._lock = Lock()
         self._deploy_requests: list[tuple[str, str]] = []
         self._deploy_states: dict[str, ModelDeployState] = {}
         self._gc_list: list[tuple[int, str]] = []
-        self._current_deploy_num: int = 0
         self._manager_handle: BackgroundScheduler | None = None
-        self._SERVING_ACTOR_MAX: int = 15
+        self._MAX_DEPLOY: int = 20
         self._GC_CHECK_INTERVAL: int = 10
 
     def init(self) -> int:
         self._boot_logger.info("(" + self._worker + ") " + "init onnx_serving actor...")
         self._boot_logger.info("(" + self._worker + ") " + "set global logger...")
         self._logger = ray.get_actor(Actors.LOGGER)
+        self._shared_state = ray.get_actor(Actors.GLOBAL_STATE)
         self._boot_logger.info("(" + self._worker + ") " + "set statics from config...")
         config_parser = configparser.ConfigParser()
         try:
             config_parser.read("config/config.ini")
-            self._SERVING_ACTOR_MAX = int(config_parser.get("DEPLOY", "SERVING_ACTOR_MAX"))
+            self._MAX_DEPLOY = int(config_parser.get("DEPLOY", "MAX_DEPLOY"))
             self._GC_CHECK_INTERVAL = int(config_parser.get("DEPLOY", "GC_CHECK_INTERVAL"))
         except configparser.Error as e:
             self._boot_logger.error("(" + self._worker + ") " + "an error occur when set config...: " + str(e))
@@ -237,15 +234,13 @@ class OnnxServingManager:
             return result
 
     def deploy_actor(self, model_id: str, version: str, deploy_num: int, model_deploy_state) -> dict:
-        self._lock.acquire()
-        if self._current_deploy_num + deploy_num > self._SERVING_ACTOR_MAX:
+        set_deploy_num_result = await self._shared_state.set_deploy_num.remote(diff=deploy_num)
+        if set_deploy_num_result == -1:
+            current_deploy_num = await self._shared_state.get_deploy_num.remote()
             result = {"CODE": "FAIL", "ERROR_MSG": "max serving actor exceeded",
-                      "MSG": {"current serving actor": self._current_deploy_num,
-                              "max serving actor": self._SERVING_ACTOR_MAX}}
-            self._lock.release()
+                      "MSG": {"current serving actor": current_deploy_num,
+                              "max serving actor": self._MAX_DEPLOY}}
             return result
-        self._lock.release()
-
         model_key = model_id + "_" + version
         actors = []
         actor_names = []
@@ -275,10 +270,7 @@ class OnnxServingManager:
                 ray.kill(actor)
             return result
         else:
-            self._lock.acquire()
             self._deploy_states[model_key] = model_deploy_state
-            self._current_deploy_num += deploy_count
-            self._lock.release()
             self._set_cycle(model_id=model_id, version=version)
             result = {"CODE": "SUCCESS", "ERROR_MSG": "",
                       "MSG": "deploy finished. " + str(deploy_count) + "/" + str(deploy_num) + " deployed"}
@@ -299,18 +291,19 @@ class OnnxServingManager:
             elif model_deploy_state.state == StateCode.AVAILABLE:
                 self._lock.acquire()
                 model_deploy_state.state = StateCode.SHUTDOWN
-                self._gc_list.append((ManageType.MODEL, model_key))
-                self._current_deploy_num -= len(model_deploy_state.actors)
                 self._lock.release()
+                self._gc_list.append((ManageType.MODEL, model_key))
+                ray.get(self._shared_state.set_deploy_num.remote(diff=-len(model_deploy_state.actors)))
                 self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="end deploy : "
                                                                                      + model_id + ":" + version)
                 result = {"CODE": "SUCCESS", "ERROR_MSG": "", "MSG": "end deploy accepted"}
         return result
 
-    def get_deploy_state(self, model_id: str, version: str) -> dict:
+    def get_deploy_state(self) -> dict:
         self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="get deploy state")
-        model_key = model_id + "_" + version
-        if model_key in self._deploy_states:
+        current_deploy_num = ray.get(self._shared_state.get_deploy_num.remote())
+        total_deploy_state = []
+        for model_key in self._deploy_states:
             actors = []
             sep_key = model_key.split("_")
             model_id = sep_key[0]
@@ -318,11 +311,10 @@ class OnnxServingManager:
             model_deploy_state = self._deploy_states[model_key]
             for k, v in model_deploy_state.actors.items():
                 actors.append((v.name, v.state))
-            deploy_state = {"model_id": model_id, "version": version, "containers": actors,
-                            "current_container_num": self._current_deploy_num}
-            return {"CODE": "SUCCESS", "ERROR_MSG": "", "DEPLOY_STATE": deploy_state}
-        else:
-            return {"CODE": "FAIL", "ERROR_MSG": "model not found", "DEPLOY_STATE": ""}
+            deploy_state = {"model_id": model_id, "version": version, "containers": actors}
+            total_deploy_state.append(deploy_state)
+        return {"CODE": "SUCCESS", "ERROR_MSG": "", "DEPLOY_STATE": total_deploy_state,
+                "CURRENT_DEPLOY_NUM": current_deploy_num}
 
     def add_actor(self, model_id: str, version: str, deploy_num: int) -> dict:
         model_key = model_id + "_" + version
@@ -370,9 +362,7 @@ class OnnxServingManager:
         result = self._set_cycle(model_id, version)
         if result == 0:
             self._gc_list = self._gc_list + gc_list
-            self._lock.acquire()
-            self._current_deploy_num -= len(gc_list)
-            self._lock.release()
+            self._shared_state.set_deploy_num.remote(-len(gc_list))
             self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                     msg="shutdown pending on " + str(deploy_num) + " containers : " + model_id + ":"
                                         + version)

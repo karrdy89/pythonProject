@@ -123,7 +123,8 @@ class AIbeemRouter:
                 train_info.data_split = request_body.DATA_SPLIT
                 train_info.batch_size = request_body.BATCH_SIZE
                 tmp_path = model_id + "/" + str(version_encode(version))
-                train_info.save_path = project_path + '/saved_models/' + tmp_path
+                model_key = model_id + "_" + version
+                train_info.save_path = project_path + '/saved_models/' + model_key + "/" + tmp_path
                 train_info.log_path = project_path + '/train_logs/' + tmp_path
                 pipeline_actor.trigger_pipeline.remote(train_info=train_info)
                 self._shared_state.set_train_status.remote(name=pipeline_name,

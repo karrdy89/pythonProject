@@ -38,9 +38,9 @@ except configparser.Error as e:
 boot_logger.info("(Main Server) init ray...")
 # os.environ["RAY_LOG_TO_STDERR"] = "1"
 os.environ["RAY_LOG_TO_STDERR"] = "0"
+os.environ["RAY_ROTATION_MAX_BYTES"] = "104857600"
+os.environ["RAY_ROTATION_BACKUP_COUNT"] = "1"
 ray.init(dashboard_host="127.0.0.1", dashboard_port=8265)
-
-# add scheduler for clear ray log(check log amount every hour if exceed remove all logs)
 
 
 @ray.remote
@@ -101,10 +101,9 @@ if init_processes == -1:
     boot_logger.error("(Main Server) failed to init logging_service")
     sys.exit()
 
-
+shared_state = SharedState.options(name=Actors.GLOBAL_STATE).remote()
 tf_serving_manager = TfServingManager.options(name=Actors.TF_SERVING_MANAGER).remote()
 onx_serving_manager = OnnxServingManager.options(name=Actors.ONNX_SERVING_MANAGER).remote()
-shared_state = SharedState.options(name=Actors.GLOBAL_STATE).remote()
 
 boot_logger.info("(Main Server) init services...")
 init_processes = ray.get([tf_serving_manager.init.remote(),
