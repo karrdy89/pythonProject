@@ -1,8 +1,21 @@
+# *********************************************************************************************************************
+# Program Name : mapper
+# Creator : yum kiyeon
+# Create Date : 2022. 11. 10
+# Modify Desc :
+# *********************************************************************************************************************
+# ---------------------------------------------------------------------------------------------------------------------
+# Date  | Updator   | Remark
+#
+# ---------------------------------------------------------------------------------------------------------------------
 import xml.etree.ElementTree as ElemTree
 import os
 
 
 class Mapper:
+    """
+    Read Query in query.xml with given name
+    """
     def __init__(self):
         self._path: str = os.path.dirname(os.path.abspath(__file__)) + "/query.xml"
         self._queries = None
@@ -23,6 +36,9 @@ class Mapper:
 
 
 class MapperException(Exception):
+    """
+    An Exception class for Mapper
+    """
     def __init__(self, msg: str):
         self.msg = msg
 

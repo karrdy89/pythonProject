@@ -9,6 +9,9 @@
 #
 # ---------------------------------------------------------------------------------------------------------------------
 class DefinitionNotFoundError(Exception):
+    """
+    An Exception class for constructor
+    """
     def __init__(self, exc: str = ''):
         self.exc = exc
 
@@ -17,6 +20,9 @@ class DefinitionNotFoundError(Exception):
 
 
 class DefinitionNotExistError(Exception):
+    """
+    An Exception class for constructor
+    """
     def __init__(self, exc: str = ''):
         self.exc = exc
 
@@ -25,6 +31,9 @@ class DefinitionNotExistError(Exception):
 
 
 class SetDefinitionError(Exception):
+    """
+    An Exception class for constructor
+    """
     def __init__(self, exc: str = ''):
         self.exc = exc
 

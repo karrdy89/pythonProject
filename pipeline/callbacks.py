@@ -1,3 +1,13 @@
+# *********************************************************************************************************************
+# Program Name : callbacks
+# Creator : yum kiyeon
+# Create Date : 2022. 11. 10
+# Modify Desc :
+# *********************************************************************************************************************
+# ---------------------------------------------------------------------------------------------------------------------
+# Date  | Updator   | Remark
+#
+# ---------------------------------------------------------------------------------------------------------------------
 import ray
 from tensorflow import keras
 
@@ -49,7 +59,6 @@ class BaseCallback(keras.callbacks.Callback):
         self.epoch += 1
         progress = (self.epoch_step / self.params["steps"])
         total_progress = (self.cur_dataset_num * self.cur_steps) / self.total
-        # self._train_result.set_train_progress(epoch=str(self.epoch)+"/"+str(self.params["epochs"]), progress=progress)
         self._shared_state.set_train_progress.remote(name=self.name,
                                                      epoch=str(self.epoch)+"/"+str(self.params["epochs"]),
                                                      progress=progress,
@@ -64,7 +73,6 @@ class BaseCallback(keras.callbacks.Callback):
         self.cur_steps += 1
         progress = (self.epoch_step / self.params["steps"])
         total_progress = (self.cur_dataset_num * self.cur_steps) / self.total
-        # self._train_result.set_train_progress(epoch=str(self.epoch)+"/"+str(self.params["epochs"]), progress=progress)
         self._shared_state.set_train_progress.remote(name=self.name,
                                                      epoch=str(self.epoch)+"/"+str(self.params["epochs"]),
                                                      progress=progress,
@@ -80,8 +88,6 @@ class EvaluationCallback(keras.callbacks.Callback):
     ----------
     _shared_state : actor
         an actor handle of global data store.
-    _train_result : TrainResult
-        a current result of training.
     name : str
         a name of pipeline.
     epoch_step : int

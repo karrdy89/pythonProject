@@ -1,3 +1,13 @@
+# *********************************************************************************************************************
+# Program Name : db_util
+# Creator : yum kiyeon
+# Create Date : 2022. 11. 10
+# Modify Desc :
+# *********************************************************************************************************************
+# ---------------------------------------------------------------------------------------------------------------------
+# Date  | Updator   | Remark
+#
+# ---------------------------------------------------------------------------------------------------------------------
 import re
 import concurrent.futures
 import configparser
@@ -9,7 +19,50 @@ from db.mapper import Mapper
 
 
 class DBUtil:
+    """
+    A DB utility for oracle
+
+    Attributes
+    ----------
+    _worker: str
+        The class name of instance.
+    _mapper: Mapper
+        The Mapper class for mapping query.
+    _session_pool
+        The oracle connection pool.
+    _chunk_cursor:
+        The cursor object for petch chunk data.
+    _chunk_conn:
+        The oracle connection for petch chunk data.
+    _dsn: str
+        The dsn for oracle access information.
+    concurrency: bool
+        if true query will execute on ThreadPoolExecutor and return futures.
+    _executor: ThreadPoolExecutor
+        The ThreadPoolExecutor for executing query parallely
+    _USER: str
+        The username for oracle access information.
+    _PASSWORD: str
+        The password for oracle access information.
+    _IP: str
+        THE IP  for oracle access information.
+    _PORT: str
+        THE PORT for oracle access information.
+    _SID: str
+        The SID for oracle access information.
+    _MAX_WORKER: int
+        The max worker of ThreadPoolExecutor
+    _SESSION_POOL_MIN: int
+        The range of session pool
+    _SESSION_POOL_MAX: int
+        The range of session pool
+    """
     def __init__(self, concurrency: bool = False):
+        """
+        init class attribute
+        :param concurrency:
+            if true query will execute on ThreadPoolExecutor and return futures
+        """
         self._worker = type(self).__name__
         self._mapper = Mapper()
         self._session_pool = None
@@ -33,7 +86,11 @@ class DBUtil:
         except Exception as exc:
             raise exc
 
-    def init(self):
+    def init(self) -> None:
+        """
+        Initiate DBUtil from config
+        :rtype: None
+        """
         config_parser = configparser.ConfigParser()
         try:
             config_parser.read("config/config.ini")
@@ -55,7 +112,11 @@ class DBUtil:
                                                   min=self._SESSION_POOL_MIN, max=self._SESSION_POOL_MAX,
                                                   increment=1, encoding="UTF-8")
 
-    def connection_test(self):
+    def connection_test(self) -> None:
+        """
+        Check DB connection
+        :rtype: None
+        """
         try:
             test_connection = self._session_pool.acquire()
             self._session_pool.release(test_connection)
@@ -63,6 +124,15 @@ class DBUtil:
             raise exc
 
     def select(self, name: str, param: Optional[dict] = None) -> concurrent.futures.Future | Any:
+        """
+        Mapping query with given name and execute
+        :param name: str
+            A name of query defined in query.yaml
+        :param param: param
+            A params be mapped in query.yaml
+        :return:  concurrent.futures.Future | Any
+            if self.concurrency is true, then it will return future. if not return execute result
+        """
         query = self._mapper.get(name)
         if param is not None:
             query = self._parameter_mapping(query, param)
@@ -72,6 +142,10 @@ class DBUtil:
             return self._execute_select(query)
 
     def _execute_select(self, query: str):
+        """
+        Execute select with given query
+        :return: object
+        """
         with self._session_pool.acquire() as conn:
             conn.autocommit = True
             cursor = conn.cursor()
@@ -82,6 +156,17 @@ class DBUtil:
 
     def set_select_chunk(self, name: str, param: Optional[dict] = None,
                          prefetch_row: Optional[int] = None, array_size: Optional[int] = None) -> None:
+        """
+        Set attributes of cursor for petch chunk data.
+        :param name: str
+            A name of query defined in query.yaml
+        :param param: param
+            A params be mapped in query.yaml
+        :param prefetch_row: int
+            Set prefetch rows
+        :param array_size: int
+            Set prefetch array size
+        """
         self._chunk_conn = self._session_pool.acquire()
         self._chunk_cursor = self._chunk_conn.cursor()
         if prefetch_row is not None:
@@ -95,6 +180,10 @@ class DBUtil:
         self._chunk_cursor.execute(query)
 
     def select_chunk(self) -> list:
+        """
+        Execute select with given query
+        :return: list
+        """
         cursor = self._chunk_cursor
         while True:
             results = cursor.fetchmany(numRows=self._chunk_cursor.arraysize)
@@ -159,10 +248,26 @@ class DBUtil:
             return result
 
     def _parameter_mapping(self, query: str, param: dict) -> str:
+        """
+        Mapping of params to given query.
+        :param query: str
+            Query string
+        :param param: dict
+            variable of query string
+        :rtype: str
+        """
         mapped = re.sub(r"\#\{(.*?)\}", lambda m: self._mapping(m.group(1), param), query)
         return mapped
 
     def _mapping(self, s: str, param: dict) -> str:
+        """
+        Mapping of params to given string.
+        :param s: str
+            Query string
+        :param param: dict
+            variable of query string
+        :rtype: str
+        """
         v = param[s]
         if v is None:
             raise Exception("parameter isn't matched")

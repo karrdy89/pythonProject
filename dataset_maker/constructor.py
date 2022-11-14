@@ -1,3 +1,13 @@
+# *********************************************************************************************************************
+# Program Name : constructor
+# Creator : yum kiyeon
+# Create Date : 2022. 11. 10
+# Modify Desc :
+# *********************************************************************************************************************
+# ---------------------------------------------------------------------------------------------------------------------
+# Date  | Updator   | Remark
+#
+# ---------------------------------------------------------------------------------------------------------------------
 import yaml
 import importlib
 
@@ -8,6 +18,13 @@ from statics import BuiltinModels, ROOT_DIR
 
 
 def construct_operator(args: MakeDataset) -> BasicTableType:
+    """
+    Construct inputs for dataset maker with given information
+    :param args: MakeDataset
+        The pydantic model for creating datasets
+    :return: BasicTableType
+        The pydantic model for BasicTableType input
+    """
     operator_input = {}
     model_id = args.MDL_ID
     model_name = getattr(BuiltinModels, model_id)
@@ -66,6 +83,11 @@ def construct_operator(args: MakeDataset) -> BasicTableType:
 
 
 def get_dataset_definition(path: str) -> dict:
+    """
+    Parse yaml file with given path
+    :param path: str
+    :return: dict
+    """
     with open(path, 'r') as stream:
         try:
             return yaml.safe_load(stream)

@@ -114,10 +114,6 @@ class TfServingManager:
         Changing the settings of a running TensorFlow Serving Container via grpc.
     add_version(model_id: str, version: str):
         Changing model version of a running TensorFlow Serving Container.
-    copy_to_deploy(model_id: str, version: int) -> int:
-        Copy saved model file to deploy directory
-    delete_deployed_model(model_id: str, version: int) -> int:
-        Delete saved model file from deploy directory
     _set_cycle(model_id: str, version: str) -> int:
         Set cycle instance for round-robin.
     gc_container() -> None:

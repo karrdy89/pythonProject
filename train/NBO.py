@@ -1,3 +1,13 @@
+# *********************************************************************************************************************
+# Program Name : NBO
+# Creator : yum kiyeon
+# Create Date : 2022. 11. 10
+# Modify Desc :
+# *********************************************************************************************************************
+# ---------------------------------------------------------------------------------------------------------------------
+# Date  | Updator   | Remark
+#
+# ---------------------------------------------------------------------------------------------------------------------
 import json
 import os
 
@@ -11,6 +21,12 @@ from statics import ROOT_DIR
 
 @PipelineComponent
 def train_NBO_model(train_info: Input[TrainInfo]):
+    """
+    A PipelineComponent train NBO model
+    :param train_info: TrainInfo
+        definition of train params
+    :return: None
+    """
     import tensorflow as tf
     import pandas as pd
     import numpy as np
@@ -104,9 +120,6 @@ def train_NBO_model(train_info: Input[TrainInfo]):
 
     test_callback = evaluation_callback(train_info)
     model.evaluate(test_dataset_X, test_dataset_y, callbacks=test_callback, batch_size=train_info.batch_size)
-
-
-    # labeled_output = LabelLayer(label_vocab.get_vocabulary(), len(label_vocab.get_vocabulary()), name='result')(model.outputs)
     labeled_output = LabelLayer(labels, num_labels, name='result')(model.outputs)
     model = tf.keras.Model(model.input, labeled_output)
     model.save(train_info.save_path)
