@@ -293,7 +293,8 @@ class TfServingManager:
             model_deploy_state = self._deploy_states[model_key]
             for k, v in model_deploy_state.containers.items():
                 containers.append((v.name, v.state))
-            deploy_state = {"model_id": model_id, "version": version, "containers": containers}
+            deploy_state = {"model_id": model_id, "version": version, "containers": containers,
+                            "deploy_num": len(containers)}
             total_deploy_state.append(deploy_state)
         return {"CODE": "SUCCESS", "ERROR_MSG": "", "DEPLOY_STATE": total_deploy_state,
                 "CURRENT_DEPLOY_NUM": current_deploy_num}

@@ -47,7 +47,8 @@ class PredictResponse(BaseResponse):
 
 
 class DeployState(BaseResponse):
-    DEPLOY_STATE: dict
+    DEPLOY_STATE: list
+    CURRENT_DEPLOY_NUM: int
 
     class Config:
         extra = Extra.forbid

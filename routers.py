@@ -334,33 +334,26 @@ class AIbeemRouter:
         version = main_version + '.' + sub_version
         model_type = getattr(BuiltinModels, model_id)
         model_type = model_type.model_type
-        result = None
         if model_type == ModelType.Tensorflow:
             result = await self._tf_serving_manager.deploy.remote(model_id=model_id,
                                                                   version=version,
                                                                   deploy_num=request_body.WDTB_SRVR_NCNT)
+            result = res_vo.MessageResponse.parse_obj(result)
+            return result
         elif model_type == ModelType.ONNX:
             result = await self._onx_serving_manager.deploy.remote(model_id=model_id,
                                                                    version=version,
                                                                    deploy_num=request_body.WDTB_SRVR_NCNT)
-        result = res_vo.MessageResponse.parse_obj(result)
-        return result
+            result = res_vo.MessageResponse.parse_obj(result)
+            return result
 
-    @router.post("/deploy/state", response_model=res_vo.DeployState)
-    async def get_deploy_state(self, request_body: req_vo.BasicModelInfo):
-        model_id = request_body.MDL_ID
-        main_version = request_body.MN_VER
-        sub_version = request_body.N_VER
-        version = main_version + '.' + sub_version
-        model_type = getattr(BuiltinModels, model_id)
-        model_type = model_type.model_type
-        result = None
-        if model_type == ModelType.Tensorflow:
-            result = await self._tf_serving_manager.get_deploy_state.remote(model_id=model_id, version=version)
-            result = res_vo.DeployState.parse_obj(result)
-        elif model_type == ModelType.ONNX:
-            result = await self._onx_serving_manager.get_deploy_state.remote(model_id=model_id, version=version)
-            result = res_vo.DeployState.parse_obj(result)
+    @router.get("/deploy/state", response_model=res_vo.DeployState)
+    async def get_deploy_state(self):
+        tf_deploy_state = await self._tf_serving_manager.get_deploy_state.remote()
+        onx_deploy_state = await self._onx_serving_manager.get_deploy_state.remote()
+        deploy_state = onx_deploy_state.get("DEPLOY_STATE") + tf_deploy_state.get("DEPLOY_STATE")
+        result = tf_deploy_state
+        result["DEPLOY_STATE"] = deploy_state
         return result
 
     @router.post("/deploy/add_container", response_model=res_vo.MessageResponse)

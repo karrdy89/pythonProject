@@ -61,7 +61,8 @@ class OnnxServing:
 
     def init(self, model_id: str, version: str) -> tuple:
         encoded_version = version_encode(version)
-        self._model_path = ROOT_DIR + "/saved_models/" + model_id + "/" + str(encoded_version)
+        model_key = model_id + "_" + version
+        self._model_path = ROOT_DIR + "/saved_models/" + model_key + "/" + model_id + "/" + str(encoded_version)
         model_name = None
         for folderName, subfolders, filenames in os.walk(self._model_path):
             for filename in filenames:
