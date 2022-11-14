@@ -374,7 +374,7 @@ class TfServingManager:
             elif model_deploy_state.state == StateCode.AVAILABLE:
                 async with self._lock:
                     model_deploy_state.state = StateCode.SHUTDOWN
-                    self._gc_list.append((ManageType.MODEL, model_key))
+                self._gc_list.append((ManageType.MODEL, model_key))
                 await self._shared_state.set_deploy_num.remote(diff=-len(model_deploy_state.containers))
                 self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="end deploy : "
                                                                                      + model_id + ":" + version)
@@ -501,17 +501,11 @@ class TfServingManager:
                                         split_key = key.split("_")
                                         if split_key[0] == "seq":
                                             max_input = int(split_key[1])
-                    if max_input is not None:
-                        serving_container = ServingContainer(name=list_container_name[i], container=list_container[i],
-                                                             http_url=list_http_url[i], grpc_url=list_grpc_url[i],
-                                                             state=StateCode.AVAILABLE)
-                        model_deploy_state.containers[list_container_name[i]] = serving_container
-                        deploy_count += 1
-                    else:
-                        container = list_container[i]
-                        container.remove(force=True)
-                        self.release_port_http(list_http_url[i][1])
-                        self.release_port_grpc(list_grpc_url[i][1])
+                    serving_container = ServingContainer(name=list_container_name[i], container=list_container[i],
+                                                         http_url=list_http_url[i], grpc_url=list_grpc_url[i],
+                                                         state=StateCode.AVAILABLE)
+                    model_deploy_state.containers[list_container_name[i]] = serving_container
+                    deploy_count += 1
             else:
                 container = list_container[i]
                 container.remove(force=True)
@@ -524,7 +518,7 @@ class TfServingManager:
                                         + " is deployed: " + model_id + ":" + version)
             async with self._lock:
                 model_deploy_state.max_input = max_input
-                self._deploy_states[model_key] = model_deploy_state
+            self._deploy_states[model_key] = model_deploy_state
             await self._set_cycle(model_id=model_id, version=version)
             result = {"CODE": "SUCCESS", "ERROR_MSG": "",
                       "MSG": "deploy finished. " + str(deploy_count) + "/" + str(container_num) + " deployed"}
@@ -775,9 +769,8 @@ class TfServingManager:
                         self.release_port_http(http_port)
                         self.release_port_grpc(grpc_port)
                         remove_count += 1
-                    async with self._lock:
-                        del self._deploy_states[key]
-                        self._gc_list.remove(type_key)
+                    del self._deploy_states[key]
+                    self._gc_list.remove(type_key)
                     self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                             msg="model deploy ended: " + key)
             elif manage_type == ManageType.CONTAINER:
@@ -797,8 +790,7 @@ class TfServingManager:
                                     self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                                             msg="an error occur when remove container : " + e.__str__())
                                     continue
-                                async with self._lock:
-                                    del containers[key]
+                                del containers[key]
                                 http_port = container.http_url[1]
                                 grpc_port = container.grpc_url[1]
                                 self.release_port_http(http_port)

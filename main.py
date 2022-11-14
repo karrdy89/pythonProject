@@ -9,9 +9,10 @@
 #
 # ---------------------------------------------------------------------------------------------------------------------
 import sys
-import os
 import configparser
 import traceback
+import os
+from shutil import copytree, copyfile
 
 import ray
 import uvicorn
@@ -21,7 +22,7 @@ from onnx_serving_manager import OnnxServingManager
 from db import DBUtil
 from logger import Logger, BootLogger
 from shared_state import SharedState
-from statics import Actors
+from statics import Actors, ROOT_DIR
 
 boot_logger = BootLogger().logger
 boot_logger.info("(Main Server) init main server...")
@@ -36,13 +37,32 @@ except configparser.Error as e:
     sys.exit()
 
 boot_logger.info("(Main Server) patching pre-trained models ...")
-# check if exist and same file
-# copy pre-trained_model to saved_models
+pre_trained_dir = "/pre-trained_models/"
+saved_model_dir = "/saved_models/"
+try:
+    for subdir, dirs, files in os.walk(ROOT_DIR + pre_trained_dir):
+        saved_model_path = subdir.replace(pre_trained_dir, saved_model_dir)
+        if os.path.isdir(saved_model_path):
+            if files:
+                for file in files:
+                    saved_model_file = saved_model_path + "/" + file
+                    pre_trained_model_file = subdir + "/" + file
+                    if os.path.isfile(saved_model_file):
+                        if os.path.getsize(saved_model_file) != os.path.getsize(pre_trained_model_file):
+                            copyfile(pre_trained_model_file, saved_model_file)
+                    else:
+                        copyfile(pre_trained_model_file, saved_model_file)
+        else:
+            copytree(subdir, saved_model_path)
+except Exception as exc:
+    boot_logger.error("(Main Server) an error occur when copying pre-trained_model...: " + exc.__str__())
+    sys.exit()
+
 
 boot_logger.info("(Main Server) init ray...")
 os.environ["RAY_LOG_TO_STDERR"] = "0"
 os.environ["RAY_ROTATION_MAX_BYTES"] = "104857600"
-os.environ["RAY_ROTATION_BACKUP_COUNT"] = "1"
+os.environ["RAY_ROTATION_BACKUP_COUNT"] = "5"
 ray.init(dashboard_host="127.0.0.1", dashboard_port=8265)
 
 

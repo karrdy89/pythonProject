@@ -185,10 +185,11 @@ class OnnxServingManager:
             self._logger.log.remote(level=logging.WARN, worker=self._worker,
                                     msg="same deploy request is in progress : " + model_id + ":" + version)
             result = {"CODE": "FAIL", "ERROR_MSG": "same deploy request is in progress", "MSG": ""}
+            self._lock.release()
             return result
         else:
             self._deploy_requests.append((model_id, version))
-        self._lock.release()
+            self._lock.release()
 
         encoded_version = version_encode(version)
         model_key = model_id + "_" + version
@@ -234,9 +235,9 @@ class OnnxServingManager:
             return result
 
     def deploy_actor(self, model_id: str, version: str, deploy_num: int, model_deploy_state) -> dict:
-        set_deploy_num_result = await self._shared_state.set_deploy_num.remote(diff=deploy_num)
+        set_deploy_num_result = ray.get(self._shared_state.set_deploy_num.remote(diff=deploy_num))
         if set_deploy_num_result == -1:
-            current_deploy_num = await self._shared_state.get_deploy_num.remote()
+            current_deploy_num = ray.get(self._shared_state.get_deploy_num.remote())
             result = {"CODE": "FAIL", "ERROR_MSG": "max serving actor exceeded",
                       "MSG": {"current serving actor": current_deploy_num,
                               "max serving actor": self._MAX_DEPLOY}}
@@ -430,10 +431,8 @@ class OnnxServingManager:
                                                     msg="an error occur when remove actor : " + exc.__str__())
                             continue
                         remove_count += 1
-                    self._lock.acquire()
                     del self._deploy_states[key]
                     self._gc_list.remove(type_key)
-                    self._lock.release()
                     self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                             msg="model deploy ended: " + key)
             elif manage_type == ManageType.ACTOR:
@@ -453,9 +452,7 @@ class OnnxServingManager:
                                     self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                                             msg="an error occur when remove actor : " + exc.__str__())
                                     continue
-                                self._lock.acquire()
                                 del actors[key]
-                                self._lock.release()
                                 self._set_cycle(model_id, version)
                                 self._gc_list.remove(type_key)
                                 self._logger.log.remote(level=logging.INFO, worker=self._worker,
@@ -495,23 +492,17 @@ class OnnxServingManager:
         actor_name = deploy_info[2]
         serving_actor = model_deploy_state.actors[actor_name]
         if state == StateCode.AVAILABLE:
-            self._lock.acquire()
             serving_actor.ref_count += 1
-            self._lock.release()
             try:
                 predict_result = ray.get(actor.predict.remote(data=data))
             except Exception as exc:
                 self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                         msg="can't get inference from actor : " + exc.__str__() + model_id + ":" + version)
                 self.fail_back(model_id, version, actor_name)
-                self._lock.acquire()
                 serving_actor.ref_count -= 1
-                self._lock.release()
                 result = self.predict(model_id, version, data)
             else:
-                self._lock.acquire()
                 serving_actor.ref_count -= 1
-                self._lock.release()
                 result = predict_result
             return result
         else:
