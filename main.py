@@ -35,8 +35,11 @@ except configparser.Error as e:
     boot_logger.error("(Main Server) an error occur when set config...: " + str(e))
     sys.exit()
 
+boot_logger.info("(Main Server) patching pre-trained models ...")
+# check if exist and same file
+# copy pre-trained_model to saved_models
+
 boot_logger.info("(Main Server) init ray...")
-# os.environ["RAY_LOG_TO_STDERR"] = "1"
 os.environ["RAY_LOG_TO_STDERR"] = "0"
 os.environ["RAY_ROTATION_MAX_BYTES"] = "104857600"
 os.environ["RAY_ROTATION_BACKUP_COUNT"] = "1"
