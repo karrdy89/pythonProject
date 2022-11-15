@@ -472,8 +472,7 @@ class TfServingManager:
                                                        container_name=container_name,
                                                        http_port=http_port,
                                                        grpc_port=grpc_port,
-                                                       deploy_path=ROOT_DIR + self._DEPLOY_PATH + model_key + "/"))) #test
-                                                       # deploy_path=self._DEPLOY_PATH + model_key + "/"))) # build
+                                                       deploy_path=self._DEPLOY_PATH + model_key + "/")))
             list_container_name.append(container_name)
             list_http_url.append((self._CONTAINER_SERVER_IP, http_port))
             list_grpc_url.append((self._CONTAINER_SERVER_IP, grpc_port))
