@@ -36,8 +36,6 @@ class TensorBoardTool:
     ----------
     _worker : str
         Class name of instance.
-    _boot_logger : logger
-        A log instance for init process.
     _logger : actor
         The global logger.
     _port : list[int]
@@ -46,8 +44,6 @@ class TensorBoardTool:
         A List of port in use.
     _tensorboard_thread_queue : queue
         The queue with a tensorboard thread information for expire tensorboard thread.
-    _timer : ResettableTimer
-        A resettable timer for manage tensorboard thread.
     _before_produce_time : float
         The prior time of tensorboard thread produced for calculate next expire time.
     _TENSORBOARD_PORT_START: int
