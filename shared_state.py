@@ -119,13 +119,11 @@ class SharedState:
             self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="max piepline exceeded")
             return -1
         else:
-            self._lock.acquire()
             self._actors[name] = act
             if name in self._train_result:
                 del self._train_result[name]
             if name in self._pipline_result:
                 del self._pipline_result[name]
-            self._lock.release()
             return 0
 
     def get_actor(self, name: str) -> actor:
@@ -281,30 +279,22 @@ class SharedState:
 
     def set_dataset_url(self, uid: str, path: str) -> None:
         run_date = datetime.now() + timedelta(seconds=self._EXPIRE_TIME)
-        self._lock.acquire()
         self._dataset_url[uid] = path
-        self._lock.release()
         self._scheduler.add_job(self.delete_dataset_url, "date", run_date=run_date, args=[uid])
 
     def get_dataset_path(self, uid) -> str | None:
-        self._lock.acquire()
         path = None
         if uid in self._dataset_url:
             path = self._dataset_url[uid]
             del self._dataset_url[uid]
-        self._lock.release()
         return path
 
     def delete_dataset_url(self, uid: str) -> None:
-        self._lock.acquire()
         if uid in self._dataset_url:
             del self._dataset_url[uid]
-        self._lock.release()
 
     def get_tensorboard_port(self, dir_path: str) -> int:
-        self._lock.acquire()
         port = self._tensorboard_tool.run(dir_path=dir_path)
-        self._lock.release()
         return port
 
     def send_state_code(self, name: str, state_code: int) -> None:

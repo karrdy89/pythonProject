@@ -89,22 +89,22 @@ class UvicornServer(uvicorn.Server):
 
 
 # test
-# config = uvicorn.Config("routers:app",
-#                         host="0.0.0.0",
-#                         port=8080,
-#                         ssl_keyfile=SSL_CERT_PATH + "/key.pem",
-#                         ssl_certfile=SSL_CERT_PATH + "/cert.pem",
-#                         ssl_keyfile_password="1234"
-#                         )
-
-# build
 config = uvicorn.Config("routers:app",
                         host="0.0.0.0",
                         port=8080,
-                        ssl_keyfile=SSL_CERT_PATH + "/newkey.pem",
+                        ssl_keyfile=SSL_CERT_PATH + "/key.pem",
                         ssl_certfile=SSL_CERT_PATH + "/cert.pem",
-                        ssl_ca_certs=SSL_CERT_PATH + "/DigiCertCA.pem"
+                        ssl_keyfile_password="1234"
                         )
+
+# build
+# config = uvicorn.Config("routers:app",
+#                         host="0.0.0.0",
+#                         port=8080,
+#                         ssl_keyfile=SSL_CERT_PATH + "/newkey.pem",
+#                         ssl_certfile=SSL_CERT_PATH + "/cert.pem",
+#                         ssl_ca_certs=SSL_CERT_PATH + "/DigiCertCA.pem"
+#                         )
 
 
 boot_logger.info("(Main Server) check database connection...")
@@ -124,9 +124,9 @@ if init_processes == -1:
     boot_logger.error("(Main Server) failed to init logging_service")
     sys.exit()
 
-shared_state = SharedState.options(name=Actors.GLOBAL_STATE).remote()
-tf_serving_manager = TfServingManager.options(name=Actors.TF_SERVING_MANAGER).remote()
-onx_serving_manager = OnnxServingManager.options(name=Actors.ONNX_SERVING_MANAGER).remote()
+shared_state = SharedState.options(name=Actors.GLOBAL_STATE, max_concurrency=2000).remote()
+tf_serving_manager = TfServingManager.options(name=Actors.TF_SERVING_MANAGER, max_concurrency=1000).remote()
+onx_serving_manager = OnnxServingManager.options(name=Actors.ONNX_SERVING_MANAGER, max_concurrency=1000).remote()
 
 boot_logger.info("(Main Server) init services...")
 init_processes = ray.get([tf_serving_manager.init.remote(),
@@ -134,7 +134,7 @@ init_processes = ray.get([tf_serving_manager.init.remote(),
                           shared_state.init.remote()])
 api_service = None
 try:
-    api_service = UvicornServer.options(name=Actors.SERVER).remote(config=config)
+    api_service = UvicornServer.options(name=Actors.SERVER, max_concurrency=1000).remote(config=config)
 except Exception as exc:
     exc_str = ''.join(traceback.format_exception(None, exc, exc.__traceback__))
     init_processes.append(-1)

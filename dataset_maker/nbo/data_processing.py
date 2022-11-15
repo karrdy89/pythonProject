@@ -183,7 +183,7 @@ class MakeDatasetNBO:
 
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="making nbo dataset: finished")
-        ray.get(self._shared_state.set_make_dataset_result.remote(self._name, TrainStateCode.MAKING_DATASET_DONE))
+        self._shared_state.set_make_dataset_result.remote(self._name, TrainStateCode.MAKING_DATASET_DONE)
         self._shared_state.kill_actor.remote(self._name)
 
     def _export(self):
@@ -271,8 +271,8 @@ class MakeDatasetNBO:
         self._process_pool.close()
         self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                 msg="making nbo dataset: an error occur when processing data: " + msg)
-        ray.get(self._shared_state.set_make_dataset_result.remote(self._name, TrainStateCode.MAKING_DATASET_FAIL))
-        ray.get(self._shared_state.set_error_message.remote(self._name, msg))
+        self._shared_state.set_make_dataset_result.remote(self._name, TrainStateCode.MAKING_DATASET_FAIL)
+        self._shared_state.set_error_message.remote(self._name, msg)
         self._shared_state.kill_actor.remote(self._name)
 
     def kill_process(self) -> int:
@@ -280,7 +280,7 @@ class MakeDatasetNBO:
                                 msg="cancel make nbo dataset: run")
         try:
             self._process_pool.close()
-            ray.get(self._shared_state.set_make_dataset_result.remote(self._name, TrainStateCode.MAKING_DATASET_FAIL))
+            self._shared_state.set_make_dataset_result.remote(self._name, TrainStateCode.MAKING_DATASET_FAIL)
             self._shared_state.kill_actor.remote(self._name)
         except Exception as exc:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
