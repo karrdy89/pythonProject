@@ -1,7 +1,20 @@
+# *********************************************************************************************************************
+# Program Name : response_vo
+# Creator : yum kiyeon
+# Create Date : 2022. 11. 10
+# Modify Desc :
+# *********************************************************************************************************************
+# ---------------------------------------------------------------------------------------------------------------------
+# Date  | Updator   | Remark
+#
+# ---------------------------------------------------------------------------------------------------------------------
 from pydantic import BaseModel, Extra
 
 
 class BaseResponse(BaseModel):
+    """
+    Define pydantic model to validate basic output response
+    """
     CODE: str
     ERROR_MSG: str
 
@@ -10,6 +23,9 @@ class BaseResponse(BaseModel):
 
 
 class MessageResponse(BaseResponse):
+    """
+    Define pydantic model to validate output response
+    """
     MSG: str | dict
 
     class Config:
@@ -17,6 +33,9 @@ class MessageResponse(BaseResponse):
 
 
 class PathResponse(BaseResponse):
+    """
+    Define pydantic model to validate output response
+    """
     PATH: str
 
     class Config:
@@ -24,6 +43,9 @@ class PathResponse(BaseResponse):
 
 
 class TrainProgress(BaseResponse):
+    """
+    Define pydantic model to validate output response
+    """
     MDL_LRNG_ST_CD: dict
     TRAIN_INFO: dict
 
@@ -32,6 +54,9 @@ class TrainProgress(BaseResponse):
 
 
 class TrainResult(BaseResponse):
+    """
+    Define pydantic model to validate output response
+    """
     RSLT_MSG: dict
 
     class Config:
@@ -39,6 +64,9 @@ class TrainResult(BaseResponse):
 
 
 class PredictResponse(BaseResponse):
+    """
+    Define pydantic model to validate output response
+    """
     EVNT_ID: list
     PRBT: list
 
@@ -47,6 +75,9 @@ class PredictResponse(BaseResponse):
 
 
 class DeployState(BaseResponse):
+    """
+    Define pydantic model to validate output response
+    """
     DEPLOY_STATE: list
     CURRENT_DEPLOY_NUM: int
 

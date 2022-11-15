@@ -1,7 +1,20 @@
+# *********************************************************************************************************************
+# Program Name : request_vo
+# Creator : yum kiyeon
+# Create Date : 2022. 11. 10
+# Modify Desc :
+# *********************************************************************************************************************
+# ---------------------------------------------------------------------------------------------------------------------
+# Date  | Updator   | Remark
+#
+# ---------------------------------------------------------------------------------------------------------------------
 from pydantic import BaseModel, Extra
 
 
 class CheckTrainProgress(BaseModel):
+    """
+    Define pydantic model to validate inputs of train_progress request
+    """
     MDL_ID: str
     MN_VER: str
     N_VER: str
@@ -11,6 +24,9 @@ class CheckTrainProgress(BaseModel):
 
 
 class MakeDataset(BaseModel):
+    """
+    Define pydantic model to validate inputs of make_dataset request
+    """
     MDL_ID: str
     MN_VER: str
     N_VER: str
@@ -23,6 +39,9 @@ class MakeDataset(BaseModel):
 
 
 class Deploy(BaseModel):
+    """
+    Define pydantic model to validate inputs of deploy request
+    """
     MDL_ID: str
     MN_VER: str
     N_VER: str
@@ -33,6 +52,9 @@ class Deploy(BaseModel):
 
 
 class Predict(BaseModel):
+    """
+    Define pydantic model to validate inputs of predict request
+    """
     MDL_ID: str
     MN_VER: str
     N_VER: str
@@ -42,25 +64,10 @@ class Predict(BaseModel):
         extra = Extra.forbid
 
 
-class AddContainer(BaseModel):
-    model_id: str
-    version: str
-    container_num: int
-
-    class Config:
-        extra = Extra.forbid
-
-
-class RemoveContainer(BaseModel):
-    model_id: str
-    version: str
-    container_num: int
-
-    class Config:
-        extra = Extra.forbid
-
-
 class EndDeploy(BaseModel):
+    """
+    Define pydantic model to validate inputs of end_deploy request
+    """
     model_id: str
     version: str
 
@@ -69,6 +76,9 @@ class EndDeploy(BaseModel):
 
 
 class Train(BaseModel):
+    """
+    Define pydantic model to validate inputs of train request
+    """
     MDL_ID: str
     MN_VER: str
     N_VER: str
@@ -82,6 +92,9 @@ class Train(BaseModel):
 
 
 class StopTrain(BaseModel):
+    """
+    Define pydantic model to validate inputs of stop_train request
+    """
     MDL_ID: str
     MN_VER: str
     N_VER: str
@@ -91,6 +104,9 @@ class StopTrain(BaseModel):
 
 
 class BasicModelInfo(BaseModel):
+    """
+    Define pydantic model to validate inputs of basic request
+    """
     MDL_ID: str
     MN_VER: str
     N_VER: str
