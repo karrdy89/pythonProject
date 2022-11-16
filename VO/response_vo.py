@@ -80,6 +80,7 @@ class DeployState(BaseResponse):
     """
     DEPLOY_STATE: list
     CURRENT_DEPLOY_NUM: int
+    MAX_DEPLOY: int
 
     class Config:
         extra = Extra.forbid

@@ -302,7 +302,7 @@ class TfServingManager:
                             "deploy_num": len(containers)}
             total_deploy_state.append(deploy_state)
         return {"CODE": "SUCCESS", "ERROR_MSG": "", "DEPLOY_STATE": total_deploy_state,
-                "CURRENT_DEPLOY_NUM": current_deploy_num}
+                "CURRENT_DEPLOY_NUM": current_deploy_num, "MAX_DEPLOY": self._MAX_DEPLOY}
 
     async def add_container(self, model_id: str, version: str, container_num: int) -> dict:
         model_key = model_id + "_" + version

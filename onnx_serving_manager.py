@@ -264,7 +264,7 @@ class OnnxServingManager:
             deploy_state = {"model_id": model_id, "version": version, "actors": actors, "deploy_num": len(actors)}
             total_deploy_state.append(deploy_state)
         return {"CODE": "SUCCESS", "ERROR_MSG": "", "DEPLOY_STATE": total_deploy_state,
-                "CURRENT_DEPLOY_NUM": current_deploy_num}
+                "CURRENT_DEPLOY_NUM": current_deploy_num, "MAX_DEPLOY": self._MAX_DEPLOY}
 
     def add_actor(self, model_id: str, version: str, deploy_num: int) -> dict:
         model_key = model_id + "_" + version
