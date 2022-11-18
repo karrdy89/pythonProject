@@ -26,6 +26,7 @@ class BasicTableType(BaseModel):
     num_data_limit: int
     start_dtm: str
     end_dtm: str
+    user_id: str
 
     class Config:
         extra = Extra.forbid

@@ -34,6 +34,7 @@ def construct_operator(args: MakeDataset) -> BasicTableType:
     name = model_id + ":" + main_version + '.' + sub_version
 
     operator_input["dataset_name"] = model_id
+    operator_input["user_id"] = args.USR_ID
     operator_input["actor_name"] = name
     operator_input["start_dtm"] = args.STYMD
     operator_input["end_dtm"] = args.EDYMD

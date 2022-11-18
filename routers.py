@@ -78,6 +78,7 @@ class AIbeemRouter:
     async def train(self, request_body: req_vo.Train):
         self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="get request: train")
         model_id = request_body.MDL_ID
+        user_id = request_body.USR_ID
         if hasattr(BuiltinModels, model_id):
             model_name = getattr(BuiltinModels, model_id)
             model_name = model_name.model_name
@@ -104,7 +105,8 @@ class AIbeemRouter:
         set_shared_result = await self._shared_state.set_actor.remote(name=pipeline_name, act=pipeline_actor)
         if set_shared_result == 0:
             try:
-                await pipeline_actor.set_pipeline.remote(name=model_id, model_name=model_name, version=version)
+                await pipeline_actor.set_pipeline.remote(name=model_id, model_name=model_name, version=version,
+                                                         user_id=user_id)
             except SequenceNotExistError as exc:
                 self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                         msg="train: train pipeline not exist on this model : " + exc.__str__())
@@ -126,7 +128,7 @@ class AIbeemRouter:
                 train_info.save_path = project_path + '/saved_models/' + model_key + "/" + tmp_path
                 train_info.log_path = project_path + '/train_logs/' + tmp_path
                 pipeline_actor.trigger_pipeline.remote(train_info=train_info)
-                self._shared_state.set_train_status.remote(name=pipeline_name,
+                self._shared_state.set_train_status.remote(name=pipeline_name, user_id=user_id,
                                                            status_code=TrainStateCode.TRAINING)
                 self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                         msg="train run: pipeline stated: " + pipeline_name)
@@ -225,7 +227,7 @@ class AIbeemRouter:
                 if result == 0:
                     set_shared_result = await self._shared_state.set_actor.remote(name=actor_name, act=actor)
                     if set_shared_result == 0:
-                        self._shared_state.set_make_dataset_result.remote(name=actor_name,
+                        self._shared_state.set_make_dataset_result.remote(name=actor_name, user_id=request_body.USR_ID,
                                                                           state_code=TrainStateCode.MAKING_DATASET)
                         actor.fetch_data.remote()
                         self._logger.log.remote(level=logging.INFO, worker=self._worker,

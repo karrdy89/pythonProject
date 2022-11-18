@@ -60,6 +60,7 @@ class MakeDatasetNBO:
         self._process_pool: Pool | None = None
         self._db: DBUtil | None = None
         self._act: ray.actor = None
+        self._user_id: str = ''
 
     def init(self, args: BasicTableType):
         # name: str, dataset_name: str, act: ray.actor, labels: list, version: str, key_index: int,
@@ -73,6 +74,7 @@ class MakeDatasetNBO:
         self._x_index = args.feature_index
         self._num_data_limit = args.num_data_limit
         self._query = args.query_name
+        self._user_id = args.user_id
         try:
             self._logger = ray.get_actor(Actors.LOGGER)
             self._shared_state = ray.get_actor(Actors.GLOBAL_STATE)
@@ -183,7 +185,7 @@ class MakeDatasetNBO:
 
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="making nbo dataset: finished")
-        self._shared_state.set_make_dataset_result.remote(self._name, TrainStateCode.MAKING_DATASET_DONE)
+        self._shared_state.set_make_dataset_result.remote(self._name, self._user_id, TrainStateCode.MAKING_DATASET_DONE)
         self._shared_state.kill_actor.remote(self._name)
 
     def _export(self):
@@ -271,7 +273,7 @@ class MakeDatasetNBO:
         self._process_pool.close()
         self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                 msg="making nbo dataset: an error occur when processing data: " + msg)
-        self._shared_state.set_make_dataset_result.remote(self._name, TrainStateCode.MAKING_DATASET_FAIL)
+        self._shared_state.set_make_dataset_result.remote(self._name, self._user_id, TrainStateCode.MAKING_DATASET_FAIL)
         self._shared_state.set_error_message.remote(self._name, msg)
         self._shared_state.kill_actor.remote(self._name)
 
@@ -280,7 +282,8 @@ class MakeDatasetNBO:
                                 msg="cancel make nbo dataset: run")
         try:
             self._process_pool.close()
-            self._shared_state.set_make_dataset_result.remote(self._name, TrainStateCode.MAKING_DATASET_FAIL)
+            self._shared_state.set_make_dataset_result.remote(self._name, self._user_id,
+                                                              TrainStateCode.MAKING_DATASET_FAIL)
             self._shared_state.kill_actor.remote(self._name)
         except Exception as exc:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker,

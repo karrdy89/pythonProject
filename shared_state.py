@@ -179,14 +179,14 @@ class SharedState:
         else:
             return {}
 
-    def set_train_status(self, name: str, status_code: int) -> None:
+    def set_train_status(self, name: str, user_id: str, status_code: int) -> None:
         if name not in self._train_result:
             if len(self._train_result) > self._PIPELINE_MAX:
                 self._train_result.popitem(last=False)
             self._train_result[name] = TrainResult()
         self._train_result[name].set_train_status(status=status_code)
         if status_code == TrainStateCode.TRAINING_FAIL or status_code == TrainStateCode.TRAINING_DONE:
-            self.send_state_code(name=name, state_code=status_code)
+            self.send_state_code(name=name, user_id=user_id, state_code=status_code)
 
     def set_train_progress(self, name: str, epoch: str, progress: float, total_progress: float) -> None:
         if name not in self._train_result:
@@ -233,13 +233,13 @@ class SharedState:
         else:
             self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="pipeline not exist: " + name)
 
-    def set_make_dataset_result(self, name: str, state_code: int) -> None:
+    def set_make_dataset_result(self, name: str, user_id: str, state_code: int) -> None:
         if name not in self._make_dataset_result:
             if len(self._make_dataset_result) > self._DATASET_CONCURRENCY_MAX:
                 self._make_dataset_result.popitem(last=False)
         self._make_dataset_result[name] = state_code
         if state_code == TrainStateCode.MAKING_DATASET_DONE or state_code == TrainStateCode.MAKING_DATASET_FAIL:
-            self.send_state_code(name=name, state_code=state_code)
+            self.send_state_code(name=name, user_id=user_id, state_code=state_code)
 
     def get_make_dataset_result(self, name: str) -> int:
         if name in self._make_dataset_result:
@@ -297,15 +297,16 @@ class SharedState:
         port = self._tensorboard_tool.run(dir_path=dir_path)
         return port
 
-    def send_state_code(self, name: str, state_code: int) -> None:
+    def send_state_code(self, name: str, user_id: str, state_code: int) -> None:
         sp_nm = name.split(':')
         mdl_id = sp_nm[0]
         sp_version = sp_nm[-1].split('.')
         mn_ver = sp_version[0]
         n_ver = sp_version[1]
+        data = {"MDL_ID": mdl_id, "MN_VER": mn_ver, "N_VER": n_ver,
+                "MDL_LRNG_ST_CD": str(state_code), "USR_ID": user_id}
+        headers = {'Content-Type': 'application/json; charset=utf-8'}
         try:
-            data = {"MDL_ID": mdl_id, "MN_VER": mn_ver, "N_VER": n_ver, "MDL_LRNG_ST_CD": str(state_code)}
-            headers = {'Content-Type': 'application/json; charset=utf-8'}
             res = requests.post(self._URL_UPDATE_STATE_LRN, data=json.dumps(data), headers=headers)
         except Exception as e:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker,

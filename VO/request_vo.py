@@ -33,6 +33,7 @@ class MakeDataset(BaseModel):
     STYMD: str
     EDYMD: str
     LRNG_DATA_TGT_NCNT: str
+    USR_ID: str
 
     class Config:
         extra = Extra.forbid
@@ -86,6 +87,7 @@ class Train(BaseModel):
     DATA_SPLIT: str
     EARLY_STOP: str
     BATCH_SIZE: int
+    USR_ID: str
 
     class Config:
         extra = Extra.forbid

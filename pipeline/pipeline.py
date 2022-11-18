@@ -74,6 +74,7 @@ class Pipeline:
         self._components: dict[int, PipelineComponent] = {}
         self._component_result = None
         self._component_idx: int = 0
+        self._user_id: str = ''
 
     def _get_piepline_definition(self) -> dict:
         with open(self._pipeline_definition_path, 'r') as stream:
@@ -89,9 +90,10 @@ class Pipeline:
                 self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg=str(exc))
                 raise exc
 
-    def set_pipeline(self, name: str, model_name: str, version: str):
+    def set_pipeline(self, name: str, model_name: str, version: str, user_id: str):
         self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="run: set_pipeline..." + self._name)
         self._name = name + ":" + version
+        self._user_id = user_id
         try:
             pipeline_list = self._get_piepline_definition()
         except Exception as exc:
@@ -129,14 +131,14 @@ class Pipeline:
         self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="run: trigger_pipeline..." + self._name)
         if not self._components:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg="there is no component: " + self._name)
-            self._shared_state.set_train_status.remote(name=self._name,
+            self._shared_state.set_train_status.remote(name=self._name, user_id=self._user_id,
                                                        status_code=TrainStateCode.TRAINING_FAIL)
             self._shared_state.set_error_message.remote(name=self._name, msg="there is no component: " + self._name)
         if self._component_idx >= len(self._components):
             self._component_idx = 0
             self.on_pipeline_end()
             self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="pipeline done: " + self._name)
-            self._shared_state.set_train_status.remote(name=self._name,
+            self._shared_state.set_train_status.remote(name=self._name, user_id=self._user_id,
                                                        status_code=TrainStateCode.TRAINING_DONE)
             return
 
@@ -181,7 +183,7 @@ class Pipeline:
                                     msg=exc_str)
             ray.get(self._shared_state.set_pipeline_result.remote(self._name, self._pipeline_state))
             ray.get(self._shared_state.set_error_message.remote(name=self._name, msg=exc_str))
-            ray.get(self._shared_state.set_train_status.remote(name=self._name,
+            ray.get(self._shared_state.set_train_status.remote(name=self._name, user_id=self._user_id,
                                                                status_code=TrainStateCode.TRAINING_FAIL))
             self.on_pipeline_end()
         else:
