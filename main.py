@@ -18,7 +18,6 @@ import ray
 import uvicorn
 
 from serving_manger import ServingManager
-from onnx_serving_manager import OnnxServingManager
 from db import DBUtil
 from logger import Logger, BootLogger
 from shared_state import SharedState
