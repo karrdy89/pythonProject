@@ -74,7 +74,7 @@ class DBUtil:
             from concurrent.futures import ThreadPoolExecutor
             self._executor: ThreadPoolExecutor | None = None
         self._USER: str = ''
-        self._SCRT: str = ''
+        self._PASSWORD: str = ''
         self._IP: str = ''
         self._PORT: str = ''
         self._SID: str = ''
@@ -95,7 +95,7 @@ class DBUtil:
         try:
             config_parser.read("config/config.ini")
             self._USER = str(config_parser.get("DB", "USER"))
-            self._SCRT = str(config_parser.get("DB", "PASSWORD"))
+            self._PASSWORD = str(config_parser.get("DB", "PASSWORD"))
             self._IP = str(config_parser.get("DB", "IP"))
             self._PORT = int(config_parser.get("DB", "PORT"))
             self._SID = str(config_parser.get("DB", "SID"))
@@ -108,7 +108,7 @@ class DBUtil:
             from concurrent.futures import ThreadPoolExecutor
             self._executor = ThreadPoolExecutor(max_workers=self._MAX_WORKER)
         self._dsn = oracledb.makedsn(host=self._IP, port=self._PORT, sid=self._SID)
-        self._session_pool = oracledb.SessionPool(user=self._USER, password=self._SCRT, dsn=self._dsn,
+        self._session_pool = oracledb.SessionPool(user=self._USER, password=self._PASSWORD, dsn=self._dsn,
                                                   min=self._SESSION_POOL_MIN, max=self._SESSION_POOL_MAX,
                                                   increment=1, encoding="UTF-8")
 
