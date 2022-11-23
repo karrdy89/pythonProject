@@ -90,8 +90,8 @@ class OnnxServing:
             self._input_type = self._metadata.get("input_type")
             self._input_shape = self._metadata.get("input_shape")
             self._transformer = self._metadata.get("transformer")
-        except Exception:
-            pass
+        except Exception as exc:
+            print(self._worker + ": " + exc.__str__())
         self._session = rt.InferenceSession(self._model_path)
 
     def predict(self, data: list) -> dict:
