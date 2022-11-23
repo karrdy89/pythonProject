@@ -353,7 +353,7 @@ class AIbeemRouter:
 
 async def _reverse_proxy(request: Request):
     print(request.headers)
-    # check access token
+    # check access token remember token in server
     if request.headers.get("authorization") != "Bearer abc":
         return PlainTextResponse("not authorized")
     path = request.url.path.split('/')
