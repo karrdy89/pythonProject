@@ -333,6 +333,7 @@ class AIbeemRouter:
     @router.post("/tensorboard", response_model=res_vo.PathResponse)
     async def create_tensorboard(self, request_body: req_vo.BasicModelInfo):
         self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="get request: delete_dataset")
+        # set access token
         model_id = request_body.MDL_ID
         main_version = request_body.MN_VER
         sub_version = request_body.N_VER
@@ -352,6 +353,7 @@ class AIbeemRouter:
 
 async def _reverse_proxy(request: Request):
     print(request.headers)
+    # check access token
     if request.headers.get("authorization") != "Bearer abc":
         return PlainTextResponse("not authorized")
     path = request.url.path.split('/')
