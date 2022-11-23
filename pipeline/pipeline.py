@@ -90,28 +90,31 @@ class Pipeline:
                 self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg=str(exc))
                 raise exc
 
-    def set_pipeline(self, name: str, model_name: str, version: str, user_id: str):
+    def set_pipeline(self, model_id: str, version: str, user_id: str):
         self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="run: set_pipeline..." + self._name)
-        self._name = name + ":" + version
+        self._name = model_id + ":" + version
         self._user_id = user_id
         try:
             pipeline_list = self._get_piepline_definition()
         except Exception as exc:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                     msg="an error occur when parsing yaml file: " + exc.__str__())
+            self.on_pipeline_end()
             raise exc
         pipeline_list = pipeline_list.get("pipelines", '')
         if pipeline_list == '':
             self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg="there is no pipeline: " + self._name)
+            self.on_pipeline_end()
             raise PipelineNotFoundError()
         sequences = []
         for pipeline in pipeline_list:
-            if pipeline.get("name") == model_name:
+            if pipeline.get("name") == model_id:
                 sequences = pipeline.get("sequence")
                 break
         if len(sequences) == 0:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                     msg="there is no sequence in pipeline: " + self._name)
+            self.on_pipeline_end()
             raise SequenceNotExistError()
         try:
             for i, seq in enumerate(sequences):
@@ -125,6 +128,7 @@ class Pipeline:
         except Exception as exc:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                     msg="there is no sequence in pipeline: " + self._name + ": " + exc.__str__())
+            self.on_pipeline_end()
             raise SetSequenceError()
 
     def trigger_pipeline(self, train_info) -> None:

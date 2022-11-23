@@ -25,8 +25,7 @@ class Actors:
     LOGGER = "logging_service"
     GLOBAL_STATE = "shared_state"
     SERVER = "API_service"
-    TF_SERVING_MANAGER = "tf_serving_manager"
-    ONNX_SERVING_MANAGER = "onnx_serving_manager"
+    SERVING_MANAGER = "serving_manager"
     DATA_MAKER_NBO = "datamaker_nbo"
 
 
@@ -42,14 +41,3 @@ class TrainStateCode:
 class ModelType:
     Tensorflow = 0
     ONNX = 1
-
-
-class ModelInfo:
-    def __init__(self, model_name: str, model_type: int):
-        self.model_name = model_name
-        self.model_type = model_type
-
-
-class BuiltinModels:
-    MDL0000001 = ModelInfo(model_name="MDL0000001", model_type=ModelType.Tensorflow)
-    MDL0000002 = ModelInfo(model_name="MDL0000002", model_type=ModelType.ONNX)

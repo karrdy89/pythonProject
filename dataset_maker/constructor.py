@@ -14,7 +14,7 @@ import importlib
 from VO.request_vo import MakeDataset
 from dataset_maker.arg_types import BasicTableType
 from dataset_maker.exceptions import *
-from statics import BuiltinModels, ROOT_DIR
+from statics import ROOT_DIR
 
 
 def construct_operator(args: MakeDataset) -> BasicTableType:
@@ -27,8 +27,6 @@ def construct_operator(args: MakeDataset) -> BasicTableType:
     """
     operator_input = {}
     model_id = args.MDL_ID
-    model_name = getattr(BuiltinModels, model_id)
-    model_name = model_name.model_name
     main_version = args.MN_VER
     sub_version = args.N_VER
     name = model_id + ":" + main_version + '.' + sub_version
@@ -51,7 +49,7 @@ def construct_operator(args: MakeDataset) -> BasicTableType:
     if definition_list == '':
         raise DefinitionNotFoundError()
     for definition in definition_list:
-        if definition.get("name") == model_name:
+        if definition.get("name") == model_id:
             try:
                 definition = definition.get("definition")
             except Exception as exc:
@@ -70,7 +68,7 @@ def construct_operator(args: MakeDataset) -> BasicTableType:
                     module = importlib.import_module(sep_operator_info[0])
                     operator = getattr(module, sep_operator_info[1])
                     try:
-                        dataset_maker = operator.options(name=name).remote()
+                        dataset_maker = operator.options(name=name, max_concurrency=10).remote()
                     except ValueError as exc:
                         raise SetDefinitionError(exc.__str__())
                     except Exception as exc:

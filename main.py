@@ -17,7 +17,7 @@ from shutil import copytree, copyfile
 import ray
 import uvicorn
 
-from tf_serving_manger import TfServingManager
+from serving_manger import ServingManager
 from onnx_serving_manager import OnnxServingManager
 from db import DBUtil
 from logger import Logger, BootLogger
@@ -89,22 +89,22 @@ class UvicornServer(uvicorn.Server):
 
 
 # test
-# config = uvicorn.Config("routers:app",
-#                         host="0.0.0.0",
-#                         port=8080,
-#                         ssl_keyfile=SSL_CERT_PATH + "/key.pem",
-#                         ssl_certfile=SSL_CERT_PATH + "/cert.pem",
-#                         ssl_keyfile_password="1234"
-#                         )
-
-# build
 config = uvicorn.Config("routers:app",
                         host="0.0.0.0",
                         port=8080,
-                        ssl_keyfile=SSL_CERT_PATH + "/newkey.pem",
+                        ssl_keyfile=SSL_CERT_PATH + "/key.pem",
                         ssl_certfile=SSL_CERT_PATH + "/cert.pem",
-                        ssl_ca_certs=SSL_CERT_PATH + "/DigiCertCA.pem"
+                        ssl_keyfile_password="1234"
                         )
+
+# build
+# config = uvicorn.Config("routers:app",
+#                         host="0.0.0.0",
+#                         port=8080,
+#                         ssl_keyfile=SSL_CERT_PATH + "/newkey.pem",
+#                         ssl_certfile=SSL_CERT_PATH + "/cert.pem",
+#                         ssl_ca_certs=SSL_CERT_PATH + "/DigiCertCA.pem"
+#                         )
 
 
 boot_logger.info("(Main Server) check database connection...")
@@ -116,7 +116,7 @@ except Exception as exc:
     sys.exit()
 
 boot_logger.info("(Main Server) create actors...")
-logging_service = Logger.options(name=Actors.LOGGER, max_concurrency=500).remote()
+logging_service = Logger.options(name=Actors.LOGGER, max_concurrency=1000).remote()
 
 boot_logger.info("(Main Server) init logging_service...")
 init_processes = ray.get(logging_service.init.remote())
@@ -124,13 +124,11 @@ if init_processes == -1:
     boot_logger.error("(Main Server) failed to init logging_service")
     sys.exit()
 
-shared_state = SharedState.options(name=Actors.GLOBAL_STATE, max_concurrency=2000).remote()
-tf_serving_manager = TfServingManager.options(name=Actors.TF_SERVING_MANAGER, max_concurrency=1000).remote()
-onx_serving_manager = OnnxServingManager.options(name=Actors.ONNX_SERVING_MANAGER, max_concurrency=1000).remote()
+shared_state = SharedState.options(name=Actors.GLOBAL_STATE, max_concurrency=1000).remote()
+serving_manager = ServingManager.options(name=Actors.SERVING_MANAGER, max_concurrency=1000).remote()
 
 boot_logger.info("(Main Server) init services...")
-init_processes = ray.get([tf_serving_manager.init.remote(),
-                          onx_serving_manager.init.remote(),
+init_processes = ray.get([serving_manager.init.remote(),
                           shared_state.init.remote()])
 api_service = None
 try:
@@ -142,7 +140,7 @@ except Exception as exc:
 if -1 in init_processes:
     boot_logger.error("(Main Server) failed to init services")
     ray.kill(api_service)
-    ray.kill(tf_serving_manager)
+    ray.kill(serving_manager)
     ray.kill(logging_service)
     ray.kill(shared_state)
     sys.exit()

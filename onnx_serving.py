@@ -56,6 +56,7 @@ class OnnxServing:
         self._metadata: dict | None = None
         self._input_type: str | None = None
         self._input_shape: list | None = None
+        self._transformer: str | None = None
         self._labels: dict | None = None
         self._session = None
 
@@ -88,12 +89,15 @@ class OnnxServing:
             self._labels = self._metadata.get("labels")
             self._input_type = self._metadata.get("input_type")
             self._input_shape = self._metadata.get("input_shape")
+            self._transformer = self._metadata.get("transformer")
         except Exception:
             pass
         self._session = rt.InferenceSession(self._model_path)
 
     def predict(self, data: list) -> dict:
         result = {"CODE": "FAIL", "ERROR_MSG": "N/A", "EVNT_ID": [], "PRBT": []}
+        if self._transformer is not None:
+            pass
         if self._input_shape is not None:
             if len(data) < self._input_shape[-1]:
                 result["CODE"] = "FAIL"

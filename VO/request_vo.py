@@ -46,6 +46,7 @@ class Deploy(BaseModel):
     MDL_ID: str
     MN_VER: str
     N_VER: str
+    MDL_TYP: int
     WDTB_SRVR_NCNT: int
 
     class Config:

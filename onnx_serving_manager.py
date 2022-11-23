@@ -21,7 +21,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 
 from utils.common import version_encode
 from logger import BootLogger
-from statics import Actors, BuiltinModels, ModelType
+from statics import Actors, ModelType
 from db import DBUtil
 from onnx_serving import OnnxServing
 
@@ -104,7 +104,7 @@ class OnnxServingManager:
         except Exception as exc:
             self._boot_logger.error(
                 "(" + self._worker + ") " + "can't read deploy state from db:" + exc.__str__())
-            return -1
+            # return -1
         else:
             for stored_deploy_state in stored_deploy_states:
                 model_id = stored_deploy_state[0]

@@ -10,6 +10,7 @@
 # ---------------------------------------------------------------------------------------------------------------------
 import configparser
 import asyncio
+import os
 import uuid
 import functools
 import logging
@@ -32,12 +33,13 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from utils.http_util import Http
 from utils.common import version_encode, version_decode
 from logger import BootLogger
-from statics import Actors, BuiltinModels, ModelType, ROOT_DIR
+from statics import Actors, ModelType, ROOT_DIR
 from db import DBUtil
+from onnx_serving import OnnxServing
 
 
 @ray.remote
-class TfServingManager:
+class ServingManager:
     """
     A ray actor class to serve and inference tensorflow model
 
@@ -137,7 +139,6 @@ class TfServingManager:
     def __init__(self):
         self._worker: str = type(self).__name__
         self._logger: ray.actor = None
-        self._shared_state: ray.actor = None
         self._boot_logger: logger = BootLogger().logger
         self._db = None
         self._lock: asyncio.Lock = asyncio.Lock()
@@ -160,11 +161,11 @@ class TfServingManager:
         self._CONTAINER_SERVER_IP: str = ""
         self._RETRY_COUNT: int = 20
         self._RETRY_WAIT_TIME: float = 0.1
+        self._deploy_num = 0
 
     async def init(self) -> int:
         self._boot_logger.info("(" + self._worker + ") " + "init tensorflow_serving manager actor...")
         self._boot_logger.info("(" + self._worker + ") " + "set global logger...")
-        self._shared_state = ray.get_actor(Actors.GLOBAL_STATE)
         self._logger = ray.get_actor(Actors.LOGGER)
         self._boot_logger.info("(" + self._worker + ") " + "set statics from config...")
         config_parser = configparser.ConfigParser()
@@ -202,37 +203,37 @@ class TfServingManager:
         self._manager_handle.add_job(self.gc_container, "interval", seconds=self._GC_CHECK_INTERVAL, id="gc_container")
         self._manager_handle.start()
 
-        self._boot_logger.info("(" + self._worker + ") " + "deploying existing containers...")
+        self._boot_logger.info("(" + self._worker + ") " + "deploying models from db...")
         self._db = DBUtil()
         try:
             stored_deploy_states = self._db.select(name="select_deploy_state")
         except Exception as exc:
             self._boot_logger.error(
                 "(" + self._worker + ") " + "can't read deploy state from db:" + exc.__str__())
-            return -1
+            # return -1
         else:
             for stored_deploy_state in stored_deploy_states:
                 model_id = stored_deploy_state[0]
-                model_type = getattr(BuiltinModels, model_id)
-                model_type = model_type.model_type
-                if model_type == ModelType.Tensorflow:
-                    mn_ver = str(stored_deploy_state[1])
-                    n_ver = str(stored_deploy_state[2])
-                    container_num = stored_deploy_state[3]
-                    version = mn_ver+"."+n_ver
-                    encoded_version = version_encode(version)
-                    model_deploy_state = ModelDeployState(model=(model_id, encoded_version),
-                                                          state=StateCode.AVAILABLE)
-                    result = await self.deploy_containers(model_id, version, container_num, model_deploy_state)
-                    if result.get("CODE") == "FAIL":
-                        self._boot_logger.error(
-                            "(" + self._worker + ") " + "can't make container from stored deploy state")
-                        return -1
+                # model_type = getattr(BuiltinModels, model_id)
+                # model_type = model_type.model_type
+                model_type = stored_deploy_state[5]  # depends on query
+                mn_ver = str(stored_deploy_state[1])
+                n_ver = str(stored_deploy_state[2])
+                deploy_num = stored_deploy_state[3]
+                version = mn_ver + "." + n_ver
+                encoded_version = version_encode(version)
+                model_deploy_state = ModelDeployState(model=(model_id, encoded_version),
+                                                      state=StateCode.AVAILABLE, model_type=model_type)
+                result = await self.deploy_server(model_id, version, deploy_num, model_deploy_state, model_type)
+                if result.get("CODE") == "FAIL":
+                    self._boot_logger.error(
+                        "(" + self._worker + ") " + "can't make actor from stored deploy state")
+                    return -1
 
         self._boot_logger.info("(" + self._worker + ") " + "init tensorflow_serving manager actor complete...")
         return 0
 
-    async def deploy(self, model_id: str, version: str, deploy_num: int) -> dict:
+    async def deploy(self, model_id: str, version: str, deploy_num: int, model_type: int) -> dict:
         self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="deploy start : " + model_id
                                                                              + ":" + version)
         async with self._lock:
@@ -250,17 +251,17 @@ class TfServingManager:
         if model_deploy_state is not None:
             if model_deploy_state.state == StateCode.AVAILABLE:
                 deploy_num = abs(deploy_num)
-                diff = deploy_num - len(model_deploy_state.containers)
+                diff = deploy_num - len(model_deploy_state.servers)
                 if diff > 0:
                     try:
-                        result = await self.add_container(model_id, version, diff)
+                        result = await self.add_server(model_id, version, diff)
                     except Exception as exc:
                         self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                                 msg="deploy error : " + model_id
                                                     + ":" + version + ":" + exc.__str__())
                 elif diff < 0:
                     try:
-                        result = await self.remove_container(model_id, version, abs(diff))
+                        result = await self.remove_server(model_id, version, abs(diff))
                     except Exception as exc:
                         self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                                 msg="deploy error : " + model_id
@@ -276,9 +277,10 @@ class TfServingManager:
                 result = {"CODE": "SUCCESS", "ERROR_MSG": "", "MSG": "nothing to change"}
             else:
                 model_deploy_state = ModelDeployState(model=(model_id, encoded_version),
-                                                      state=StateCode.AVAILABLE)
+                                                      state=StateCode.AVAILABLE, model_type=model_type)
                 try:
-                    result = await self.deploy_containers(model_id, version, deploy_num, model_deploy_state)
+                    result = await self.deploy_server(model_id, version, deploy_num, model_deploy_state, model_type)
+                    print(result)
                 except Exception as exc:
                     self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                             msg="deploy error : " + model_id
@@ -289,22 +291,21 @@ class TfServingManager:
     async def get_deploy_state(self) -> dict:
         self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="get deploy state")
         total_deploy_state = []
-        current_deploy_num = await self._shared_state.get_deploy_num.remote()
         for model_key in self._deploy_states:
-            containers = []
+            servers = []
             sep_key = model_key.split("_")
             model_id = sep_key[0]
             version = sep_key[1]
             model_deploy_state = self._deploy_states[model_key]
-            for k, v in model_deploy_state.containers.items():
-                containers.append((v.name, v.state))
-            deploy_state = {"model_id": model_id, "version": version, "containers": containers,
-                            "deploy_num": len(containers)}
+            for k, v in model_deploy_state.servers.items():
+                servers.append((v.name, v.state))
+            deploy_state = {"model_id": model_id, "version": version, "inference_server": servers,
+                            "deploy_num": len(servers)}
             total_deploy_state.append(deploy_state)
         return {"CODE": "SUCCESS", "ERROR_MSG": "", "DEPLOY_STATE": total_deploy_state,
-                "CURRENT_DEPLOY_NUM": current_deploy_num, "MAX_DEPLOY": self._MAX_DEPLOY}
+                "CURRENT_DEPLOY_NUM": self._deploy_num, "MAX_DEPLOY": self._MAX_DEPLOY}
 
-    async def add_container(self, model_id: str, version: str, container_num: int) -> dict:
+    async def add_server(self, model_id: str, version: str, deploy_num: int) -> dict:
         model_key = model_id + "_" + version
         model_deploy_state = self._deploy_states.get(model_key)
         if model_deploy_state is None:
@@ -312,7 +313,8 @@ class TfServingManager:
                                                                                  + model_id + ":" + version)
             result = {"CODE": "FAIL", "ERROR_MSG": "the model is not deployed", "MSG": ""}
             return result
-        result = await self.deploy_containers(model_id, version, container_num, model_deploy_state)
+        result = await self.deploy_server(model_id, version, deploy_num, model_deploy_state,
+                                          model_deploy_state.model_type)
         return result
 
     def remove_all_container(self) -> None:
@@ -320,7 +322,7 @@ class TfServingManager:
         for container in containers:
             container.remove(force=True)
 
-    async def remove_container(self, model_id: str, version: str, container_num: int) -> dict:
+    async def remove_server(self, model_id: str, version: str, num: int) -> dict:
         model_key = model_id + "_" + version
         model_deploy_state = self._deploy_states.get(model_key)
         if model_deploy_state is None:
@@ -332,35 +334,36 @@ class TfServingManager:
         if model_deploy_state.state == StateCode.SHUTDOWN:
             return {"CODE": "FAIL", "ERROR_MSG": "shutdown has already been scheduled on this model", "MSG": ""}
 
-        containers = model_deploy_state.containers
-        available_containers = []
-        for k, v in containers.items():
+        servers = model_deploy_state.servers
+        available_servers = []
+        for k, v in servers.items():
             if v.state == StateCode.AVAILABLE:
-                available_containers.append(v.container)
+                available_servers.append(v.inference_server)
 
-        if container_num >= len(available_containers):
+        if num >= len(available_servers):
             result = await self.end_deploy(model_id, version)
             return result
 
         gc_list = []
-        for i, key in enumerate(containers):
-            if i < container_num:
-                container = containers[key]
-                if container.state == StateCode.AVAILABLE:
-                    container.state = StateCode.SHUTDOWN
-                    gc_list.append((ManageType.CONTAINER, key))
+        for i, key in enumerate(servers):
+            if i < num:
+                server = servers[key]
+                if server.state == StateCode.AVAILABLE:
+                    server.state = StateCode.SHUTDOWN
+                    gc_list.append((ManageType.SERVER, key))
             else:
                 break
 
         result = await self._set_cycle(model_id, version)
         if result == 0:
             self._gc_list = self._gc_list + gc_list
-            await self._shared_state.set_deploy_num.remote(diff=-len(gc_list))
+            async with self._lock:
+                self._deploy_num -= len(gc_list)
             self._logger.log.remote(level=logging.INFO, worker=self._worker,
-                                    msg="shutdown pending on " + str(container_num) + " containers : " + model_id + ":"
+                                    msg="shutdown pending on " + str(num) + " containers : " + model_id + ":"
                                         + version)
             result = {"CODE": "SUCCESS", "ERROR_MSG": "",
-                      "MSG": "shutdown pending on " + str(container_num) + " containers"}
+                      "MSG": "shutdown pending on " + str(num) + " containers"}
             return result
         else:
             result = {"CODE": "FAIL", "ERROR_MSG": "failed to remove container", "MSG": ""}
@@ -378,10 +381,10 @@ class TfServingManager:
             if model_deploy_state.state == StateCode.SHUTDOWN:
                 result = {"CODE": "FAIL", "ERROR_MSG": "shutdown has already been scheduled", "MSG": ""}
             elif model_deploy_state.state == StateCode.AVAILABLE:
+                model_deploy_state.state = StateCode.SHUTDOWN
                 async with self._lock:
-                    model_deploy_state.state = StateCode.SHUTDOWN
+                    self._deploy_num -= len(model_deploy_state.servers)
                 self._gc_list.append((ManageType.MODEL, model_key))
-                await self._shared_state.set_deploy_num.remote(diff=-len(model_deploy_state.containers))
                 self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="end deploy : "
                                                                                      + model_id + ":" + version)
                 result = {"CODE": "SUCCESS", "ERROR_MSG": "", "MSG": "end deploy accepted"}
@@ -413,126 +416,219 @@ class TfServingManager:
         if model_deploy_state.max_input is not None:
             data = data[:model_deploy_state.max_input]
 
-        data = {"inputs": [data]}
         deploy_info = next(model_deploy_state.cycle_iterator)
-        url = deploy_info[0]
+        predict_ep = deploy_info[0]
         state = deploy_info[1]
-        container_name = deploy_info[2]
-        container = model_deploy_state.containers[container_name]
-        if state == StateCode.AVAILABLE:
-            async with Http() as http:
-                container.ref_count += 1
-                predict_result = await http.post_json(url, data)
-                if predict_result is None:
-                    self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg="http request error : "
-                                                                                          + model_id + ":" + version)
-                    result["CODE"] = "FAIL"
-                    result["ERROR_MSG"] = "an error occur when making inspection. please check input values"
-                    container.ref_count -= 1
-                elif predict_result == -1:
-                    self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg="connection error : "
-                                                                                          + model_id + ":" + version)
-                    await self.fail_back(model_id, version, container_name)
-                    container.ref_count -= 1
-                    result = await self.predict(model_id, version, data.get("inputs")[0])
-                else:
-                    container.ref_count -= 1
-                    result["CODE"] = "SUCCESS"
-                    result["ERROR_MSG"] = ""
-                    outputs = predict_result["outputs"]
-                    result["EVNT_ID"] = outputs["result"]
-                    result["PRBT"] = outputs["result_1"]
-                return result
-        else:
-            result = await self.predict(model_id, version, data.get("inputs")[0])
-            return result
+        server_name = deploy_info[2]
+        server = model_deploy_state.servers[server_name]
 
-    async def deploy_containers(self, model_id: str, version: str, container_num: int, model_deploy_state) -> dict:
-        set_deploy_num_result = await self._shared_state.set_deploy_num.remote(diff=container_num)
-        if set_deploy_num_result == -1:
-            current_deploy_num = await self._shared_state.get_deploy_num.remote()
-            result = {"CODE": "FAIL", "ERROR_MSG": "max container number exceeded",
-                      "MSG": {"current container": current_deploy_num,
+        if model_deploy_state.model_type == ModelType.Tensorflow:
+            data = {"inputs": [data]}
+            if state == StateCode.AVAILABLE:
+                async with Http() as http:
+                    server.ref_count += 1
+                    predict_result = await http.post_json(predict_ep, data)
+                    if predict_result is None:
+                        self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                                msg="http request error : " + model_id + ":" + version)
+                        result["CODE"] = "FAIL"
+                        result["ERROR_MSG"] = "an error occur when making inspection. please check input values"
+                    elif predict_result == -1:
+                        self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                                msg="connection error : " + model_id + ":" + version)
+                        await self.fail_back(model_id, version, server_name)
+                        result = await self.predict(model_id, version, data.get("inputs")[0])
+                    else:
+                        result["CODE"] = "SUCCESS"
+                        result["ERROR_MSG"] = ""
+                        outputs = predict_result["outputs"]
+                        result["EVNT_ID"] = outputs["result"]
+                        result["PRBT"] = outputs["result_1"]
+                    server.ref_count -= 1
+                    return result
+            else:
+                result = await self.predict(model_id, version, data.get("inputs")[0])
+                return result
+
+        elif model_deploy_state.model_type == ModelType.ONNX:
+            if state == StateCode.AVAILABLE:
+                server.ref_count += 1
+                try:
+                    predict_result = ray.get(predict_ep.predict.remote(data=data))
+                except Exception as exc:
+                    self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                            msg="can't make inference : " + exc.__str__() + model_id + ":" + version)
+                    await self.fail_back(model_id, version, server_name)
+                    result = await self.predict(model_id, version, data)
+                else:
+                    result = predict_result
+                    server.ref_count -= 1
+                return result
+            else:
+                result = await self.predict(model_id, version, data)
+                return result
+
+    async def deploy_server(self, model_id: str, version: str, deploy_num: int,
+                            model_deploy_state, model_type: int) -> dict:
+        if self._deploy_num + deploy_num > self._MAX_DEPLOY:
+            result = {"CODE": "FAIL", "ERROR_MSG": "max inference server exceeded",
+                      "MSG": {"current container": self._deploy_num,
                               "max container number": self._MAX_DEPLOY}}
             return result
+        async with self._lock:
+            self._deploy_num += deploy_num
         model_key = model_id + "_" + version
-        futures = []
-        list_container_name = []
-        list_http_url = []
-        list_grpc_url = []
-        loop = asyncio.get_event_loop()
-        for _ in range(container_num):
-            http_port = self.get_port_http()
-            grpc_port = self.get_port_grpc()
-            container_name = model_id + "-" + uuid.uuid4().hex
-            futures.append(
-                loop.run_in_executor(self._executor,
-                                     functools.partial(self.run_container,
-                                                       model_id=model_id,
-                                                       container_name=container_name,
-                                                       http_port=http_port,
-                                                       grpc_port=grpc_port,
-                                                       deploy_path=self._DEPLOY_PATH + model_key + "/")))
-            list_container_name.append(container_name)
-            list_http_url.append((self._CONTAINER_SERVER_IP, http_port))
-            list_grpc_url.append((self._CONTAINER_SERVER_IP, grpc_port))
-        list_container = await asyncio.gather(*futures)
-        deploy_count = 0
-        max_input = None
-        for i in range(len(list_container)):
-            if list_container[i] is not None:
-                url = "http://"+list_http_url[i][0]+':'+str(list_http_url[i][1])+"/v1/models/"+model_id
-                check_rst = await self.check_container_state_url(url=url)
-                if check_rst == 0:
-                    if max_input is None:
-                        url = "http://" + list_http_url[i][0] + ':' + str(
-                            list_http_url[i][1]) + "/v1/models/" + model_id + "/metadata"
-                        async with Http() as http:
-                            result = await http.get(url)
-                            if result is None or result == -1:
-                                self._logger.log.remote(level=logging.WARN, worker=self._worker,
-                                                        msg="can find models metadata: connection error : "
-                                                            + model_id + ":" + version)
-                            else:
-                                try:
-                                    input_spec = result.get("metadata").get("signature_def").get("signature_def")\
-                                        .get("serving_default").get("inputs")
-                                except Exception:
+        if model_type == ModelType.Tensorflow:
+            # deploy_path = self._DEPLOY_PATH + model_key + "/"
+            deploy_path = ROOT_DIR + self._DEPLOY_PATH + model_key + "/" + model_id
+            model_path = deploy_path + "/" + str(version_encode(version))
+            if os.path.isdir(model_path):
+                if not any(file_name.endswith('.pb') for file_name in os.listdir(model_path)):
+                    self._logger.log.remote(level=logging.WARN, worker=self._worker,
+                                            msg="model not exist:" + model_id + ":" + version)
+                    result = {"CODE": "FAIL", "ERROR_MSG": "model not exist",
+                              "MSG": ""}
+                    async with self._lock:
+                        self._deploy_num -= deploy_num
+                    return result
+            else:
+                self._logger.log.remote(level=logging.WARN, worker=self._worker,
+                                        msg="model not exist:" + model_id + ":" + version)
+                result = {"CODE": "FAIL", "ERROR_MSG": "model not exist",
+                          "MSG": ""}
+                async with self._lock:
+                    self._deploy_num -= deploy_num
+                return result
+
+            futures = []
+            list_container_name = []
+            list_http_url = []
+            list_grpc_url = []
+            loop = asyncio.get_event_loop()
+            for _ in range(deploy_num):
+                http_port = self.get_port_http()
+                grpc_port = self.get_port_grpc()
+                name = model_id + "-" + uuid.uuid4().hex
+                futures.append(
+                    loop.run_in_executor(self._executor,
+                                         functools.partial(self.run_container,
+                                                           model_id=model_id,
+                                                           container_name=name,
+                                                           http_port=http_port,
+                                                           grpc_port=grpc_port,
+                                                           deploy_path=deploy_path)))
+                list_container_name.append(name)
+                list_http_url.append((self._CONTAINER_SERVER_IP, http_port))
+                list_grpc_url.append((self._CONTAINER_SERVER_IP, grpc_port))
+            list_container = await asyncio.gather(*futures)
+            deploy_count = 0
+            max_input = None
+            for i in range(len(list_container)):
+                if list_container[i] is not None:
+                    url = "http://" + list_http_url[i][0] + ':' + str(list_http_url[i][1]) + "/v1/models/" + model_id
+                    check_rst = await self.check_container_state_url(url=url)
+                    if check_rst == 0:
+                        if max_input is None:
+                            url = "http://" + list_http_url[i][0] + ':' + str(
+                                list_http_url[i][1]) + "/v1/models/" + model_id + "/metadata"
+                            async with Http() as http:
+                                result = await http.get(url)
+                                if result is None or result == -1:
                                     self._logger.log.remote(level=logging.WARN, worker=self._worker,
-                                                            msg="can find models input signature : "
+                                                            msg="can find models metadata: connection error : "
                                                                 + model_id + ":" + version)
                                 else:
-                                    for key in input_spec:
-                                        split_key = key.split("_")
-                                        if split_key[0] == "seq":
-                                            max_input = int(split_key[1])
-                    serving_container = ServingContainer(name=list_container_name[i], container=list_container[i],
-                                                         http_url=list_http_url[i], grpc_url=list_grpc_url[i],
-                                                         state=StateCode.AVAILABLE)
-                    model_deploy_state.containers[list_container_name[i]] = serving_container
-                    deploy_count += 1
-            else:
-                container = list_container[i]
-                container.remove(force=True)
-                self.release_port_http(list_http_url[i][1])
-                self.release_port_grpc(list_grpc_url[i][1])
+                                    try:
+                                        input_spec = result.get("metadata").get("signature_def").get("signature_def") \
+                                            .get("serving_default").get("inputs")
+                                    except Exception:
+                                        self._logger.log.remote(level=logging.WARN, worker=self._worker,
+                                                                msg="can find models input signature : "
+                                                                    + model_id + ":" + version)
+                                    else:
+                                        for key in input_spec:
+                                            split_key = key.split("_")
+                                            if split_key[0] == "seq":
+                                                max_input = int(split_key[1])
+                        serving_container = InferenceServer(name=list_container_name[i],
+                                                            inference_server=list_container[i],
+                                                            http_url=list_http_url[i], grpc_url=list_grpc_url[i],
+                                                            state=StateCode.AVAILABLE)
+                        model_deploy_state.servers[list_container_name[i]] = serving_container
+                        deploy_count += 1
+                else:
+                    container = list_container[i]
+                    container.remove(force=True)
+                    self.release_port_http(list_http_url[i][1])
+                    self.release_port_grpc(list_grpc_url[i][1])
 
-        if deploy_count == container_num:
-            self._logger.log.remote(level=logging.INFO, worker=self._worker,
-                                    msg="deploy finished. " + str(deploy_count) + "/" + str(container_num)
-                                        + " is deployed: " + model_id + ":" + version)
-            async with self._lock:
-                model_deploy_state.max_input = max_input
-            self._deploy_states[model_key] = model_deploy_state
-            await self._set_cycle(model_id=model_id, version=version)
-            result = {"CODE": "SUCCESS", "ERROR_MSG": "",
-                      "MSG": "deploy finished. " + str(deploy_count) + "/" + str(container_num) + " deployed"}
-            return result
+            if deploy_count == deploy_num:
+                self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                        msg="deploy finished. " + str(deploy_count) + "/" + str(deploy_num)
+                                            + " is deployed: " + model_id + ":" + version)
+                async with self._lock:
+                    model_deploy_state.max_input = max_input
+                self._deploy_states[model_key] = model_deploy_state
+                await self._set_cycle(model_id=model_id, version=version)
+                result = {"CODE": "SUCCESS", "ERROR_MSG": "",
+                          "MSG": "deploy finished. " + str(deploy_count) + "/" + str(deploy_num) + " deployed"}
+                return result
+            else:
+                self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                        msg="deploy finished. " + str(deploy_count) + "/" + str(deploy_num)
+                                            + " is deployed: " + model_id + ":" + version)
+                result = {"CODE": "FAIL", "ERROR_MSG": "can create container", "MSG": ""}
+                async with self._lock:
+                    self._deploy_num -= deploy_num
+                return result
+
+        elif model_type == ModelType.ONNX:
+            actors = []
+            actor_names = []
+            for _ in range(deploy_num):
+                name = model_id + "-" + uuid.uuid4().hex
+                onnx_server = OnnxServing.options(name=name, max_concurrency=500).remote()
+                actor_names.append(name)
+                actors.append(onnx_server)
+            init_result = []
+            for actor in actors:
+                res = await actor.init.remote(model_id=model_id, version=version)
+                init_result.append(res)
+            # init_result = ray.get([onx_serv.init.remote(model_id=model_id, version=version)
+            #                                for onx_serv in actors])
+            deploy_count = 0
+            error_msg = ""
+            for i, res in enumerate(init_result):
+                code = res[0]
+                msg = res[1]
+                if code == -1:
+                    error_msg = msg
+                else:
+                    serving_actor = InferenceServer(name=actor_names[i], inference_server=actors[i],
+                                                    state=StateCode.AVAILABLE)
+                    model_deploy_state.servers[actor_names[i]] = serving_actor
+                    deploy_count += 1
+
+            if deploy_count != deploy_num:
+                self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                        msg="can create serving actor : " + error_msg + ":" + model_id + ":" + version)
+                result = {"CODE": "FAIL", "ERROR_MSG": "can create serving actor: " + error_msg, "MSG": ""}
+                for actor in actors:
+                    ray.kill(actor)
+                async with self._lock:
+                    self._deploy_num -= deploy_num
+                return result
+            else:
+                self._deploy_states[model_key] = model_deploy_state
+                await self._set_cycle(model_id=model_id, version=version)
+                result = {"CODE": "SUCCESS", "ERROR_MSG": "",
+                          "MSG": "deploy finished. " + str(deploy_count) + "/" + str(deploy_num) + " deployed"}
+                return result
+
         else:
-            self._logger.log.remote(level=logging.ERROR, worker=self._worker,
-                                    msg="deploy finished. " + str(deploy_count) + "/" + str(container_num)
-                                        + " is deployed: " + model_id + ":" + version)
-            result = {"CODE": "FAIL", "ERROR_MSG": "can create container", "MSG": ""}
+            self._logger.log.remote(level=logging.WARN, worker=self._worker,
+                                    msg="unknown model type:" + model_id + ":" + version)
+            result = {"CODE": "FAIL", "ERROR_MSG": "unknown model type", "MSG": ""}
             return result
 
     def run_container(self, model_id: str, container_name: str, http_port: int, grpc_port: int, deploy_path: str) \
@@ -540,7 +636,7 @@ class TfServingManager:
         try:
             container = self._client.containers.run(image=self._CONTAINER_IMAGE, detach=True, name=container_name,
                                                     ports={'8501/tcp': http_port, '8500/tcp': grpc_port},
-                                                    volumes=[deploy_path + model_id + ":/models/" + model_id],
+                                                    volumes=[deploy_path + ":/models/" + model_id],
                                                     environment=["MODEL_NAME=" + model_id]
                                                     )
             return container
@@ -557,37 +653,38 @@ class TfServingManager:
                                     msg="the docker server returns an error : " + e.__str__())
             return None
 
-    async def fail_back(self, model_id: str, version: str, container_name: str) -> None:
+    async def fail_back(self, model_id: str, version: str, server_name: str) -> None:
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="trying to fail back container : " + model_id + ":" + version)
         model_deploy_state = self._deploy_states.get(model_id + "_" + version)
         if model_deploy_state is not None:
             if model_deploy_state.state != StateCode.SHUTDOWN and model_deploy_state.state != StateCode.UNAVAILABLE:
-                container = model_deploy_state.containers.get(container_name)
-                container.state = StateCode.SHUTDOWN
-                container_total = len(model_deploy_state.containers)
+                server = model_deploy_state.servers.get(server_name)
+                server.state = StateCode.SHUTDOWN
+                container_total = len(model_deploy_state.servers)
                 unavailable_container = 0
-                for container_key, container in model_deploy_state.containers.items():
+                for container_key, container in model_deploy_state.servers.items():
                     if container.state == StateCode.SHUTDOWN:
                         unavailable_container += 1
                 if container_total == unavailable_container:
                     model_deploy_state.state = StateCode.UNAVAILABLE
                 result = await self._set_cycle(model_id, version)
                 if result == 0:
-                    self._gc_list.append((ManageType.CONTAINER, container_name))
-                result_add_container = await self.add_container(model_id, version, 1)
-                if result_add_container.get("CODE") == "SUCCESS":
+                    self._gc_list.append((ManageType.SERVER, server_name))
+                result_add_server = await self.add_server(model_id, version, 1)
+                if result_add_server.get("CODE") == "SUCCESS":
                     model_deploy_state.state = StateCode.AVAILABLE
 
     async def check_container_state(self, model_id: str, version: str, container_name: str,
                                     retry_count: Optional[int] = 3):
         model_deploy_state = self._deploy_states.get(model_id + "_" + version)
         if model_deploy_state is not None:
-            container = model_deploy_state.containers.get(container_name)
+            container = model_deploy_state.servers.get(container_name)
             if container.state == StateCode.AVAILABLE:
                 for _ in range(retry_count):
                     async with Http() as http:
-                        url = "http://" + container.http_url[0] + ':' + str(container.http_url[1]) + "/v1/models/" + model_id
+                        url = "http://" + container.http_url[0] + ':' + str(
+                            container.http_url[1]) + "/v1/models/" + model_id
                         result = await http.get(url)
                         if result is None or result == -1:
                             await asyncio.sleep(0.1)
@@ -738,15 +835,22 @@ class TfServingManager:
         cycle_list = []
         model_key = model_id + "_" + version
         model_deploy_state = self._deploy_states.get(model_key)
-        containers = model_deploy_state.containers
-        async with self._lock:
-            for key in containers:
-                container = containers[key]
-                url = "http://" + container.http_url[0] + ':' + str(container.http_url[1]) + \
-                      "/v1/models/" + model_id + ":predict"
-                cycle_list.append([url, container.state, container.name])
+        servers = model_deploy_state.servers
+        if model_deploy_state.model_type == ModelType.Tensorflow:
+            async with self._lock:
+                for key in servers:
+                    inference_server = servers[key]
+                    url = "http://" + inference_server.http_url[0] + ':' + str(inference_server.http_url[1]) + \
+                          "/v1/models/" + model_id + ":predict"
+                    cycle_list.append([url, inference_server.state, inference_server.name])
+                model_deploy_state.cycle_iterator = cycle(cycle_list)
+            return 0
+        elif model_deploy_state.model_type == ModelType.ONNX:
+            for key in servers:
+                inference_server = servers[key]
+                cycle_list.append([inference_server.inference_server, inference_server.state, inference_server.name])
             model_deploy_state.cycle_iterator = cycle(cycle_list)
-        return 0
+            return 0
 
     async def gc_container(self) -> None:
         self._logger.log.remote(level=logging.DEBUG, worker=self._worker, msg="GC activate")
@@ -755,51 +859,69 @@ class TfServingManager:
             key = type_key[1]
             if manage_type == ManageType.MODEL:
                 model_deploy_state = self._deploy_states.get(key)
-                containers = model_deploy_state.containers
+                servers = model_deploy_state.servers
                 model_ref_count = 0
-                for container_name, serving_container in containers.items():
-                    model_ref_count += serving_container.ref_count
+                for k, server in servers.items():
+                    model_ref_count += server.ref_count
                 if model_ref_count == 0:
                     remove_count = 0
-                    for container_name, serving_container in containers.items():
-                        container = serving_container.container
-                        try:
-                            container.remove(force=True)
-                        except APIError as e:
-                            self._logger.log.remote(level=logging.ERROR, worker=self._worker,
-                                                    msg="an error occur when remove container : " + e.__str__())
-                            continue
-                        http_port = serving_container.http_url[1]
-                        grpc_port = serving_container.grpc_url[1]
-                        self.release_port_http(http_port)
-                        self.release_port_grpc(grpc_port)
-                        remove_count += 1
+                    for k, server in servers.items():
+                        inference_server = server.inference_server
+                        if model_deploy_state.model_type == ModelType.Tensorflow:
+                            try:
+                                inference_server.remove(force=True)
+                            except APIError as e:
+                                self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                                        msg="an error occur when remove container : " + e.__str__())
+                                continue
+                            http_port = server.http_url[1]
+                            grpc_port = server.grpc_url[1]
+                            self.release_port_http(http_port)
+                            self.release_port_grpc(grpc_port)
+                            remove_count += 1
+                        elif model_deploy_state.model_type == ModelType.ONNX:
+                            try:
+                                ray.kill(inference_server)
+                            except Exception as exc:
+                                self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                                        msg="an error occur when remove actor : " + exc.__str__())
+                                continue
+                            remove_count += 1
                     del self._deploy_states[key]
                     self._gc_list.remove(type_key)
                     self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                             msg="model deploy ended: " + key)
-            elif manage_type == ManageType.CONTAINER:
+            elif manage_type == ManageType.SERVER:
                 for mds_key in self._deploy_states:
                     model_deploy_state = self._deploy_states[mds_key]
-                    containers = model_deploy_state.containers
-                    if key in containers:
+                    servers = model_deploy_state.servers
+                    if key in servers:
                         sep = mds_key.split("_")
                         model_id = sep[0]
                         version = sep[1]
-                        if len(containers) > 1:
-                            container = containers.get(key)
-                            if container.ref_count <= 0:
-                                try:
-                                    container.container.remove(force=True)
-                                except APIError as e:
-                                    self._logger.log.remote(level=logging.ERROR, worker=self._worker,
-                                                            msg="an error occur when remove container : " + e.__str__())
-                                    continue
-                                del containers[key]
-                                http_port = container.http_url[1]
-                                grpc_port = container.grpc_url[1]
-                                self.release_port_http(http_port)
-                                self.release_port_grpc(grpc_port)
+                        if len(servers) > 1:
+                            server = servers.get(key)
+                            if server.ref_count <= 0:
+                                if model_deploy_state.model_type == ModelType.Tensorflow:
+                                    try:
+                                        server.inference_server.remove(force=True)
+                                    except APIError as e:
+                                        self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                                                msg="an error occur when remove container : " + e.__str__())
+                                        continue
+                                    del servers[key]
+                                    http_port = server.http_url[1]
+                                    grpc_port = server.grpc_url[1]
+                                    self.release_port_http(http_port)
+                                    self.release_port_grpc(grpc_port)
+                                elif model_deploy_state.model_type == ModelType.ONNX:
+                                    try:
+                                        ray.kill(server.inference_server)
+                                    except Exception as exc:
+                                        self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                                                msg="an error occur when remove actor : " + exc.__str__())
+                                        continue
+                                    del servers[key]
                                 await self._set_cycle(model_id, version)
                                 self._gc_list.remove(type_key)
                                 self._logger.log.remote(level=logging.INFO, worker=self._worker,
@@ -820,9 +942,9 @@ class TfServingManager:
 
 
 @dataclass
-class ServingContainer:
+class InferenceServer:
     name: str
-    container: Container
+    inference_server: Container | ray.actor.ActorClass
     state: int
     ref_count: int = 0
     http_url: tuple[str, int] = field(default_factory=tuple)
@@ -833,9 +955,10 @@ class ServingContainer:
 class ModelDeployState:
     model: tuple[str, int]
     state: int
+    model_type: int
     max_input: int = None
     cycle_iterator = None
-    containers: dict = field(default_factory=dict)
+    servers: dict = field(default_factory=dict)
 
 
 class StateCode:
@@ -848,4 +971,4 @@ class StateCode:
 
 class ManageType:
     MODEL = 0
-    CONTAINER = 1
+    SERVER = 1
