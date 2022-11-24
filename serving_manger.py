@@ -251,7 +251,11 @@ class ServingManager:
         if model_deploy_state is not None:
             if model_deploy_state.state == StateCode.AVAILABLE:
                 deploy_num = abs(deploy_num)
-                diff = deploy_num - len(model_deploy_state.servers)
+                count = 0
+                for k, v in model_deploy_state.servers.items():
+                    if v.state == StateCode.AVAILABLE:
+                        count += 1
+                diff = deploy_num - count
                 if diff > 0:
                     try:
                         result = await self.add_server(model_id, version, diff)
