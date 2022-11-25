@@ -116,3 +116,16 @@ class BasicModelInfo(BaseModel):
 
     class Config:
         extra = Extra.forbid
+
+
+class CreateTensorBoard(BaseModel):
+    """
+    Define pydantic model to validate inputs of basic request
+    """
+    MDL_ID: str
+    MN_VER: str
+    N_VER: str
+    SESSION_ID: str
+
+    class Config:
+        extra = Extra.forbid

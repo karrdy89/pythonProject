@@ -70,7 +70,8 @@ class TensorBoardTool:
     """
     def __init__(self):
         self._worker = type(self).__name__
-        self._logger: ray.actor = None
+        self._logger: ray.actor.ActorClass | None = None
+        self._shared_state: ray.actor.ActorClass | None = None
         self._port: list[int] = []
         self._port_use: list[int] = []
         self._tensorboard_thread_queue: queue = queue.Queue()
@@ -84,6 +85,7 @@ class TensorBoardTool:
 
     def init(self) -> int:
         self._logger = ray.get_actor(Actors.LOGGER)
+        self._shared_state = ray.get_actor(Actors.GLOBAL_STATE)
         self._logger.log.remote(level=logging.info, worker=self._worker, msg="init tensorboard service...")
         self._logger.log.remote(level=logging.info, worker=self._worker, msg="set statics from config...")
         config_parser = configparser.ConfigParser()
@@ -103,11 +105,12 @@ class TensorBoardTool:
         self._logger.log.remote(level=logging.info, worker=self._worker, msg="init tensorboard service complete...")
         return 0
 
-    def get_port(self) -> int:
+    def get_port(self) -> int | None:
         try:
             port = self._port.pop(0)
-        except Exception:
-            pass
+        except Exception as exc:
+            print(exc.__str__())
+            return None
         else:
             self._port_use.append(port)
             return port
@@ -120,6 +123,7 @@ class TensorBoardTool:
         if self._tensorboard_thread_queue.empty():
             return
         tensorboard_thread = self._tensorboard_thread_queue.get(block=True)
+        # ordered
         port = tensorboard_thread.port
         tensorboard_info = subprocess.check_output("ps -ef | grep tensorboard", shell=True).decode('utf-8')
         tensorboard_info = tensorboard_info.split("\n")
@@ -128,11 +132,12 @@ class TensorBoardTool:
             tid = tid[1]
             os.kill(int(tid), signal.SIGTERM)
         except Exception as e:
-            self._logger.log.remote(level=logging.WARN, worker=self._worker,
-                                    msg="tensorboard thread not exist: " + str(e))
+            self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                    msg="an error occur when expire_tensorboard: " + str(e))
         else:
             self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                     msg="killed: " + str(tid))
+            self._shared_state.remove_session.remote(port)
             self.release_port(port)
 
     def run(self, dir_path: str) -> int:
@@ -141,6 +146,8 @@ class TensorBoardTool:
                                     msg="max tensorboard thread exceeded")
             return -1
         port = self.get_port()
+        if port is None:
+            return -1
         try:
             tensorboard = program.TensorBoard(default.get_plugins(), assets.get_default_assets_zip_provider())
             tensorboard.configure(argv=[None, '--logdir', dir_path, '--port', str(port)])

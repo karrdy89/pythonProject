@@ -8,9 +8,12 @@
 # Date  | Updator   | Remark
 #
 # ---------------------------------------------------------------------------------------------------------------------
+import ast
 import os
 import logging
 import uuid
+import requests
+import json
 
 import ray
 import httpx
@@ -331,17 +334,17 @@ class AIbeemRouter:
         return result
 
     @router.post("/tensorboard", response_model=res_vo.PathResponse)
-    async def create_tensorboard(self, request_body: req_vo.BasicModelInfo):
-        self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="get request: delete_dataset")
-        # set access token
+    async def create_tensorboard(self, request_body: req_vo.CreateTensorBoard):
+        self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="get request: create_tensorboard")
         model_id = request_body.MDL_ID
         main_version = request_body.MN_VER
         sub_version = request_body.N_VER
+        session_id = request_body.SESSION_ID
         version = main_version + "." + sub_version
         encoded_version = version_encode(version)
         log_path = project_path + "/train_logs/" + model_id + "/" + str(encoded_version)
         if os.path.isdir(log_path):
-            port = await self._shared_state.get_tensorboard_port.remote(dir_path=log_path)
+            port = await self._shared_state.get_tensorboard_port.remote(dir_path=log_path, session_id=session_id)
             if port == -1:
                 return res_vo.PathResponse(CODE="FAIL", ERROR_MSG="failed to launch tensorboard", PATH="")
             else:
@@ -352,32 +355,51 @@ class AIbeemRouter:
 
 
 async def _reverse_proxy(request: Request):
-    print(request.headers)
-    # check access token remember token in server
-    if request.headers.get("authorization") != "Bearer abc":
-        return PlainTextResponse("not authorized")
     path = request.url.path.split('/')
     port = path[2]
     path = '/'.join(path[3:])
-    client = httpx.AsyncClient(base_url="http://127.0.0.1:" + port)
-    url = httpx.URL(path=path,
-                    query=request.url.query.encode("utf-8"))
-    rp_req = client.build_request(request.method, url,
-                                  headers=request.headers.raw,
-                                  content=await request.body())
-    try:
-        rp_resp = await client.send(rp_req, stream=True)
-    except httpx.RequestError:
-        return PlainTextResponse("invalid URL")
-    except Exception as exc:
-        return f"An error occurred while requesting {exc.__str__()!r}."
+
+    # validate session request to manage server
+    shared_state = ray.get_actor(Actors.GLOBAL_STATE)
+    session_info, url = await shared_state.get_session.remote(port=port)
+    if session_info is None:
+        return PlainTextResponse("invalid access")
     else:
-        return StreamingResponse(
-            rp_resp.aiter_raw(),
-            status_code=rp_resp.status_code,
-            headers=rp_resp.headers,
-            background=BackgroundTask(rp_resp.aclose),
-        )
+        data = {"SESSION_ID": session_info}
+        headers = {'Content-Type': 'application/json; charset=utf-8'}
+        try:
+            res = requests.post(url, data=json.dumps(data), headers=headers, timeout=10)
+        except Exception as exc:
+            return PlainTextResponse("failed to validate session:" + exc.__str__())
+        else:
+            if res.status_code == 200:
+                body = ast.literal_eval(res.content.decode('utf-8'))
+                is_valid = body.get("IS_VALID_SESSION_ID")
+                if is_valid == 'Y':
+                    client = httpx.AsyncClient(base_url="http://127.0.0.1:" + port)
+                    url = httpx.URL(path=path,
+                                    query=request.url.query.encode("utf-8"))
+                    rp_req = client.build_request(request.method, url,
+                                                  headers=request.headers.raw,
+                                                  content=await request.body())
+                    try:
+                        rp_resp = await client.send(rp_req, stream=True)
+                    except httpx.RequestError:
+                        return PlainTextResponse("invalid URL")
+                    except Exception as exc:
+                        return f"An error occurred while requesting {exc.__str__()!r}."
+                    else:
+                        return StreamingResponse(
+                            rp_resp.aiter_raw(),
+                            status_code=rp_resp.status_code,
+                            headers=rp_resp.headers,
+                            background=BackgroundTask(rp_resp.aclose),
+                        )
+                else:
+                    # terminate tensorboard
+                    return PlainTextResponse("invalid access")
+            else:
+                return PlainTextResponse("failed to validate session")
 
 
 app.add_route("/dashboard/{port}/{path:path}", _reverse_proxy, ["GET", "POST"])

@@ -87,6 +87,8 @@ class SharedState:
         self._dataset_url: dict[str, str] = {}
         self._EXPIRE_TIME: int = 3600
         self._tensorboard_tool = TensorBoardTool()
+        self._session_id: dict[int, str] = {}
+        self._SESSION_VALIDATION_URL = ''
         self._PIPELINE_MAX = 1
         self._DATASET_CONCURRENCY_MAX = 1
         self._URL_UPDATE_STATE_LRN = ''
@@ -105,6 +107,7 @@ class SharedState:
             self._PIPELINE_MAX = int(config_parser.get("PIPELINE", "PIPELINE_MAX"))
             self._DATASET_CONCURRENCY_MAX = int(config_parser.get("DATASET_MAKER", "MAX_CONCURRENCY"))
             self._URL_UPDATE_STATE_LRN = str(config_parser.get("MANAGE_SERVER", "URL_UPDATE_STATE_LRN"))
+            self._SESSION_VALIDATION_URL = str(config_parser.get("MANAGE_SERVER", "SESSION_VALIDATION_URL"))
         except configparser.Error as e:
             self._boot_logger.error("(" + self._worker + ") " + "an error occur when set config...: " + str(e))
             return -1
@@ -290,9 +293,17 @@ class SharedState:
         if uid in self._dataset_url:
             del self._dataset_url[uid]
 
-    def get_tensorboard_port(self, dir_path: str) -> int:
+    def get_tensorboard_port(self, dir_path: str, session_id: str) -> int:
         port = self._tensorboard_tool.run(dir_path=dir_path)
+        self._session_id[port] = session_id
         return port
+
+    def get_session(self, port: str) -> tuple | None:
+        return self._session_id.get(int(port)), self._SESSION_VALIDATION_URLrrrrrr
+
+    def remove_session(self, port: int) -> None:
+        if port in self._session_id:
+            del self._session_id[port]
 
     def send_state_code(self, name: str, user_id: str, state_code: int) -> None:
         sp_nm = name.split(':')
@@ -304,7 +315,7 @@ class SharedState:
                 "MDL_LRNG_ST_CD": str(state_code), "USR_ID": user_id}
         headers = {'Content-Type': 'application/json; charset=utf-8'}
         try:
-            res = requests.post(self._URL_UPDATE_STATE_LRN, data=json.dumps(data), headers=headers)
+            res = requests.post(self._URL_UPDATE_STATE_LRN, data=json.dumps(data), headers=headers, timeout=10)
         except Exception as e:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                     msg="http request fail: update train state" + e.__str__())
