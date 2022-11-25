@@ -396,7 +396,6 @@ async def _reverse_proxy(request: Request):
                             background=BackgroundTask(rp_resp.aclose),
                         )
                 else:
-                    # terminate tensorboard
                     return PlainTextResponse("invalid access")
             else:
                 return PlainTextResponse("failed to validate session")
