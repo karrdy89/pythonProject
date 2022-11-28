@@ -14,6 +14,7 @@ import logging
 import uuid
 import requests
 import json
+import yaml
 
 import ray
 import httpx
@@ -75,6 +76,54 @@ class AIbeemRouter:
         self._logger: ray.actor = ray.get_actor(Actors.LOGGER)
         self._serving_manager: ray.actor = ray.get_actor(Actors.SERVING_MANAGER)
         self._shared_state: ray.actor = ray.get_actor(Actors.GLOBAL_STATE)
+
+    @router.post("/dataset/psbYn", response_model=res_vo.IsTrainable)
+    async def is_trainable(self, request_body: req_vo.ModelID):
+        self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="get request: is_trainable")
+        model_id = request_body.MDL_ID
+        psb_yn_dataset = "N"
+        psb_yn_train = "N"
+        path_dataset_def = statics.ROOT_DIR + "/dataset_maker/dataset_definitions.yaml"
+        path_pipeline_def = statics.ROOT_DIR + "/pipeline/pipelines.yaml"
+
+        with open(path_dataset_def, 'r') as stream:
+            try:
+                dataset_def = yaml.safe_load(stream)
+            except Exception as exc:
+                self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg=str(exc))
+                return res_vo.IsTrainable(CODE="FAIL", ERROR_MSG="can't read definition file: "+exc.__str__(),
+                                          DATASET_YN=psb_yn_dataset, TRAIN_YN=psb_yn_train)
+            else:
+                data_maker_list = dataset_def.get("dataset_definitions", '')
+                if data_maker_list == '':
+                    self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                            msg="there is no dataset_definitions: " + self._name)
+                    return res_vo.IsTrainable(CODE="FAIL", ERROR_MSG="definitions not exist: ",
+                                              DATASET_YN=psb_yn_dataset, TRAIN_YN=psb_yn_train)
+                for data_maker in data_maker_list:
+                    if data_maker.get("name") == model_id:
+                        psb_yn_dataset = "Y"
+                        break
+
+        with open(path_pipeline_def, 'r') as stream:
+            try:
+                pipeline_def = yaml.safe_load(stream)
+            except Exception as exc:
+                self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg=str(exc))
+                return res_vo.IsTrainable(CODE="FAIL", ERROR_MSG="can't read definition file: "+exc.__str__(),
+                                          DATASET_YN=psb_yn_dataset, TRAIN_YN=psb_yn_train)
+            else:
+                pipeline_list = pipeline_def.get("pipelines", '')
+                if pipeline_list == '':
+                    self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                            msg="there is no pipeline: " + self._name)
+                    return res_vo.IsTrainable(CODE="FAIL", ERROR_MSG="definitions not exist: ",
+                                              DATASET_YN=psb_yn_dataset, TRAIN_YN=psb_yn_train)
+                for pipeline in pipeline_list:
+                    if pipeline.get("name") == model_id:
+                        psb_yn_train = "Y"
+                        break
+        return res_vo.IsTrainable(CODE="SUCCESS", ERROR_MSG="", DATASET_YN=psb_yn_dataset, TRAIN_YN=psb_yn_train)
 
     @router.post("/train/run", response_model=res_vo.BaseResponse)
     async def train(self, request_body: req_vo.Train):
@@ -299,7 +348,7 @@ class AIbeemRouter:
         main_version = request_body.MN_VER
         sub_version = request_body.N_VER
         version = main_version + '.' + sub_version
-        model_type = request_body.MDL_TYP
+        model_type = request_body.MDL_TY_CD
         result = await self._serving_manager.deploy.remote(model_id=model_id,
                                                            version=version,
                                                            deploy_num=request_body.WDTB_SRVR_NCNT,

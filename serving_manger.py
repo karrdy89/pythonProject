@@ -210,13 +210,13 @@ class ServingManager:
         except Exception as exc:
             self._boot_logger.error(
                 "(" + self._worker + ") " + "can't read deploy state from db:" + exc.__str__())
-            # return -1
+            return -1
         else:
             for stored_deploy_state in stored_deploy_states:
                 model_id = stored_deploy_state[0]
                 # model_type = getattr(BuiltinModels, model_id)
                 # model_type = model_type.model_type
-                model_type = stored_deploy_state[5]  # depends on query
+                model_type = stored_deploy_state[4]  # depends on query
                 mn_ver = str(stored_deploy_state[1])
                 n_ver = str(stored_deploy_state[2])
                 deploy_num = stored_deploy_state[3]
@@ -483,8 +483,8 @@ class ServingManager:
             self._deploy_num += deploy_num
         model_key = model_id + "_" + version
         if model_type == ModelType.Tensorflow:
-            # deploy_path = self._DEPLOY_PATH + model_key + "/"
-            deploy_path = ROOT_DIR + self._DEPLOY_PATH + model_key + "/" + model_id
+            deploy_path = self._DEPLOY_PATH + model_key + "/" + model_id
+            # deploy_path = ROOT_DIR + self._DEPLOY_PATH + model_key + "/" + model_id
             model_path = deploy_path + "/" + str(version_encode(version))
             if os.path.isdir(model_path):
                 if not any(file_name.endswith('.pb') for file_name in os.listdir(model_path)):

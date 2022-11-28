@@ -46,7 +46,7 @@ class Deploy(BaseModel):
     MDL_ID: str
     MN_VER: str
     N_VER: str
-    MDL_TYP: int
+    MDL_TY_CD: str
     WDTB_SRVR_NCNT: int
 
     class Config:
@@ -126,6 +126,16 @@ class CreateTensorBoard(BaseModel):
     MN_VER: str
     N_VER: str
     SESSION_ID: str
+
+    class Config:
+        extra = Extra.forbid
+
+
+class ModelID(BaseModel):
+    """
+    Define pydantic model to validate inputs of basic request
+    """
+    MDL_ID: str
 
     class Config:
         extra = Extra.forbid

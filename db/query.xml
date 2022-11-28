@@ -11,7 +11,7 @@
                 S_AIB.TBCHN3001H A
             WHERE 1=1
             AND CUST_NO IS NOT NULL
-            AND ORGN_DTM BETWEEN #{START} || '999999' AND #{END} || '999999'
+            AND ORGN_DTM BETWEEN #{START} || '000000' AND #{END} || '999999'
         </select>
 
         <select name="select_deploy_state">
@@ -20,6 +20,7 @@
                 , A.MN_VER
                 , A.N_VER
                 , A.WDTB_SRVR_NCNT
+                , A.MDL_TY_CD
                 , (CASE WHEN A.WDTB_DESC_SEQNO = 1 THEN 'Y' ELSE 'N' END) WDTB_LAST_YN /* 최종배포버젼여부 */
             FROM
                 (

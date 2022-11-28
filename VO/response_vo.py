@@ -84,3 +84,14 @@ class DeployState(BaseResponse):
 
     class Config:
         extra = Extra.forbid
+
+
+class IsTrainable(BaseResponse):
+    """
+    Define model to validate output response
+    """
+    DATASET_YN: str
+    TRAIN_YN: str
+
+    class Config:
+        extra = Extra.forbid

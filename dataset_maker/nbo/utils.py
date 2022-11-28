@@ -65,4 +65,3 @@ def make_dataset(datas: list, labels: list[str], len_limit: int, act):
     result = ray.get(act.set_dataset.remote(data=dataset, information=information))
     if result != 0:
         act.fault_handle.remote(msg="failed to send make dataset result")
-

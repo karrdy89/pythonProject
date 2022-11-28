@@ -39,5 +39,5 @@ class TrainStateCode:
 
 
 class ModelType:
-    Tensorflow = 0
-    ONNX = 1
+    Tensorflow = "TF"
+    ONNX = "ONNX"
