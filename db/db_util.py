@@ -207,6 +207,7 @@ class DBUtil:
             conn.autocommit = True
             cursor = conn.cursor()
             result = cursor.execute(query)
+            result = result.fetchall()
             cursor.close()
             return result
 

@@ -68,7 +68,7 @@ def construct_operator(args: MakeDataset) -> BasicTableType:
                     module = importlib.import_module(sep_operator_info[0])
                     operator = getattr(module, sep_operator_info[1])
                     try:
-                        dataset_maker = operator.options(name=name).remote()
+                        dataset_maker = operator.options(name=name, max_concurrency=1000).remote()
                     except ValueError as exc:
                         raise SetDefinitionError(exc.__str__())
                     except Exception as exc:

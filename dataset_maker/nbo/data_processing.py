@@ -8,6 +8,7 @@ from shutil import rmtree
 from zipfile import ZipFile
 from os.path import basename
 from itertools import chain
+from multiprocessing import Lock
 
 import pandas as pd
 import ray
@@ -28,7 +29,6 @@ class MakeDatasetNBO:
         self._num_data: int = 0
         self._cur_buffer_size: int = 0
         self._num_chunks: int = 0
-        self._num_merged: int = 0
         self._file_count: int = 1
         self._len_limit: int = 50
         self._split: list = []
@@ -38,11 +38,9 @@ class MakeDatasetNBO:
         self._information_total: list = []
         self._dataset_name = "NBO"
         self._name = ''
-        self._is_petch_end = False
+        self._is_fetch_end = False
         self._is_export_end = False
         self._is_operation_end = False
-        self._is_merge_stop = False
-        self._early_stopping = False
 
         self._total_processed_data = 0
 
@@ -62,9 +60,19 @@ class MakeDatasetNBO:
         self._act: ray.actor = None
         self._user_id: str = ''
 
+        self._lock = Lock()
+        self._fetch_idx = 0
+        self._total_read = 0
+        self._is_fetch_data_end = False
+        self._is_data_limit = False
+        self._cases = 0
+        self._is_merge = False
+        self._is_export = False
+        self._call_count_set_split = 0
+        self._call_count_set_dataset = 0
+        self._idx_early_stopped_merge = 0
+
     def init(self, args: BasicTableType):
-        # name: str, dataset_name: str, act: ray.actor, labels: list, version: str, key_index: int,
-        # x_index: list[int], num_data_limit: int | None, start_dtm: str, end_dtm: str
         self._name = args.actor_name
         self._dataset_name = args.dataset_name
         self._act = args.actor_handle
@@ -120,26 +128,65 @@ class MakeDatasetNBO:
         return 0
 
     def set_dataset(self, data: list, information: dict):
+        self._lock.acquire()
+        if self._is_export:
+            self._lock.release()
+            return 0
+        self._call_count_set_dataset += 1
         self._dataset += data
         self._information.append(information)
-        processed_len = len(self._information)
-        if self._early_stopping:
-            self._num_merged += processed_len
-            self._early_stopping = False
-        if processed_len == self._num_merged:
+        if self._idx_early_stopped_merge > 0:
+            if self._call_count_set_dataset >= self._idx_early_stopped_merge:
+                self._split = []
+                self._information_total += self._information
+                self._is_merge = False
+                self._is_export = True
+                self._lock.release()
+                self._export()
+                return 0
+
+        if self._call_count_set_dataset == len(self._split):
+            self._split = []
             self._information_total += self._information
+            self._is_merge = False
+            self._is_export = True
+            self._lock.release()
             self._export()
+            return 0
+        self._lock.release()
         return 0
 
-    def set_split(self, data):
-        self._split.append(data)
-        if len(self._split) == self._num_chunks:
-            self._merge()
+    def set_split(self, data=None, cases=None, nc=False):
+        self._lock.acquire(block=True, timeout=5)
+        if self._is_merge:
+            self._lock.release()
+            return 0
+        if not nc:
+            self._call_count_set_split += 1
+        if data is not None:
+            self._split.append(data)
+        if self._is_operation_end:
+            if self._call_count_set_split >= self._num_chunks:
+                self._is_merge = True
+                self._lock.release()
+                self._merge()
+                return 0
+        if cases is not None:
+            self._cases += cases
+        if self._cases > self._num_data_limit:
+            self._is_operation_end = True
+        if self._is_fetch_data_end:
+            if self._call_count_set_split == self._num_chunks:
+                self._is_merge = True
+                self._lock.release()
+                self._merge()
+                return 0
+        self._lock.release()
         return 0
 
     def _done(self):
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
-                                msg="making nbo dataset: start finishing")
+                                msg="making nbo dataset: done: start")
         self._process_pool.close()
         max_len = 0
         classes = None
@@ -167,9 +214,9 @@ class MakeDatasetNBO:
             self.fault_handle(msg="an error occur when export information: " + exc.__str__())
             return -1
 
-        zip_name = self._dataset_name+'_'+self._version+".zip"
+        zip_name = self._dataset_name + '_' + self._version + ".zip"
         try:
-            with ZipFile(self._path+"/"+zip_name, 'w') as zipObj:
+            with ZipFile(self._path + "/" + zip_name, 'w') as zipObj:
                 for folderName, subfolders, filenames in os.walk(self._path):
                     for filename in filenames:
                         if filename == zip_name:
@@ -184,13 +231,14 @@ class MakeDatasetNBO:
             return -1
 
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
-                                msg="making nbo dataset: finished")
+                                msg="making nbo dataset: done: finished | total read: " + str(self._total_read)
+                                + " | total processed: " + str(self._total_processed_data))
         self._shared_state.set_make_dataset_result.remote(self._name, self._user_id, TrainStateCode.MAKING_DATASET_DONE)
         self._shared_state.kill_actor.remote(self._name)
 
     def _export(self):
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
-                                msg="making nbo dataset: export csv")
+                                msg="making nbo dataset: export csv: start")
         max_len = 0
         for info in self._information:
             if max_len < info.get("max_len"):
@@ -224,14 +272,15 @@ class MakeDatasetNBO:
             self._dataset = []
             self._file_count += 1
             self._is_export_end = True
+            self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                    msg="making nbo dataset: export csv: finish")
             self.fetch_data()
 
     def _merge(self):
-        if self._is_merge_stop:
-            return
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
-                                msg="making nbo dataset: merging chunks")
-        self._num_merged = 0
+                                msg="making nbo dataset: merge: start")
+        self._call_count_set_dataset = 0
+        self._idx_early_stopped_merge = 0
         left_over = None
         split_len = len(self._split)
         for i in range(split_len):
@@ -252,22 +301,20 @@ class MakeDatasetNBO:
                 diff_num = self._num_data_limit - self._num_data
                 if len_chunk > diff_num:
                     cur_chunk = cur_chunk[0:diff_num]
-                    self._num_merged = i
                     self._process_pool.apply_async(make_dataset, args=(cur_chunk, self._labels,
                                                                        self._len_limit, self._act))
-                    self._is_merge_stop = True
                     self._is_operation_end = True
-                    self._early_stopping = True
-                    self._is_petch_end = True
+                    self._idx_early_stopped_merge = i + 1
                     self._total_processed_data += len(cur_chunk)
-                    break
+                    self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                            msg="making nbo dataset: merge: end")
+                    return 0
             self._num_data += len_chunk
-            self._num_merged = i
             self._process_pool.apply_async(make_dataset, args=(cur_chunk, self._labels, self._len_limit, self._act))
             self._total_processed_data += len(cur_chunk)
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
-                                msg="total processed data: " + str(self._total_processed_data))
-        self._split = []
+                                msg="making nbo dataset: merge: end")
+        return 0
 
     def fault_handle(self, msg):
         self._process_pool.close()
@@ -293,14 +340,23 @@ class MakeDatasetNBO:
             return 0
 
     def fetch_data(self):
-        self._cur_buffer_size = 0
-        self._num_chunks = 0
-        if not self._is_petch_end:
+        self._is_export = False
+        self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                msg="making nbo dataset: fetch data: start")
+        if not self._is_fetch_end and not self._is_operation_end:
+            self._call_count_set_split = 0
+            self._cur_buffer_size = 0
+            self._num_chunks = 0
+            self._is_fetch_data_end = False
             self._logger.log.remote(level=logging.INFO, worker=self._worker,
-                                    msg="making nbo dataset: fetch data from db")
-            for i, chunk in enumerate(self._db.select_chunk()):
+                                    msg="making nbo dataset: fetch data: read from db")
+            i = 0
+            for chunk in self._db.select_chunk():
+                if self._is_operation_end:
+                    return 0
+                self._total_read += len(chunk)
                 if len(chunk) == 0:
-                    self._is_petch_end = True
+                    self._is_fetch_end = True
                     break
                 if self._chunk_size == 0:
                     self._chunk_size = sys.getsizeof(chunk) + sys.getsizeof(True)
@@ -308,16 +364,25 @@ class MakeDatasetNBO:
                         self.fault_handle("the chunk size of data exceed memory limit")
                         return -1
                 self._cur_buffer_size += self._chunk_size
+                self._num_chunks = i + 1
                 if self._cur_buffer_size + self._chunk_size < self._mem_limit:
                     self._process_pool.apply_async(split_chunk,
                                                    args=(chunk, i, self._key_index, self._x_index, self._act))
-                    self._num_chunks = i + 1
                 else:
                     self._process_pool.apply_async(split_chunk,
                                                    args=(chunk, i, self._key_index, self._x_index, self._act))
-                    self._num_chunks = i + 1
+                    self._fetch_idx += i
+                    self._is_fetch_data_end = True
+                    self.set_split(nc=True)
+                    self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                            msg="making nbo dataset: fetch data: end")
                     return 1
-        if self._is_export_end and self._is_operation_end:
+                i += 1
+            self._is_fetch_data_end = True
+            self.set_split(nc=True)
+            self._fetch_idx += i
+        if (self._is_export_end and self._is_operation_end) or (self._is_export_end and self._is_fetch_end):
             self._done()
-        self._is_operation_end = True
+        self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                msg="making nbo dataset: fetch data: end")
         return 0

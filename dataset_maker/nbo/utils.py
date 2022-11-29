@@ -17,8 +17,11 @@ def split_chunk(chunk: list[tuple], chunk_index: int, key_index: int, x_index: l
     except Exception as e:
         act.fault_handle.remote(msg="failed to split:" + e.__str__())
         raise(e.__str__())
+    cases = len(split) - 2
+    if cases < 0:
+        cases = 0
     split.append(chunk_index)
-    result = ray.get(act.set_split.remote(data=split))
+    result = ray.get(act.set_split.remote(data=split, cases=cases))
     if result != 0:
         act.fault_handle.remote(msg="failed to send split result")
 
