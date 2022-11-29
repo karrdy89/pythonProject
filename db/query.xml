@@ -29,6 +29,7 @@
                     , A.MN_VER /* 주버전 */
                     , A.N_VER /* 부버전 */
                     , A.MDL_NM /* 모델명 */
+                    , A.MDL_TY_CD
                     , B.SEQNO /* 일련번호 */
                     , A.MDL_LRNG_ST_CD /* 모델학습상태코드 */
                     , NVL(B.WDTB_ST_CD, '00') WDTB_ST_CD /* 배포상태코드 */
