@@ -395,7 +395,13 @@ class AIbeemRouter:
         if os.path.isdir(log_path):
             port = await self._shared_state.get_tensorboard_port.remote(dir_path=log_path, session_id=session_id)
             if port == -1:
+                self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                        msg="get request: create_tensorboard: failed to launch tensorboard")
                 return res_vo.PathResponse(CODE="FAIL", ERROR_MSG="failed to launch tensorboard", PATH="")
+            elif port == -2:
+                self._logger.log.remote(level=logging.WARN, worker=self._worker,
+                                        msg="get request: create_tensorboard: max tensorboard thread exceeded")
+                return res_vo.PathResponse(CODE="FAIL", ERROR_MSG="max tensorboard thread exceeded", PATH="")
             else:
                 path = "/tensorboard/" + str(port)
                 return res_vo.PathResponse(CODE="SUCCESS", ERROR_MSG="", PATH=path)

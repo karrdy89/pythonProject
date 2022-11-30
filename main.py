@@ -88,22 +88,22 @@ class UvicornServer(uvicorn.Server):
 
 
 # test
-# config = uvicorn.Config("routers:app",
-#                         host="0.0.0.0",
-#                         port=8080,
-#                         ssl_keyfile=SSL_CERT_PATH + "/key.pem",
-#                         ssl_certfile=SSL_CERT_PATH + "/cert.pem",
-#                         ssl_keyfile_password="1234"
-#                         )
-
-# build
 config = uvicorn.Config("routers:app",
                         host="0.0.0.0",
                         port=8080,
-                        ssl_keyfile=SSL_CERT_PATH + "/newkey.pem",
+                        ssl_keyfile=SSL_CERT_PATH + "/key.pem",
                         ssl_certfile=SSL_CERT_PATH + "/cert.pem",
-                        ssl_ca_certs=SSL_CERT_PATH + "/DigiCertCA.pem"
+                        ssl_keyfile_password="1234"
                         )
+
+# build
+# config = uvicorn.Config("routers:app",
+#                         host="0.0.0.0",
+#                         port=8080,
+#                         ssl_keyfile=SSL_CERT_PATH + "/newkey.pem",
+#                         ssl_certfile=SSL_CERT_PATH + "/cert.pem",
+#                         ssl_ca_certs=SSL_CERT_PATH + "/DigiCertCA.pem"
+#                         )
 
 
 boot_logger.info("(Main Server) check database connection...")

@@ -8,6 +8,7 @@
 # Date  | Updator   | Remark
 #
 # ---------------------------------------------------------------------------------------------------------------------
+import ast
 import configparser
 import logging
 import requests
@@ -85,7 +86,8 @@ class SharedState:
         self._make_dataset_result: OrderedDict[str, int] = OrderedDict()
         self._error_message: OrderedDict[str, str] = OrderedDict()
         self._dataset_url: dict[str, str] = {}
-        self._EXPIRE_TIME: int = 3600
+        self._EXPIRE_TIME_DS_DOWNLOAD: int = 3600
+        self._EXPIRE_TIME_TB: int = 3600
         self._tensorboard_tool = TensorBoardTool()
         self._session_id: dict[int, str] = {}
         self._SESSION_VALIDATION_URL = ''
@@ -108,9 +110,11 @@ class SharedState:
             self._DATASET_CONCURRENCY_MAX = int(config_parser.get("DATASET_MAKER", "MAX_CONCURRENCY"))
             self._URL_UPDATE_STATE_LRN = str(config_parser.get("MANAGE_SERVER", "URL_UPDATE_STATE_LRN"))
             self._SESSION_VALIDATION_URL = str(config_parser.get("MANAGE_SERVER", "SESSION_VALIDATION_URL"))
+            self._EXPIRE_TIME_TB = int(config_parser.get("TENSOR_BOARD", "EXPIRE_TIME"))
         except configparser.Error as e:
             self._boot_logger.error("(" + self._worker + ") " + "an error occur when set config...: " + str(e))
             return -1
+        self._scheduler.add_job(self._remove_garbage_tensorboard, "interval", minutes=10)
         self._boot_logger.info("(" + self._worker + ") " + "init shared_state actor complete...")
         return 0
 
@@ -278,7 +282,7 @@ class SharedState:
         return result
 
     def set_dataset_url(self, uid: str, path: str) -> None:
-        run_date = datetime.now() + timedelta(seconds=self._EXPIRE_TIME)
+        run_date = datetime.now() + timedelta(seconds=self._EXPIRE_TIME_DS_DOWNLOAD)
         self._dataset_url[uid] = path
         self._scheduler.add_job(self.delete_dataset_url, "date", run_date=run_date, args=[uid])
 
@@ -295,13 +299,46 @@ class SharedState:
 
     def get_tensorboard_port(self, dir_path: str, session_id: str) -> int:
         port = self._tensorboard_tool.run(dir_path=dir_path)
+        self._lock.acquire()
         self._session_id[port] = session_id
+        self._lock.release()
         return port
 
     def get_session(self, port: str) -> tuple | None:
-        return self._session_id.get(int(port)), self._SESSION_VALIDATION_URLrrrrrr
+        return self._session_id.get(int(port)), self._SESSION_VALIDATION_URL
 
-    def remove_session(self, port: int) -> None:
+    def _expire_tensorboard(self, port: int, index: int) -> None:
+        self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                msg="_expire_tensorboard: activate")
+        result = self._tensorboard_tool.expire_tensorboard(port=port, index=index)
+        if result == 0:
+            self._remove_session(port)
+        return
+
+    def _remove_garbage_tensorboard(self):
+        self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                msg="_remove_garbage_tensorboard: activate")
+        idx = 0
+        for port, session_id in self._session_id.items():
+            data = {"SESSION_ID": session_id}
+            headers = {'Content-Type': 'application/json; charset=utf-8'}
+            try:
+                res = requests.post(self._SESSION_VALIDATION_URL, data=json.dumps(data), headers=headers, timeout=10)
+            except Exception as exc:
+                self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                        msg="remove_garbage_tensorboard: " + exc.__str__())
+                return
+            else:
+                if res.status_code == 200:
+                    body = ast.literal_eval(res.content.decode('utf-8'))
+                    is_valid = body.get("IS_VALID_SESSION_ID")
+                    if is_valid == 'Y':
+                        continue
+                    else:
+                        self._expire_tensorboard(port, idx)
+            idx += 1
+
+    def _remove_session(self, port: int) -> None:
         if port in self._session_id:
             del self._session_id[port]
 

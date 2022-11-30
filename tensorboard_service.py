@@ -8,22 +8,15 @@
 # Date  | Updator   | Remark
 #
 # ---------------------------------------------------------------------------------------------------------------------
-import dataclasses
 import ray
-import logger
 import logging
 import os
 import signal
-import queue
 import subprocess
 import traceback
 import configparser
-from datetime import datetime, timedelta
 
 from tensorboard import program, default, assets
-
-from utils.resettable_timer import ResettableTimer
-from apscheduler.schedulers.background import BackgroundScheduler
 
 from statics import Actors
 
@@ -42,16 +35,10 @@ class TensorBoardTool:
         A list of available port.
     _port_use : list[int]
         A List of port in use.
-    _tensorboard_thread_queue : queue
-        The queue with a tensorboard thread information for expire tensorboard thread.
-    _before_produce_time : float
-        The prior time of tensorboard thread produced for calculate next expire time.
     _TENSORBOARD_PORT_START: int
         Configuration of tensorboard service port range.
     _TENSORBOARD_THREAD_MAX: int
         Configuration of max tensorboard service.
-    _EXPIRE_TIME: int
-        Configuration of tensorboard service expire time
 
     Methods
     -------
@@ -74,13 +61,8 @@ class TensorBoardTool:
         self._shared_state: ray.actor.ActorClass | None = None
         self._port: list[int] = []
         self._port_use: list[int] = []
-        self._tensorboard_thread_queue: queue = queue.Queue()
-        self._before_produce_time: float = 0
         self._TENSORBOARD_PORT_START: int = 0
         self._TENSORBOARD_THREAD_MAX: int = 0
-        self._EXPIRE_TIME: int = 0
-        self._scheduler = BackgroundScheduler()
-        self._scheduler.start()
         self.init()
 
     def init(self) -> int:
@@ -93,7 +75,6 @@ class TensorBoardTool:
             config_parser.read("config/config.ini")
             self._TENSORBOARD_PORT_START = int(config_parser.get("TENSOR_BOARD", "TENSORBOARD_PORT_START"))
             self._TENSORBOARD_THREAD_MAX = int(config_parser.get("TENSOR_BOARD", "TENSORBOARD_THREAD_MAX"))
-            self._EXPIRE_TIME = int(config_parser.get("TENSOR_BOARD", "EXPIRE_TIME"))
         except configparser.Error as e:
             self._logger.log.remote(level=logging.error, worker=self._worker,
                                     msg="an error occur when set config...: " + str(e))
@@ -119,32 +100,33 @@ class TensorBoardTool:
         self._port_use.remove(port)
         self._port.append(port)
 
-    def expire_tensorboard(self) -> None:
-        if self._tensorboard_thread_queue.empty():
-            return
-        tensorboard_thread = self._tensorboard_thread_queue.get(block=True)
+    def expire_tensorboard(self, port, index) -> int:
         # ordered
-        port = tensorboard_thread.port
         tensorboard_info = subprocess.check_output("ps -ef | grep tensorboard", shell=True).decode('utf-8')
         tensorboard_info = tensorboard_info.split("\n")
+        tensorboard_info = tensorboard_info[:-3]
+        for info in tensorboard_info:
+            print(info)
         try:
-            tid = tensorboard_info[0].split()
+            tid = tensorboard_info[index].split()
             tid = tid[1]
+            print(tid)
             os.kill(int(tid), signal.SIGTERM)
         except Exception as e:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                     msg="an error occur when expire_tensorboard: " + str(e))
+            return -1
         else:
             self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                     msg="killed: " + str(tid))
-            self._shared_state.remove_session.remote(port)
             self.release_port(port)
+            return 0
 
     def run(self, dir_path: str) -> int:
         if len(self._port_use) >= self._TENSORBOARD_THREAD_MAX:
             self._logger.log.remote(level=logging.WARN, worker=self._worker,
                                     msg="max tensorboard thread exceeded")
-            return -1
+            return -2
         port = self.get_port()
         if port is None:
             return -1
@@ -160,15 +142,6 @@ class TensorBoardTool:
             self.release_port(port)
             return -1
         else:
-            tensorboard_thread = TensorboardThread(port=port)
-            self._tensorboard_thread_queue.put(tensorboard_thread, block=True)
-            run_date = datetime.now() + timedelta(seconds=self._EXPIRE_TIME)
-            self._scheduler.add_job(self.expire_tensorboard, "date", run_date=run_date)
             return port
-
-
-@dataclasses.dataclass
-class TensorboardThread:
-    port: int
 
 

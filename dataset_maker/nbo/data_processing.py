@@ -383,6 +383,14 @@ class MakeDatasetNBO:
             self._fetch_idx += i
         if (self._is_export_end and self._is_operation_end) or (self._is_export_end and self._is_fetch_end):
             self._done()
+        elif self._is_fetch_end and self._total_read == 0:
+            self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                    msg="making nbo dataset: fetch data: empty table")
+            self._process_pool.close()
+            self._shared_state.set_make_dataset_result.remote(self._name, self._user_id,
+                                                              TrainStateCode.MAKING_DATASET_FAIL)
+            self._shared_state.kill_actor.remote(self._name)
+
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="making nbo dataset: fetch data: end")
         return 0
