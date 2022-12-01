@@ -8,6 +8,7 @@
 # Date  | Updator   | Remark
 #
 # ---------------------------------------------------------------------------------------------------------------------
+import importlib
 import os
 
 import ray
@@ -97,7 +98,13 @@ class OnnxServing:
     def predict(self, data: list) -> dict:
         result = {"CODE": "FAIL", "ERROR_MSG": "N/A", "EVNT_ID": [], "PRBT": []}
         if self._transformer is not None:
-            pass
+            sp_transformer_info = self._transformer.split('.')
+            module = ''.join(sp_transformer_info[:-1])
+            module = "transformers."+module
+            module = importlib.import_module(module)
+            func = sp_transformer_info[-1]
+            func = getattr(module, func)
+            data = func(data)
         if self._input_shape is not None:
             if len(data) < self._input_shape[-1]:
                 result["CODE"] = "FAIL"
