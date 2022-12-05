@@ -204,7 +204,7 @@ class ServingManager:
         self._manager_handle.start()
 
         self._boot_logger.info("(" + self._worker + ") " + "deploying models from db...")
-        self._db = DBUtil()
+        self._db = DBUtil(db_info="MANAGE_DB")
         try:
             stored_deploy_states = self._db.select(name="select_deploy_state")
         except Exception as exc:

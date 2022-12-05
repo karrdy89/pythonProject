@@ -57,7 +57,7 @@ class DBUtil:
     _SESSION_POOL_MAX: int
         The range of session pool
     """
-    def __init__(self, concurrency: bool = False):
+    def __init__(self, db_info: str, concurrency: bool = False):
         """
         init class attribute
         :param concurrency:
@@ -82,11 +82,11 @@ class DBUtil:
         self._SESSION_POOL_MIN: int = 2
         self._SESSION_POOL_MAX: int = 30
         try:
-            self.init()
+            self.init(db_info=db_info)
         except Exception as exc:
             raise exc
 
-    def init(self) -> None:
+    def init(self, db_info: str) -> None:
         """
         Initiate DBUtil from config
         :rtype: None
@@ -94,14 +94,14 @@ class DBUtil:
         config_parser = configparser.ConfigParser()
         try:
             config_parser.read("config/config.ini")
-            self._USER = str(config_parser.get("DB", "USER"))
-            self._PASSWORD = str(config_parser.get("DB", "PASSWORD"))
-            self._IP = str(config_parser.get("DB", "IP"))
-            self._PORT = int(config_parser.get("DB", "PORT"))
-            self._SID = str(config_parser.get("DB", "SID"))
-            self._MAX_WORKER = int(config_parser.get("DB", "MAX_WORKER"))
-            self._SESSION_POOL_MIN = int(config_parser.get("DB", "SESSION_POOL_MIN"))
-            self._SESSION_POOL_MAX = int(config_parser.get("DB", "SESSION_POOL_MAX"))
+            self._USER = str(config_parser.get(db_info, "USER"))
+            self._PASSWORD = str(config_parser.get(db_info, "PASSWORD"))
+            self._IP = str(config_parser.get(db_info, "IP"))
+            self._PORT = int(config_parser.get(db_info, "PORT"))
+            self._SID = str(config_parser.get(db_info, "SID"))
+            self._MAX_WORKER = int(config_parser.get(db_info, "MAX_WORKER"))
+            self._SESSION_POOL_MIN = int(config_parser.get(db_info, "SESSION_POOL_MIN"))
+            self._SESSION_POOL_MAX = int(config_parser.get(db_info, "SESSION_POOL_MAX"))
         except configparser.Error as exc:
             raise exc
         if self.concurrency:

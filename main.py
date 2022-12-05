@@ -108,7 +108,9 @@ config = uvicorn.Config("routers:app",
 
 boot_logger.info("(Main Server) check database connection...")
 try:
-    db = DBUtil()
+    db = DBUtil(db_info="MANAGE_DB")
+    db.connection_test()
+    db = DBUtil(db_info="FDS_DB")
     db.connection_test()
 except Exception as exc:
     boot_logger.error("(Main Server) can not connect to database...: " + exc.__str__())
