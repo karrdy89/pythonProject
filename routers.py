@@ -67,13 +67,6 @@ class AIbeemRouter:
         self._logger: ray.actor = ray.get_actor(Actors.LOGGER)
         self._serving_manager: ray.actor = ray.get_actor(Actors.SERVING_MANAGER)
         self._shared_state: ray.actor = ray.get_actor(Actors.GLOBAL_STATE)
-        try:
-            config_parser = configparser.ConfigParser()
-            config_parser.read("config/config.ini")
-            self._CTS_PORT = int(config_parser.get("DEFAULT", "CTS_PORT"))
-        except configparser.Error as e:
-            self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg=e.__str__())
-            raise e
 
     @router.post("/dataset/psbYn", response_model=res_vo.IsTrainable)
     async def is_trainable(self, request_body: req_vo.ModelID):
@@ -312,7 +305,7 @@ class AIbeemRouter:
             return res_vo.PathResponse(CODE="FAIL", ERROR_MSG="dataset not exist", PATH="")
         uid = str(uuid.uuid4())
         await self._shared_state.set_dataset_url.remote(uid=uid, path=path)
-        return res_vo.PathResponse(CODE="SUCCESS", ERROR_MSG="", PATH=":"+str(self._CTS_PORT)+"/dataset/" + uid)
+        return res_vo.PathResponse(CODE="SUCCESS", ERROR_MSG="", PATH="/dataset/" + uid)
 
     @router.post("/deploy", response_model=res_vo.MessageResponse)
     async def deploy(self, request_body: req_vo.Deploy):
@@ -376,7 +369,7 @@ class AIbeemRouter:
                                         msg="get request: create_tensorboard: max tensorboard thread exceeded")
                 return res_vo.PathResponse(CODE="FAIL", ERROR_MSG="max tensorboard thread exceeded", PATH="")
             else:
-                path = ":"+str(self._CTS_PORT)+"/tensorboard/" + str(port)
+                path = "/tensorboard/" + str(port)
                 return res_vo.PathResponse(CODE="SUCCESS", ERROR_MSG="", PATH=path)
         else:
             return res_vo.PathResponse(CODE="FAIL", ERROR_MSG="train log not exist", PATH="")
