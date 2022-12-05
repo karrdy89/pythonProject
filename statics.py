@@ -25,6 +25,7 @@ class Actors:
     LOGGER = "logging_service"
     GLOBAL_STATE = "shared_state"
     SERVER = "API_service"
+    SERVER_OP = "API_service_op"
     SERVING_MANAGER = "serving_manager"
     DATA_MAKER_NBO = "datamaker_nbo"
 

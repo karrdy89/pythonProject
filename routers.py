@@ -8,25 +8,18 @@
 # Date  | Updator   | Remark
 #
 # ---------------------------------------------------------------------------------------------------------------------
-import ast
+import configparser
 import os
 import logging
 import uuid
-import requests
-import json
 import yaml
 
 import ray
-import httpx
 from fastapi import FastAPI
 from fastapi_utils.cbv import cbv
 from fastapi_utils.inferring_router import InferringRouter
-from fastapi.responses import FileResponse, PlainTextResponse
 from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
 from starlette.middleware.cors import CORSMiddleware
-from starlette.requests import Request
-from starlette.responses import StreamingResponse
-from starlette.background import BackgroundTask
 
 import VO.request_vo as req_vo
 import VO.response_vo as res_vo
@@ -56,10 +49,8 @@ class AIbeemRouter:
         Class name of instance.
     _logger : actor
         An actor handle of global logger.
-    _tf_serving_manager : actor
-        An actor handle of tf_serving_manager.
-    _onx_serving_manager : actor
-        An actor handle of onx_serving_manager.
+    _serving_manager : actor
+        An actor handle of _serving_manager.
     _shared_state : actor
         An actor handle of global state manager.
 
@@ -76,6 +67,13 @@ class AIbeemRouter:
         self._logger: ray.actor = ray.get_actor(Actors.LOGGER)
         self._serving_manager: ray.actor = ray.get_actor(Actors.SERVING_MANAGER)
         self._shared_state: ray.actor = ray.get_actor(Actors.GLOBAL_STATE)
+        try:
+            config_parser = configparser.ConfigParser()
+            config_parser.read("config/config.ini")
+            self._CTS_PORT = int(config_parser.get("DEFAULT", "CTS_PORT"))
+        except configparser.Error as e:
+            self._logger.log.remote(level=logging.ERROR, worker=self._worker, msg=e.__str__())
+            raise e
 
     @router.post("/dataset/psbYn", response_model=res_vo.IsTrainable)
     async def is_trainable(self, request_body: req_vo.ModelID):
@@ -202,17 +200,6 @@ class AIbeemRouter:
                                     msg="stop_train: fail: model not exist: " + pipeline_name)
             return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="training process not exist")
 
-        # await self._shared_state.set_error_message.remote(name=pipeline_name, msg="interruption due to stop request")
-        # kill_actor_result = await self._shared_state.kill_actor.remote(name=pipeline_name)
-        # if kill_actor_result == 0:
-        #     self._logger.log.remote(level=logging.INFO, worker=self._worker,
-        #                             msg="stop_train: success : " + pipeline_name)
-        #     return res_vo.BaseResponse(CODE="SUCCESS", ERROR_MSG="")
-        # else:
-        #     self._logger.log.remote(level=logging.WARN, worker=self._worker,
-        #                             msg="stop_train: fail: model not exist: " + pipeline_name)
-        #     return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="training process not exist")
-
     @router.post("/train/progress", response_model=res_vo.TrainProgress)
     async def get_train_progress(self, request_body: req_vo.CheckTrainProgress):
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
@@ -325,21 +312,7 @@ class AIbeemRouter:
             return res_vo.PathResponse(CODE="FAIL", ERROR_MSG="dataset not exist", PATH="")
         uid = str(uuid.uuid4())
         await self._shared_state.set_dataset_url.remote(uid=uid, path=path)
-        return res_vo.PathResponse(CODE="SUCCESS", ERROR_MSG="", PATH="/dataset/" + uid)
-
-    @router.get("/dataset/{uid}")
-    async def download_dataset(self, uid: str):
-        self._logger.log.remote(level=logging.INFO, worker=self._worker,
-                                msg="get request: download_dataset")
-        path = await self._shared_state.get_dataset_path.remote(uid=uid)
-        if path is not None:
-            if os.path.exists(path):
-                filename = path.split("/")[-1]
-                return FileResponse(path, filename=filename)
-            else:
-                return "file not exist"
-        else:
-            return "invalid url"
+        return res_vo.PathResponse(CODE="SUCCESS", ERROR_MSG="", PATH=":"+str(self._CTS_PORT)+"/dataset/" + uid)
 
     @router.post("/deploy", response_model=res_vo.MessageResponse)
     async def deploy(self, request_body: req_vo.Deploy):
@@ -403,59 +376,10 @@ class AIbeemRouter:
                                         msg="get request: create_tensorboard: max tensorboard thread exceeded")
                 return res_vo.PathResponse(CODE="FAIL", ERROR_MSG="max tensorboard thread exceeded", PATH="")
             else:
-                path = "/tensorboard/" + str(port)
+                path = ":"+str(self._CTS_PORT)+"/tensorboard/" + str(port)
                 return res_vo.PathResponse(CODE="SUCCESS", ERROR_MSG="", PATH=path)
         else:
             return res_vo.PathResponse(CODE="FAIL", ERROR_MSG="train log not exist", PATH="")
 
 
-async def _reverse_proxy(request: Request):
-    path = request.url.path.split('/')
-    port = path[2]
-    path = '/'.join(path[3:])
-
-    # validate session request to manage server
-    shared_state = ray.get_actor(Actors.GLOBAL_STATE)
-    session_info, url = await shared_state.get_session.remote(port=port)
-    if session_info is None:
-        return PlainTextResponse("invalid access")
-    else:
-        data = {"SESSION_ID": session_info}
-        headers = {'Content-Type': 'application/json; charset=utf-8'}
-        try:
-            res = requests.post(url, data=json.dumps(data), headers=headers, timeout=10)
-        except Exception as exc:
-            return PlainTextResponse("failed to validate session:" + exc.__str__())
-        else:
-            if res.status_code == 200:
-                body = ast.literal_eval(res.content.decode('utf-8'))
-                is_valid = body.get("IS_VALID_SESSION_ID")
-                if is_valid == 'Y':
-                    client = httpx.AsyncClient(base_url="http://127.0.0.1:" + port)
-                    url = httpx.URL(path=path,
-                                    query=request.url.query.encode("utf-8"))
-                    rp_req = client.build_request(request.method, url,
-                                                  headers=request.headers.raw,
-                                                  content=await request.body())
-                    try:
-                        rp_resp = await client.send(rp_req, stream=True)
-                    except httpx.RequestError:
-                        return PlainTextResponse("invalid URL")
-                    except Exception as exc:
-                        return f"An error occurred while requesting {exc.__str__()!r}."
-                    else:
-                        return StreamingResponse(
-                            rp_resp.aiter_raw(),
-                            status_code=rp_resp.status_code,
-                            headers=rp_resp.headers,
-                            background=BackgroundTask(rp_resp.aclose),
-                        )
-                else:
-                    return PlainTextResponse("invalid access")
-            else:
-                return PlainTextResponse("failed to validate session")
-
-
-app.add_route("/dashboard/{port}/{path:path}", _reverse_proxy, ["GET", "POST"])
-app.add_route("/tensorboard/{port}/{path:path}", _reverse_proxy, ["GET", "POST"])
 app.include_router(router)
