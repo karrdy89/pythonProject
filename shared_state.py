@@ -316,7 +316,7 @@ class SharedState:
         return
 
     def _remove_garbage_tensorboard(self):
-        self._logger.log.remote(level=logging.INFO, worker=self._worker,
+        self._logger.log.remote(level=logging.DEBUG, worker=self._worker,
                                 msg="_remove_garbage_tensorboard: activate")
         idx = 0
         for port, session_id in self._session_id.items():
