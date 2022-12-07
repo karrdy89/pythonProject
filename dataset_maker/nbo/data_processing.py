@@ -1,4 +1,5 @@
 import configparser
+import math
 import sys
 import os
 import json
@@ -59,30 +60,40 @@ class MakeDatasetNBO:
         self._db: DBUtil | None = None
         self._act: ray.actor = None
         self._user_id: str = ''
-
         self._lock = Lock()
-        self._fetch_idx = 0
+        self._flush = 100
         self._total_read = 0
         self._is_fetch_data_end = False
         self._is_data_limit = False
-        self._cases = 0
         self._is_merge = False
         self._is_export = False
         self._call_count_set_split = 0
         self._call_count_set_dataset = 0
         self._idx_early_stopped_merge = 0
+        self._labels_ratio = {}
 
     def init(self, args: BasicTableType):
         self._name = args.actor_name
         self._dataset_name = args.dataset_name
         self._act = args.actor_handle
-        self._labels = args.labels
+        self._labels = args.labels + ["UNK"]
         self._version = args.version
         self._key_index = args.key_index
         self._x_index = args.feature_index
         self._num_data_limit = args.num_data_limit
         self._query = args.query_name
         self._user_id = args.user_id
+        if self._num_data_limit is not None:
+            total_label_num = len(self._labels)
+            data_per_label = int(self._num_data_limit/total_label_num)
+            diff = self._num_data_limit - data_per_label * total_label_num
+            for label in self._labels:
+                if label == "UNK":
+                    self._labels_ratio[label] = data_per_label + diff
+                else:
+                    self._labels_ratio[label] = data_per_label
+        digit = (int(math.log10(self._num_data_limit)) + 1)
+        self._flush = int(math.e ** digit * int(str(self._num_data_limit)[:1]))
         try:
             self._logger = ray.get_actor(Actors.LOGGER)
             self._shared_state = ray.get_actor(Actors.GLOBAL_STATE)
@@ -90,7 +101,7 @@ class MakeDatasetNBO:
             print("an error occur when set actors", exc)
             return -1
         try:
-            self._db = DBUtil(db_info="FDS_DB")
+            self._db = DBUtil(db_info="MANAGE_DB")
             self._db.set_select_chunk(name=self._query, param={"START": args.start_dtm, "END": args.end_dtm},
                                       array_size=10000, prefetch_row=10000)
         except Exception as exc:
@@ -128,6 +139,15 @@ class MakeDatasetNBO:
         return 0
 
     def set_dataset(self, data: list, information: dict):
+        # check all label data is collected
+        # if collected -> operation end
+        # if not read continue until eod
+        # check if appendable in util(ray get)
+        # possible with multiprocessing?
+        # check appendable and append will be blocked
+        # call method is exportable
+        # if no need to be appended -> block
+        # trim off when export
         self._lock.acquire()
         if self._is_export:
             self._lock.release()
@@ -156,7 +176,7 @@ class MakeDatasetNBO:
         self._lock.release()
         return 0
 
-    def set_split(self, data=None, cases=None, nc=False):
+    def set_split(self, data=None, nc=False):
         self._lock.acquire(block=True, timeout=5)
         if self._is_merge:
             self._lock.release()
@@ -171,9 +191,6 @@ class MakeDatasetNBO:
                 self._lock.release()
                 self._merge()
                 return 0
-        if cases is not None:
-            self._cases += cases
-        if self._cases > self._num_data_limit:
             self._is_operation_end = True
         if self._is_fetch_data_end:
             if self._call_count_set_split == self._num_chunks:
@@ -368,21 +385,26 @@ class MakeDatasetNBO:
                 if self._cur_buffer_size + self._chunk_size < self._mem_limit:
                     self._process_pool.apply_async(split_chunk,
                                                    args=(chunk, i, self._key_index, self._x_index, self._act))
+                    if self._num_chunks >= self._flush:
+                        self._is_fetch_data_end = True
+                        self.set_split(nc=True)
+                        self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                                msg="making nbo dataset: fetch data: ended by flush")
+                        return 1
                 else:
                     self._process_pool.apply_async(split_chunk,
                                                    args=(chunk, i, self._key_index, self._x_index, self._act))
-                    self._fetch_idx += i
                     self._is_fetch_data_end = True
                     self.set_split(nc=True)
                     self._logger.log.remote(level=logging.INFO, worker=self._worker,
-                                            msg="making nbo dataset: fetch data: end")
+                                            msg="making nbo dataset: fetch data: ended by limitation of memory")
                     return 1
                 i += 1
             self._is_fetch_data_end = True
             self.set_split(nc=True)
-            self._fetch_idx += i
         if (self._is_export_end and self._is_operation_end) or (self._is_export_end and self._is_fetch_end):
             self._done()
+
         elif self._is_fetch_end and self._total_read == 0:
             self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                     msg="making nbo dataset: fetch data: empty table")
