@@ -10,4 +10,4 @@ dataset_definitions:
           - "EVT0000001"
           - "EVT0000002"
           - "EVT0000003"
-
+        flush: 100
