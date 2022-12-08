@@ -33,16 +33,15 @@ class MakeDatasetNBO:
         self._file_count: int = 1
         self._len_limit: int = 50
         self._split: list = []
+        self._label_data: dict = {}
         self._dataset: list = []
         self._information: list = []
         self._vocabs: list = []
         self._information_total: list = []
-        self._dataset_name = "NBO"
         self._name = ''
         self._is_fetch_end = False
         self._is_export_end = False
         self._is_operation_end = False
-
         self._total_processed_data = 0
 
         self._logger: ray.actor = None
@@ -69,14 +68,17 @@ class MakeDatasetNBO:
         self._is_export = False
         self._call_count_set_split = 0
         self._call_count_set_dataset = 0
-        self._idx_early_stopped_merge = 0
         self._labels_ratio = {}
+        self._cur_labels_num = {}
 
     def init(self, args: BasicTableType):
         self._name = args.actor_name
         self._dataset_name = args.dataset_name
         self._act = args.actor_handle
         self._labels = args.labels + ["UNK"]
+        for label in self._labels:
+            self._label_data[label] = []
+            self._cur_labels_num[label] = 0
         self._version = args.version
         self._key_index = args.key_index
         self._x_index = args.feature_index
@@ -138,32 +140,58 @@ class MakeDatasetNBO:
             return -1
         return 0
 
-    def set_dataset(self, data: list, information: dict):
-        # check all label data is collected
-        # if collected -> operation end
-        # if not read continue until eod
-        # check if appendable in util(ray get)
-        # possible with multiprocessing?
-        # check appendable and append will be blocked
-        # call method is exportable
-        # if no need to be appended -> block
-        # trim off when export
+    def is_committable(self, labels_num: dict) -> list:
+        if self._is_operation_end:
+            return []
+        appendable_labels = []
+        if self._labels_ratio:
+            self._lock.acquire()
+            for labels, limit in self._labels_ratio.items():
+                af_num = self._cur_labels_num[labels] + labels_num[labels]
+                if af_num <= limit:
+                    self._cur_labels_num[labels] = af_num
+                    appendable_labels.append(labels)
+            if not appendable_labels:
+                self._is_operation_end = True
+        self._lock.release()
+        return appendable_labels
+
+    def set_dataset(self, data: dict = None, information: dict = None, f_end: bool = False):
+        # if exceed block commit and trim and export
         self._lock.acquire()
         if self._is_export:
             self._lock.release()
             return 0
         self._call_count_set_dataset += 1
-        self._dataset += data
+
+        for label, num in information["classes"].items():
+            if len(self._label_data[label]) < self._labels_ratio[label]:
+                ovf = len(self._label_data[label]) + num - self._labels_ratio[label]
+                if ovf > 0:
+                    diff = self._labels_ratio[label] - len(self._label_data[label])
+                    self._label_data[label] += data[label][:diff]
+                else:
+                    self._label_data[label] += data[label]
+
+        max_len = 0
+        for k, v in data.items():
+            for d in v:
+                data_len = len(d)
+                if data_len > max_len:
+                    max_len = data_len
+        information["max_len"] = max_len
         self._information.append(information)
-        if self._idx_early_stopped_merge > 0:
-            if self._call_count_set_dataset >= self._idx_early_stopped_merge:
-                self._split = []
-                self._information_total += self._information
-                self._is_merge = False
-                self._is_export = True
-                self._lock.release()
-                self._export()
-                return 0
+
+        if f_end:
+            self._split = []
+            self._information_total += self._information
+            for k, v in self._label_data.items():
+                self._dataset += v
+            self._is_merge = False
+            self._is_export = True
+            self._lock.release()
+            self._export()
+            return 0
 
         if self._call_count_set_dataset == len(self._split):
             self._split = []
@@ -206,18 +234,17 @@ class MakeDatasetNBO:
                                 msg="making nbo dataset: done: start")
         self._process_pool.close()
         max_len = 0
-        classes = None
         for information in self._information_total:
             inform_max = information.get("max_len")
             if max_len < inform_max:
                 max_len = inform_max
-            if classes is not None:
-                inform_classes = information.get("classes")
-                for key in classes:
-                    classes[key] += inform_classes[key]
-            else:
-                classes = information.get("classes")
+
         vocabs = list(set(chain(*self._vocabs)))
+        classes = {}
+        for k, v in self._label_data.items():
+            label_num = len(v)
+            classes[k] = label_num
+            self._total_processed_data += label_num
         if None in vocabs:
             vocabs.remove(None)
             vocabs.append("")
@@ -297,10 +324,13 @@ class MakeDatasetNBO:
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="making nbo dataset: merge: start")
         self._call_count_set_dataset = 0
-        self._idx_early_stopped_merge = 0
         left_over = None
         split_len = len(self._split)
         for i in range(split_len):
+            if self._is_operation_end:
+                self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                        msg="making nbo dataset: merge: end")
+                return 0
             cur_chunk = None
             for chunk in self._split:
                 if chunk[-1] == i:
@@ -314,21 +344,9 @@ class MakeDatasetNBO:
             if i < split_len - 1:
                 left_over = cur_chunk.pop(-1)
             len_chunk = len(cur_chunk)
-            if self._num_data_limit is not None:
-                diff_num = self._num_data_limit - self._num_data
-                if len_chunk > diff_num:
-                    cur_chunk = cur_chunk[0:diff_num]
-                    self._process_pool.apply_async(make_dataset, args=(cur_chunk, self._labels,
-                                                                       self._len_limit, self._act))
-                    self._is_operation_end = True
-                    self._idx_early_stopped_merge = i + 1
-                    self._total_processed_data += len(cur_chunk)
-                    self._logger.log.remote(level=logging.INFO, worker=self._worker,
-                                            msg="making nbo dataset: merge: end")
-                    return 0
             self._num_data += len_chunk
-            self._process_pool.apply_async(make_dataset, args=(cur_chunk, self._labels, self._len_limit, self._act))
-            self._total_processed_data += len(cur_chunk)
+            self._process_pool.apply_async(make_dataset, args=(cur_chunk, self._labels, self._len_limit,
+                                                               self._labels_ratio, self._is_operation_end, self._act))
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="making nbo dataset: merge: end")
         return 0
@@ -357,6 +375,9 @@ class MakeDatasetNBO:
             return 0
 
     def fetch_data(self):
+        # issue
+        # end with one shot
+        # hang fetch state
         self._is_export = False
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="making nbo dataset: fetch data: start")
@@ -402,6 +423,7 @@ class MakeDatasetNBO:
                 i += 1
             self._is_fetch_data_end = True
             self.set_split(nc=True)
+        print(self._is_export_end, self._is_operation_end, self._is_fetch_end)
         if (self._is_export_end and self._is_operation_end) or (self._is_export_end and self._is_fetch_end):
             self._done()
 
