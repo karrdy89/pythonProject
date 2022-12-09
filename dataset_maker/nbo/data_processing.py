@@ -33,12 +33,14 @@ class MakeDatasetNBO:
         self._file_count: int = 1
         self._len_limit: int = 50
         self._split: list = []
-        self._label_data: dict = {}
+        self._label_data_total = {}
+        self._max_len = 0
         self._dataset: list = []
-        self._information: list = []
+        # self._information: list = []
         self._vocabs: list = []
-        self._information_total: list = []
+        # self._information_total: list = []
         self._name = ''
+        self._is_f_end = False
         self._is_fetch_end = False
         self._is_export_end = False
         self._is_operation_end = False
@@ -77,7 +79,7 @@ class MakeDatasetNBO:
         self._act = args.actor_handle
         self._labels = args.labels + ["UNK"]
         for label in self._labels:
-            self._label_data[label] = []
+            self._label_data_total[label] = 0
             self._cur_labels_num[label] = 0
         self._version = args.version
         self._key_index = args.key_index
@@ -103,7 +105,7 @@ class MakeDatasetNBO:
             print("an error occur when set actors", exc)
             return -1
         try:
-            self._db = DBUtil(db_info="MANAGE_DB")
+            self._db = DBUtil(db_info="FDS_DB")
             self._db.set_select_chunk(name=self._query, param={"START": args.start_dtm, "END": args.end_dtm},
                                       array_size=10000, prefetch_row=10000)
         except Exception as exc:
@@ -158,47 +160,54 @@ class MakeDatasetNBO:
 
     def set_dataset(self, data: dict = None, information: dict = None, f_end: bool = False):
         # if exceed block commit and trim and export
+        # issue: call export many times.. why???????
         self._lock.acquire()
-        if self._is_export:
+        if self._is_export or self._is_f_end:
             self._lock.release()
             return 0
+        self._is_f_end = f_end
         self._call_count_set_dataset += 1
 
         for label, num in information["classes"].items():
-            if len(self._label_data[label]) < self._labels_ratio[label]:
-                ovf = len(self._label_data[label]) + num - self._labels_ratio[label]
+            if self._label_data_total[label] < self._labels_ratio[label]:
+                ovf = self._label_data_total[label] + num - self._labels_ratio[label]
                 if ovf > 0:
-                    diff = self._labels_ratio[label] - len(self._label_data[label])
-                    self._label_data[label] += data[label][:diff]
+                    diff = self._labels_ratio[label] - self._label_data_total[label]
+                    self._label_data_total[label] += len(data[label][:diff])
+                    self._dataset += data[label][:diff]
                 else:
-                    self._label_data[label] += data[label]
+                    self._label_data_total[label] += len(data[label])
+                    self._dataset += data[label]
 
-        max_len = 0
-        for k, v in data.items():
-            for d in v:
-                data_len = len(d)
-                if data_len > max_len:
-                    max_len = data_len
-        information["max_len"] = max_len
-        self._information.append(information)
+        # max_len = 0
+        # for k, v in data.items():
+        #     for d in v:
+        #         data_len = len(d)
+        #         if data_len > max_len:
+        #             max_len = data_len
+        # information["max_len"] = max_len
+        # self._information.append(information)
+
+        # for k, v in self._label_data.items():
+        #     self._dataset += v
 
         if f_end:
             self._split = []
-            self._information_total += self._information
-            for k, v in self._label_data.items():
-                self._dataset += v
+            # self._information_total += self._information
             self._is_merge = False
             self._is_export = True
             self._lock.release()
+            print("triggerd : f_end")
             self._export()
             return 0
 
         if self._call_count_set_dataset == len(self._split):
             self._split = []
-            self._information_total += self._information
+            # self._information_total += self._information
             self._is_merge = False
             self._is_export = True
             self._lock.release()
+            print("triggerd : set_dataset by fetch end")
             self._export()
             return 0
         self._lock.release()
@@ -213,19 +222,21 @@ class MakeDatasetNBO:
             self._call_count_set_split += 1
         if data is not None:
             self._split.append(data)
-        if self._is_operation_end:
-            if self._call_count_set_split >= self._num_chunks:
-                self._is_merge = True
-                self._lock.release()
-                self._merge()
-                return 0
-            self._is_operation_end = True
+        # if self._is_operation_end:  #check here
+        #     if self._call_count_set_split >= self._num_chunks:
+        #         self._is_merge = True
+        #         self._lock.release()
+        #         self._merge()
+        #         return 0
+        #     self._is_operation_end = True
         if self._is_fetch_data_end:
             if self._call_count_set_split == self._num_chunks:
                 self._is_merge = True
                 self._lock.release()
                 self._merge()
                 return 0
+            else:
+                print("set_split:", self._call_count_set_split, self._num_chunks)
         self._lock.release()
         return 0
 
@@ -233,22 +244,22 @@ class MakeDatasetNBO:
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="making nbo dataset: done: start")
         self._process_pool.close()
-        max_len = 0
-        for information in self._information_total:
-            inform_max = information.get("max_len")
-            if max_len < inform_max:
-                max_len = inform_max
+        # max_len = 0
+        # for information in self._information_total:
+        #     inform_max = information.get("max_len")
+        #     if max_len < inform_max:
+        #         max_len = inform_max
 
         vocabs = list(set(chain(*self._vocabs)))
         classes = {}
-        for k, v in self._label_data.items():
-            label_num = len(v)
+        for k, v in self._label_data_total.items():
+            label_num = v
             classes[k] = label_num
             self._total_processed_data += label_num
         if None in vocabs:
             vocabs.remove(None)
             vocabs.append("")
-        information = {"max_len": max_len, "class": classes, "vocabs": vocabs}
+        information = {"max_len": self._max_len, "class": classes, "vocabs": vocabs}
         try:
             with open(self._path + "/information.json", 'w', encoding="utf-8") as f:
                 json.dump(information, f, ensure_ascii=False, indent=4)
@@ -283,23 +294,33 @@ class MakeDatasetNBO:
     def _export(self):
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="making nbo dataset: export csv: start")
-        max_len = 0
-        for info in self._information:
-            if max_len < info.get("max_len"):
-                max_len = info.get("max_len")
+        # max_len = 0
+        # for info in self._information:
+        #     if max_len < info.get("max_len"):
+        #         max_len = info.get("max_len")
+        # print(max_len)
+        for data in self._dataset:
+            dt_len = len(data)
+            if self._max_len < dt_len:
+                self._max_len = dt_len
+
         fields = ["key"]
-        for i in range(max_len):
+        for i in range(self._max_len):
             fields.append("feature" + str(i))
         fields.append("label")
-
         for data in self._dataset:
             data_len = len(data)
-            r_max_len = max_len + 2
+            r_max_len = self._max_len + 2
             if data_len < r_max_len:
                 label = data.pop(-1)
                 for i in range(r_max_len - data_len):
                     data.append(None)
                 data.append(label)
+        # classes = {}
+        # for k, v in self._label_data.items():
+        #     label_num = len(v)
+        #     classes[k] = label_num
+        # print(classes)
         try:
             df = pd.DataFrame(self._dataset, columns=fields)
             one_column = []
@@ -329,7 +350,7 @@ class MakeDatasetNBO:
         for i in range(split_len):
             if self._is_operation_end:
                 self._logger.log.remote(level=logging.INFO, worker=self._worker,
-                                        msg="making nbo dataset: merge: end")
+                                        msg="making nbo dataset: merge: end by early stop")
                 return 0
             cur_chunk = None
             for chunk in self._split:
@@ -375,9 +396,10 @@ class MakeDatasetNBO:
             return 0
 
     def fetch_data(self):
-        # issue
-        # end with one shot
-        # hang fetch state
+        # founded issue
+        # end with one shot(ex 1000000)
+        # hang when fetch state
+        # executed done and export sametime
         self._is_export = False
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="making nbo dataset: fetch data: start")
@@ -393,8 +415,10 @@ class MakeDatasetNBO:
                 if self._is_operation_end:
                     return 0
                 self._total_read += len(chunk)
+                print("read: ", self._total_read)
                 if len(chunk) == 0:
                     self._is_fetch_end = True
+                    print("end of table")
                     break
                 if self._chunk_size == 0:
                     self._chunk_size = sys.getsizeof(chunk) + sys.getsizeof(True)

@@ -104,6 +104,7 @@ class DBUtil:
             self._SESSION_POOL_MAX = int(config_parser.get(db_info, "SESSION_POOL_MAX"))
         except configparser.Error as exc:
             raise exc
+        print(f"DB_ACCESS_INFO: USER: {self._USER}, SID: {self._SID}, IP: {self._IP}, PORT: {self._PORT}")
         if self.concurrency:
             from concurrent.futures import ThreadPoolExecutor
             self._executor = ThreadPoolExecutor(max_workers=self._MAX_WORKER)
