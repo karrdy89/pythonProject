@@ -72,10 +72,12 @@ def make_dataset(datas: list, labels: list[str], len_limit: int, label_ratio: di
                     matched = True
                 else:
                     if unk in labels:
+                        if len(label_dataset[unk]) > 25:
+                            continue
                         if len_features-1 > i+2:
                             if not features[i+1] in labels:
                                 if (i - unk_start_idx) < len_limit:
-                                    label_dataset[unk].append(features[unk_start_idx:i+1] + [unk])
+                                    label_dataset[unk].append([cust_id] + features[unk_start_idx:i+1] + [unk])
                                     classes[unk] += 1
                                     if classes[unk] >= label_ratio[unk]:
                                         labels.remove(unk)
