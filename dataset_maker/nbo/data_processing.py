@@ -300,7 +300,7 @@ class MakeDatasetNBO:
         #         max_len = info.get("max_len")
         # print(max_len)
         for data in self._dataset:
-            dt_len = len(data)
+            dt_len = len(data) - 2
             if self._max_len < dt_len:
                 self._max_len = dt_len
 

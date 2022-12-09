@@ -72,17 +72,31 @@ def make_dataset(datas: list, labels: list[str], len_limit: int, label_ratio: di
                     matched = True
                 else:
                     if unk in labels:
-                        if len(label_dataset[unk]) > 25:
+                        if len(label_dataset[unk]) > 1:
                             continue
-                        if len_features-1 > i+2:
-                            if not features[i+1] in labels:
-                                if (i - unk_start_idx) < len_limit:
-                                    label_dataset[unk].append([cust_id] + features[unk_start_idx:i+1] + [unk])
-                                    classes[unk] += 1
-                                    if classes[unk] >= label_ratio[unk]:
-                                        labels.remove(unk)
-                            else:
-                                unk_start_idx = i+2
+            ls_label_idx = 0
+            for label in labels:
+                if label in features:
+                    tp_ls_label_idx = len(features) - features[::-1].index(label) - 1
+                    if tp_ls_label_idx > ls_label_idx:
+                        ls_label_idx = tp_ls_label_idx
+            if ls_label_idx:
+                if ls_label_idx > len_limit:
+                    label_dataset[unk].append([cust_id] + features[ls_label_idx-len_limit:ls_label_idx] + [unk])
+                else:
+                    label_dataset[unk].append([cust_id] + features[:ls_label_idx] + [unk])
+                classes[unk] += 1
+                if classes[unk] >= label_ratio[unk]:
+                    labels.remove(unk)
+                        # len(lst) - lst[::-1].index(value) - 1
+                        # if len_features-1 > i+2:
+                        #     if features[i+1] in labels:
+                        #         if (i - unk_start_idx) < len_limit:
+                        #             label_dataset[unk].append([cust_id] + features[unk_start_idx:i+1] + [unk])
+                        #             classes[unk] += 1
+                        #             if classes[unk] >= label_ratio[unk]:
+                        #                 labels.remove(unk)
+                        #         unk_start_idx = i+2
     except Exception as e:
         act.fault_handle.remote(msg="failed to make_dataset:" + e.__str__())
         raise (e.__str__())
