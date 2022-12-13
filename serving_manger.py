@@ -435,6 +435,12 @@ class ServingManager:
                 func = sp_transformer_info[-1]
                 func = getattr(module, func)
                 data = func(data, model_deploy_state.max_input)
+            if len(data) == 0:
+                self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                        msg="input vector is empty")
+                result["CODE"] = "FAIL"
+                result["ERROR_MSG"] = "input vector is empty"
+                return result
             data = {"inputs": [data]}
             if state == StateCode.AVAILABLE:
                 async with Http() as http:
