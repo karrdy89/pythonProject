@@ -494,8 +494,9 @@ class ServingManager:
         model_key = model_id + "_" + version
         if model_type == ModelType.Tensorflow:
             deploy_path = self._DEPLOY_PATH + model_key + "/" + model_id
-            b_path = ROOT_DIR + self._DEPLOY_PATH + model_key + "/" + model_id
-            model_path = b_path + "/" + str(version_encode(version))
+            # b_path = ROOT_DIR + self._DEPLOY_PATH + model_key + "/" + model_id
+            # model_path = b_path + "/" + str(version_encode(version)) # test
+            model_path = deploy_path + "/" + str(version_encode(version))
             if os.path.isdir(model_path):
                 if not any(file_name.endswith('.pb') for file_name in os.listdir(model_path)):
                     self._logger.log.remote(level=logging.WARN, worker=self._worker,
