@@ -6,7 +6,6 @@
                 , A.ORGN_DTM
                 , A.CHNL_ID
                 , A.EVNT_ID
-                ,(SELECT B.EVNT_NM FROM S_AIB.TBCHN2002M B WHERE B.EVNT_ID = A.EVNT_ID)
             FROM
                 S_AIB.TBCHN3001H A
             WHERE 1=1
