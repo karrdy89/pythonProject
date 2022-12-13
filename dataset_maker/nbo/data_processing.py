@@ -103,7 +103,7 @@ class MakeDatasetNBO:
             print("an error occur when set actors", exc)
             return -1
         try:
-            self._db = DBUtil(db_info="MANAGE_DB")
+            self._db = DBUtil(db_info="FDS_DB")
             self._db.set_select_chunk(name=self._query, param={"START": args.start_dtm, "END": args.end_dtm},
                                       array_size=10000, prefetch_row=10000)
         except Exception as exc:

@@ -212,13 +212,11 @@ class ServingManager:
         except Exception as exc:
             self._boot_logger.error(
                 "(" + self._worker + ") " + "can't read deploy state from db:" + exc.__str__())
-            # return -1
+            return -1
         else:
             for stored_deploy_state in stored_deploy_states:
                 model_id = stored_deploy_state[0]
-                # model_type = getattr(BuiltinModels, model_id)
-                # model_type = model_type.model_type
-                model_type = stored_deploy_state[4]  # depends on query
+                model_type = stored_deploy_state[4]
                 mn_ver = str(stored_deploy_state[1])
                 n_ver = str(stored_deploy_state[2])
                 deploy_num = stored_deploy_state[3]
@@ -446,7 +444,8 @@ class ServingManager:
                         self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                                 msg="http request error : " + model_id + ":" + version)
                         result["CODE"] = "FAIL"
-                        result["ERROR_MSG"] = "an error occur when making inspection. please check input values"
+                        result["ERROR_MSG"] = "an error occur when making inspection. please check input values: " \
+                                              + str(data)
                     elif predict_result == -1:
                         self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                                 msg="connection error : " + model_id + ":" + version)
@@ -471,7 +470,8 @@ class ServingManager:
                     predict_result = ray.get(predict_ep.predict.remote(data=data))
                 except Exception as exc:
                     self._logger.log.remote(level=logging.ERROR, worker=self._worker,
-                                            msg="can't make inference : " + exc.__str__() + model_id + ":" + version)
+                                            msg="can't make inference : " + exc.__str__() + model_id + ":" + version +
+                                                "data: "+str(data))
                     await self.fail_back(model_id, version, server_name)
                     result = await self.predict(model_id, version, data)
                 else:
@@ -495,8 +495,6 @@ class ServingManager:
         if model_type == ModelType.Tensorflow:
             deploy_path = self._DEPLOY_PATH + model_key + "/" + model_id
             b_path = ROOT_DIR + self._DEPLOY_PATH + model_key + "/" + model_id
-            # print(deploy_path)
-            deploy_path = b_path    # test
             model_path = b_path + "/" + str(version_encode(version))
             if os.path.isdir(model_path):
                 if not any(file_name.endswith('.pb') for file_name in os.listdir(model_path)):
