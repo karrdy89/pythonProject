@@ -55,9 +55,9 @@
         <select name="select_nbo_event">
             SELECT
                 /*+ INDEX_DESC(A IXTBCHN3001H03) */
-                A.EVENT_ID
+                A.EVNT_ID
             FROM
-                S._AIB.TBCHN3001H A /* total contact history */
+                S_AIB.TBCHN3001H A /* total contact history */
             WHERE 1=1
                 AND A.CUST_NO = #{CUST_NO} /* customer number */
         </select>
