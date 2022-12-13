@@ -1,5 +1,6 @@
 from models.sequential.sasc.modules import *
 from tensorflow.keras import layers
+from utils.common import encode_tf_input_meta
 
 
 def get_model(vocab_size: int, vocabulary, max_len: int, num_labels: int, embedding_dim: int = 64,
@@ -7,7 +8,10 @@ def get_model(vocab_size: int, vocabulary, max_len: int, num_labels: int, embedd
               epsilon: float = 1e-8, learning_rate: float = 0.0013, mask_token: str = ''):
     attention_dim = embedding_dim
     conv_dims = [embedding_dim, embedding_dim]
-    inputs = layers.Input(shape=(None,), name='seq_'+str(max_len), dtype=object)
+
+    input_meta = {"max_len": max_len, "transformer": "nbo.transform_data"}
+    input_meta = encode_tf_input_meta(input_meta)
+    inputs = layers.Input(shape=(None,), name='input_meta'+input_meta, dtype=object)
     encoding_layer = tf.keras.layers.experimental.preprocessing.StringLookup(vocabulary=vocabulary,
                                                                              mask_token=mask_token)
     encoded_inputs = encoding_layer(inputs)

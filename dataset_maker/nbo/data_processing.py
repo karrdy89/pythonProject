@@ -36,9 +36,7 @@ class MakeDatasetNBO:
         self._label_data_total = {}
         self._max_len = 0
         self._dataset: list = []
-        # self._information: list = []
         self._vocabs: list = []
-        # self._information_total: list = []
         self._name = ''
         self._is_f_end = False
         self._is_fetch_end = False
@@ -159,8 +157,6 @@ class MakeDatasetNBO:
         return appendable_labels
 
     def set_dataset(self, data: dict = None, information: dict = None, f_end: bool = False):
-        # if exceed block commit and trim and export
-        # issue: call export many times.. why???????
         self._lock.acquire()
         if self._is_export or self._is_f_end:
             self._lock.release()
@@ -179,35 +175,19 @@ class MakeDatasetNBO:
                     self._label_data_total[label] += len(data[label])
                     self._dataset += data[label]
 
-        # max_len = 0
-        # for k, v in data.items():
-        #     for d in v:
-        #         data_len = len(d)
-        #         if data_len > max_len:
-        #             max_len = data_len
-        # information["max_len"] = max_len
-        # self._information.append(information)
-
-        # for k, v in self._label_data.items():
-        #     self._dataset += v
-
         if f_end:
             self._split = []
-            # self._information_total += self._information
             self._is_merge = False
             self._is_export = True
             self._lock.release()
-            print("triggerd : f_end")
             self._export()
             return 0
 
         if self._call_count_set_dataset == len(self._split):
             self._split = []
-            # self._information_total += self._information
             self._is_merge = False
             self._is_export = True
             self._lock.release()
-            print("triggerd : set_dataset by fetch end")
             self._export()
             return 0
         self._lock.release()
@@ -222,21 +202,12 @@ class MakeDatasetNBO:
             self._call_count_set_split += 1
         if data is not None:
             self._split.append(data)
-        # if self._is_operation_end:  #check here
-        #     if self._call_count_set_split >= self._num_chunks:
-        #         self._is_merge = True
-        #         self._lock.release()
-        #         self._merge()
-        #         return 0
-        #     self._is_operation_end = True
         if self._is_fetch_data_end:
             if self._call_count_set_split == self._num_chunks:
                 self._is_merge = True
                 self._lock.release()
                 self._merge()
                 return 0
-            else:
-                print("set_split:", self._call_count_set_split, self._num_chunks)
         self._lock.release()
         return 0
 
@@ -244,11 +215,6 @@ class MakeDatasetNBO:
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="making nbo dataset: done: start")
         self._process_pool.close()
-        # max_len = 0
-        # for information in self._information_total:
-        #     inform_max = information.get("max_len")
-        #     if max_len < inform_max:
-        #         max_len = inform_max
 
         vocabs = list(set(chain(*self._vocabs)))
         classes = {}
@@ -294,11 +260,6 @@ class MakeDatasetNBO:
     def _export(self):
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="making nbo dataset: export csv: start")
-        # max_len = 0
-        # for info in self._information:
-        #     if max_len < info.get("max_len"):
-        #         max_len = info.get("max_len")
-        # print(max_len)
         for data in self._dataset:
             dt_len = len(data) - 2
             if self._max_len < dt_len:
@@ -316,11 +277,6 @@ class MakeDatasetNBO:
                 for i in range(r_max_len - data_len):
                     data.append(None)
                 data.append(label)
-        # classes = {}
-        # for k, v in self._label_data.items():
-        #     label_num = len(v)
-        #     classes[k] = label_num
-        # print(classes)
         try:
             df = pd.DataFrame(self._dataset, columns=fields)
             one_column = []
@@ -396,10 +352,6 @@ class MakeDatasetNBO:
             return 0
 
     def fetch_data(self):
-        # founded issue
-        # end with one shot(ex 1000000)
-        # hang when fetch state
-        # executed done and export sametime
         self._is_export = False
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="making nbo dataset: fetch data: start")
@@ -447,7 +399,6 @@ class MakeDatasetNBO:
                 i += 1
             self._is_fetch_data_end = True
             self.set_split(nc=True)
-        print(self._is_export_end, self._is_operation_end, self._is_fetch_end)
         if (self._is_export_end and self._is_operation_end) or (self._is_export_end and self._is_fetch_end):
             self._done()
 

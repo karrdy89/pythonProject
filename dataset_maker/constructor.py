@@ -77,8 +77,8 @@ def construct_operator(args: MakeDataset) -> BasicTableType:
                         operator_input["actor_name"] = name
                         operator_input["actor_handle"] = dataset_maker
                         return BasicTableType(**operator_input)
-        else:
-            raise DefinitionNotExistError()
+    else:
+        raise DefinitionNotExistError()
 
 
 def get_dataset_definition(path: str) -> dict:

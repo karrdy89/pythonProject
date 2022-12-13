@@ -10,6 +10,7 @@
 # ---------------------------------------------------------------------------------------------------------------------
 import json
 import os
+from abc import ABC
 
 from models.sequential.sasc.modules import LabelLayer
 from pipeline import Input, TrainInfo, PipelineComponent

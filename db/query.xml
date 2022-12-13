@@ -53,6 +53,25 @@
             ORDER BY
                 A.MDL_ID, A.MN_VER DESC, A.N_VER DESC, A.SEQNO DESC
         </select>
+        <select name="select_nbo_event">
+            SELECT
+                /*+ INDEX_DESC(A IXTBCHN3001H03) */
+                A.EVENT_ID
+            FROM
+                S._AIB.TBCHN3001H A /* total contact history */
+            WHERE 1=1
+                AND A.CUST_NO = #{CUST_NO} /* customer number */
+        </select>
+
+        <select name="select_nbo_event_test">
+            SELECT
+                A.EVNT_ID
+            FROM
+                TEST A /* total contact history */
+            WHERE 1=1
+                AND A.CUST_NO = #{CUST_NO} /* customer number */
+            ORDER BY ORGN_DTM ASC
+        </select>
 
         <select name="select_test">
             SELECT CUST_NO, EVNT_ID

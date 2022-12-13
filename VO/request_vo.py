@@ -60,7 +60,7 @@ class Predict(BaseModel):
     MDL_ID: str
     MN_VER: str
     N_VER: str
-    EVNT_THRU_PATH: list
+    INPUT_DATA: list
 
     class Config:
         extra = Extra.forbid

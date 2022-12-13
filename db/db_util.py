@@ -150,8 +150,8 @@ class DBUtil:
         with self._session_pool.acquire() as conn:
             conn.autocommit = True
             cursor = conn.cursor()
-            result = cursor.execute(query)
-            result = result.fetchall()
+            cursor.execute(query)
+            result = cursor.fetchall()
             cursor.close()
             return result
 

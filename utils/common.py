@@ -40,3 +40,19 @@ def version_decode(version: int) -> str:
     if decoded == '':
         return '0.0'
     return str(int(decoded) / 10**decimal)
+
+
+def encode_tf_input_meta(meta: dict) -> str:
+    meta = str(meta)
+    meta = meta.replace(" ", '')
+    meta = meta.replace("{'", "_spds__spk_").replace('}', "_spde_")\
+        .replace("':", "_spv_").replace(",'", "_spk_").replace("'", "_spq_").replace(".", "_spd_")
+    return meta
+
+
+def decode_tf_input_meta(meta: str) -> dict:
+    meta = meta.replace("_spds__spk_", "{'").replace("_spde_", '}')\
+        .replace("_spv_", "':").replace("_spk_", ",'").replace("_spq_", "'")
+    meta = meta.replace("_spd_", ".")
+    meta = eval(meta)
+    return meta

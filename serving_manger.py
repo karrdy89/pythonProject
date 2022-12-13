@@ -10,6 +10,7 @@
 # ---------------------------------------------------------------------------------------------------------------------
 import configparser
 import asyncio
+import importlib
 import os
 import uuid
 import functools
@@ -36,6 +37,7 @@ from logger import BootLogger
 from statics import Actors, ModelType, ROOT_DIR
 from db import DBUtil
 from onnx_serving import OnnxServing
+from utils.common import decode_tf_input_meta
 
 
 @ray.remote
@@ -427,6 +429,14 @@ class ServingManager:
         server = model_deploy_state.servers[server_name]
 
         if model_deploy_state.model_type == ModelType.Tensorflow:
+            if model_deploy_state.transformer:
+                sp_transformer_info = model_deploy_state.transformer.split('.')
+                module = ''.join(sp_transformer_info[:-1])
+                module = "transformers." + module
+                module = importlib.import_module(module)
+                func = sp_transformer_info[-1]
+                func = getattr(module, func)
+                data = func(data, model_deploy_state.max_input)
             data = {"inputs": [data]}
             if state == StateCode.AVAILABLE:
                 async with Http() as http:
@@ -485,6 +495,8 @@ class ServingManager:
         if model_type == ModelType.Tensorflow:
             deploy_path = self._DEPLOY_PATH + model_key + "/" + model_id
             b_path = ROOT_DIR + self._DEPLOY_PATH + model_key + "/" + model_id
+            # print(deploy_path)
+            deploy_path = b_path    # test
             model_path = b_path + "/" + str(version_encode(version))
             if os.path.isdir(model_path):
                 if not any(file_name.endswith('.pb') for file_name in os.listdir(model_path)):
@@ -551,9 +563,13 @@ class ServingManager:
                                                                     + model_id + ":" + version)
                                     else:
                                         for key in input_spec:
-                                            split_key = key.split("_")
-                                            if split_key[0] == "seq":
-                                                max_input = int(split_key[1])
+                                            if "input_meta" in key:
+                                                meta = key.split("input_meta")[1]
+                                                meta = decode_tf_input_meta(meta)
+                                                if "max_len" in meta:
+                                                    max_input = meta.get("max_len")
+                                                if "transformer" in meta:
+                                                    transformer = meta.get("transformer")
                         serving_container = InferenceServer(name=list_container_name[i],
                                                             inference_server=list_container[i],
                                                             http_url=list_http_url[i], grpc_url=list_grpc_url[i],
@@ -571,7 +587,10 @@ class ServingManager:
                                         msg="deploy finished. " + str(deploy_count) + "/" + str(deploy_num)
                                             + " is deployed: " + model_id + ":" + version)
                 async with self._lock:
-                    model_deploy_state.max_input = max_input
+                    if max_input:
+                        model_deploy_state.max_input = max_input
+                    if transformer:
+                        model_deploy_state.transformer = transformer
                 self._deploy_states[model_key] = model_deploy_state
                 await self._set_cycle(model_id=model_id, version=version)
                 result = {"CODE": "SUCCESS", "ERROR_MSG": "",
@@ -961,6 +980,7 @@ class ModelDeployState:
     state: int
     model_type: int
     max_input: int = None
+    transformer: str = None
     cycle_iterator = None
     servers: dict = field(default_factory=dict)
 
