@@ -605,7 +605,8 @@ for i in range(hp_resample_count):
                                     cfg = {"input_type": "float", "input_shape": [None, len(feature_list)],
                                            "labels": {0: "normal", 1: "fraud"},
                                            "transformer": "fraud_detection.transform_data",
-                                           "threshold": threshold}
+                                           "threshold": threshold,
+                                           "pos_class": 1}
                                     meta.value = str(cfg)
 
                                     from datetime import datetime
@@ -658,41 +659,3 @@ for i in range(hp_resample_count):
 #     f.write(model_onnx.SerializeToString())
 
 
-# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-# import onnxruntime as rt
-# import numpy as np
-# import pandas as pd
-# from statics import ROOT_DIR
-#
-# dataset_path = ROOT_DIR + "/dataset/fd_test/fraud_dataset_tabular_fixed_fc_fs.csv"
-# df = pd.read_csv(dataset_path)
-# df_labels = df[["label"]]
-# dft = df.drop(["SEQ", "label", "ETC"], axis=1)
-# feature_list = dft.keys().tolist()
-# X = np.array(dft.values.tolist())
-# y = np.array(df_labels.values.tolist()).ravel()
-#
-# model_path = "/home/ky/PycharmProjects/pythonProject/pre-trained_models/MDL0000002_1.1/MDL0000002/111/fd_xgboost_ov.onnx"
-# session = rt.InferenceSession(model_path)
-# count = 0
-# for idx, x in enumerate(X):
-#     pred_onx = session.run(None, {"input": np.array([x]).astype(np.float32)})
-#     if pred_onx[0][0] != y[idx]:
-#         count += 1
-#         if pred_onx[0][0] == 1:
-#             print(f"predict: {pred_onx[0][0]} | actual: {y[idx]}")
-#             print(f"probability: {pred_onx[-1][0]}")
-# print(f"total: {len(X)} | wrong: {count} | rate: {(count / len(X)) * 100}%")
-#
-# count = 0
-# for idx, x in enumerate(X):
-#     pred_onx = session.run(None, {"input": np.array([x]).astype(np.float32)})
-#     pred = pred_onx[0][0]
-#     if pred == 1:
-#         if pred_onx[-1][0].get(1) < 0.7:
-#             pred = 0
-#     if pred != y[idx]:
-#         count += 1
-#         print(f"predict: {pred} | actual: {y[idx]}")
-#         print(f"probability: {pred_onx[-1][0]}")
-# print(f"total: {len(X)} | wrong: {count} | rate: {(count / len(X)) * 100}%")

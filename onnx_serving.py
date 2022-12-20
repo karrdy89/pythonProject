@@ -51,6 +51,7 @@ class OnnxServing:
     predict(data: list) -> dict:
         Return predict result
     """
+
     def __init__(self):
         self._worker: str = type(self).__name__
         self._model_path: str = ""
@@ -58,6 +59,8 @@ class OnnxServing:
         self._input_type: str | None = None
         self._input_shape: list | None = None
         self._transformer: str | None = None
+        self._threshold: int | None = None
+        self._pos_class: int | None = None
         self._labels: dict | None = None
         self._session = None
 
@@ -91,6 +94,8 @@ class OnnxServing:
             self._input_type = self._metadata.get("input_type")
             self._input_shape = self._metadata.get("input_shape")
             self._transformer = self._metadata.get("transformer")
+            self._threshold = self._metadata.get("threshold")
+            self._pos_class = self._metadata.get("pos_class")
         except Exception as exc:
             print(self._worker + ": " + exc.__str__())
         self._session = rt.InferenceSession(self._model_path)
@@ -100,7 +105,7 @@ class OnnxServing:
         if self._transformer is not None:
             sp_transformer_info = self._transformer.split('.')
             module = ''.join(sp_transformer_info[:-1])
-            module = "transformers."+module
+            module = "transformers." + module
             module = importlib.import_module(module)
             func = sp_transformer_info[-1]
             func = getattr(module, func)
@@ -120,7 +125,7 @@ class OnnxServing:
             if self._input_type != "float":
                 pred_onx = self._session.run(None, {"input": np.array([data]).astype(np.object)})
             else:
-                pred_onx = self._session.run(None, {"input":  np.array([data]).astype(np.float32)})
+                pred_onx = self._session.run(None, {"input": np.array([data]).astype(np.float32)})
         except Exception as exc:
             result["CODE"] = "FAIL"
             result["ERROR_MSG"] = "an error occur when get inference from onnx session : " + exc.__str__()
@@ -129,13 +134,28 @@ class OnnxServing:
         pred_proba = pred_onx[-1][0]
         output_class = []
         output_proba = []
+        neg_class = None
+        if self._threshold is not None and self._pos_class is not None:
+            if pred[0] == self._pos_class:
+                if pred_proba.get(self._pos_class) < self._threshold:
+                    for key in pred_proba:
+                        if key != self._pos_class:
+                            neg_class = key
         for vals in pred:
             if self._labels is not None:
-                output_class.append(self._labels.get(vals))
+                if neg_class is not None:
+                    output_class.append(self._labels.get(neg_class))
+                else:
+                    output_class.append(self._labels.get(vals))
             else:
-                output_class.append(vals)
-            output_proba.append(pred_proba.get(vals))
-
+                if neg_class is not None:
+                    output_class.append(neg_class)
+                else:
+                    output_class.append(vals)
+            if neg_class is not None:
+                output_proba.append(pred_proba.get(neg_class))
+            else:
+                output_proba.append(pred_proba.get(vals))
         result["CODE"] = "SUCCESS"
         result["ERROR_MSG"] = ""
         result["EVNT_ID"] = output_class
