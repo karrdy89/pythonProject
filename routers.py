@@ -183,6 +183,8 @@ class AIbeemRouter:
         pipeline_name = model_id + ":" + version
 
         actor = await self._shared_state.get_actor.remote(name=pipeline_name)
+        if actor is None:
+            return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="training process not exist")
         res = await actor.kill_process.remote()
         if res == 0:
             self._logger.log.remote(level=logging.INFO, worker=self._worker,

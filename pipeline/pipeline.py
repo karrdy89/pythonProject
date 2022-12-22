@@ -206,6 +206,7 @@ class Pipeline:
             current_task_name = self._sequence_names[self._component_idx]
             self._pipeline_state[current_task_name] = StateCode.STOP
             ray.get(self._shared_state.set_pipeline_result.remote(self._name, self._pipeline_state))
+            ray.get(self._shared_state.set_train_status.remote(self._name, self._user_id, TrainStateCode.TRAINING_FAIL))
             self._shared_state.kill_actor.remote(self._name)
         except Exception as exc:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
