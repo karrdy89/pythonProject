@@ -15,7 +15,7 @@ import logging
 import os
 import configparser
 from logging.handlers import TimedRotatingFileHandler
-
+from db.db_util import DBUtil
 
 @ray.remote
 class Logger:
@@ -50,6 +50,7 @@ class Logger:
     def __init__(self):
         logging.basicConfig(level=logging.INFO)
         self._worker: str = type(self).__name__
+        self._db: DBUtil | None = None
         self.logger: Logger = logging.getLogger("global")
         self._boot_logger: Logger = BootLogger().logger
         self._log_base_path: str = os.path.dirname(os.path.abspath(__file__)) + "/logs/"
@@ -86,6 +87,7 @@ class Logger:
         self.logger.addHandler(info_handler)
         self.logger.addHandler(console_handler)
         self.logger.setLevel(logging.DEBUG)
+        self._db = DBUtil(db_info="MANAGE_DB")
         self._boot_logger.info("(" + self._worker + ") " + "init actor complete: global loger...")
         return 0
 
@@ -97,6 +99,9 @@ class Logger:
             self.logger.error(msg)
         elif level == logging.DEBUG:
             self.logger.debug(msg)
+
+    def log_to_db(self, query_name: str, param: dict) -> None:
+        self._db.insert(name=query_name, param=param)
 
 
 class BootLogger:

@@ -222,6 +222,7 @@ class DBUtil:
             return self._execute_insert(query)
 
     def _execute_insert(self, query: str):
+        print(query)
         with self._session_pool.acquire() as conn:
             conn.autocommit = True
             cursor = conn.cursor()
@@ -272,8 +273,9 @@ class DBUtil:
         """
         v = param[s]
         if v is None:
-            raise Exception("parameter isn't matched")
+            return "NULL"
         elif type(v) == int or type(param[s]) == float:
             return str(v)
         elif type(v) == str:
+            v = v.replace("'", '"')
             return "'" + v + "'"

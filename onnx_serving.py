@@ -100,7 +100,7 @@ class OnnxServing:
             print(self._worker + ": " + exc.__str__())
         self._session = rt.InferenceSession(self._model_path)
 
-    def predict(self, data: list) -> dict:
+    def predict(self, data: list) -> tuple | dict:
         result = {"CODE": "FAIL", "ERROR_MSG": "N/A", "EVNT_ID": [], "PRBT": []}
         if self._transformer is not None:
             sp_transformer_info = self._transformer.split('.')
@@ -160,4 +160,4 @@ class OnnxServing:
         result["ERROR_MSG"] = ""
         result["EVNT_ID"] = output_class
         result["PRBT"] = output_proba
-        return result
+        return result, data

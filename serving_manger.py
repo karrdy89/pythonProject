@@ -164,6 +164,7 @@ class ServingManager:
         self._RETRY_COUNT: int = 20
         self._RETRY_WAIT_TIME: float = 0.1
         self._deploy_num = 0
+        self._LOG_TO_DB = 0
 
     async def init(self) -> int:
         self._boot_logger.info("(" + self._worker + ") " + "init tensorflow_serving manager actor...")
@@ -182,6 +183,7 @@ class ServingManager:
             self._CONTAINER_SERVER_IP = str(config_parser.get("DEPLOY", "CONTAINER_SERVER_IP"))
             self._RETRY_COUNT: int = int(config_parser.get("DEPLOY", "RETRY_COUNT"))
             self._RETRY_WAIT_TIME: float = float(config_parser.get("DEPLOY", "RETRY_WAIT_TIME"))
+            self._LOG_TO_DB: int = int(config_parser.get("DEPLOY", "LOG_TO_DB"))
         except configparser.Error as e:
             self._boot_logger.error("(" + self._worker + ") " + "an error occur when set config...: " + str(e))
             return -1
@@ -463,6 +465,19 @@ class ServingManager:
                         outputs = predict_result["outputs"]
                         result["EVNT_ID"] = outputs["result"]
                         result["PRBT"] = outputs["result_1"]
+                        if self._LOG_TO_DB == 1:
+                            MDL_ID = model_id
+                            version_info = version.split('.')
+                            MN_VER = version_info[0]
+                            N_VER = version_info[1]
+                            SUMN_MSG = str(data.get("inputs"))
+                            RSLT_MSG = {}
+                            RSLT_MSG["EVNT_ID"] = outputs["result"]
+                            RSLT_MSG["PRBT"] = outputs["result_1"]
+                            RSLT_MSG = str(RSLT_MSG)
+                            param = {"MDL_ID": MDL_ID, "MN_VER": MN_VER, "N_VER": N_VER,
+                                     "SUMN_MSG": SUMN_MSG, "RSLT_MSG": RSLT_MSG}
+                            self._logger.log_to_db.remote("insert_pred_log", param)
                     server.ref_count -= 1
                     return result
             else:
@@ -473,7 +488,7 @@ class ServingManager:
             if state == StateCode.AVAILABLE:
                 server.ref_count += 1
                 try:
-                    predict_result = ray.get(predict_ep.predict.remote(data=data))
+                    predict_result, data = await predict_ep.predict.remote(data=data)
                 except Exception as exc:
                     self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                             msg="can't make inference : " + exc.__str__() + model_id + ":" + version +
@@ -481,6 +496,19 @@ class ServingManager:
                     await self.fail_back(model_id, version, server_name)
                     result = await self.predict(model_id, version, data)
                 else:
+                    if self._LOG_TO_DB == 1:
+                        MDL_ID = model_id
+                        version_info = version.split('.')
+                        MN_VER = version_info[0]
+                        N_VER = version_info[1]
+                        SUMN_MSG = str(data)
+                        RSLT_MSG = {}
+                        RSLT_MSG["EVNT_ID"] = predict_result.get("EVNT_ID")
+                        RSLT_MSG["PRBT"] = predict_result.get("PRBT")
+                        RSLT_MSG = str(RSLT_MSG)
+                        param = {"MDL_ID": MDL_ID, "MN_VER": MN_VER, "N_VER": N_VER,
+                                 "SUMN_MSG": SUMN_MSG, "RSLT_MSG": RSLT_MSG}
+                        self._logger.log_to_db.remote("insert_pred_log", param)
                     result = predict_result
                     server.ref_count -= 1
                 return result

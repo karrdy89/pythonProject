@@ -98,15 +98,38 @@
                 )
         </insert>
 
-        <insert name="INSERT_TEST_DATA">
-                INSERT INTO TEST
-                 (CUST_NO,
-                 ORGN_DTM,
-                 EVNT_ID,
-                 EVNT_NM,
-                 SYS_EVNT_ID,
-                 SYS_EVNT_NM)
-                VALUES
-                (:1, :2, :3, :4, :5, :6)
+        <insert name="insert_pred_log">
+            INSERT INTO S_AIB.TBMOD1004H
+                (MDL_ID,
+                MN_VER,
+                N_VER,
+                SEQNO,
+                SUMN_MSG,
+                RSLT_MSG,
+                REG_ID,
+                REG_DTM,
+                REG_PGM_ID,
+                LST_UPD_ID,
+                LST_UPD_DTM,
+                LST_UPD_PGM_ID)
+            VALUES
+                (#{MDL_ID},
+                #{MN_VER},
+                #{N_VER},
+                (SELECT NVL(MAX(SEQNO),0)+1 FROM S_AIB.TBMOD1004H WHERE MDL_ID=#{MDL_ID} AND MN_VER=#{MN_VER} AND N_VER=#{N_VER}),
+                #{SUMN_MSG},
+                #{RSLT_MSG},
+                'SYSTEM',
+                TO_CHAR(SYSDATE, 'YYYYMMDDHH24MISS'),
+                'SYSTEM',
+                'SYSTEM',
+                TO_CHAR(SYSDATE, 'YYYYMMDDHH24MISS'),
+                'SYSTEM'
         </insert>
+
+
+
+
+
+
 </mapper>
