@@ -470,7 +470,7 @@ class ServingManager:
                             version_info = version.split('.')
                             MN_VER = version_info[0]
                             N_VER = version_info[1]
-                            SUMN_MSG = str(data.get("inputs"))
+                            SUMN_MSG = str(data.get("inputs")[0])
                             RSLT_MSG = {}
                             RSLT_MSG["EVNT_ID"] = outputs["result"]
                             RSLT_MSG["PRBT"] = outputs["result_1"]
