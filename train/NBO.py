@@ -10,6 +10,7 @@
 # ---------------------------------------------------------------------------------------------------------------------
 import json
 import os
+import math
 from abc import ABC
 
 from models.sequential.sasc.modules import LabelLayer
@@ -75,14 +76,13 @@ def train_NBO_model(train_info: Input[TrainInfo]):
                            mask_token=mask_token)
     test_dataset_X = None
     test_dataset_y = None
+    b_steps = 0
 
     for current_file_num, filename in enumerate(datafiles):
         dataset_path = base_dataset_path + filename
         df = pd.read_csv(dataset_path)
         df.fillna("", inplace=True)
         y = df[["label"]]
-        if set(y["label"].tolist()) != set(labels):
-            raise print("wrong data information")
         df.drop(["label", "key"], axis=1, inplace=True)
         for idx, label in enumerate(labels):
             y.loc[y["label"] == label] = idx
@@ -115,9 +115,10 @@ def train_NBO_model(train_info: Input[TrainInfo]):
             test_dataset_y = np.concatenate((test_dataset_y, y_test))
 
         train_callback = base_callbacks(train_info, monitor="val_loss", dataset_num=len(datafiles),
-                                        cur_dataset_num=current_file_num+1)
+                                        cur_dataset_num=current_file_num+1, b_steps=b_steps)
         model.fit(X_train, y_train, validation_data=(X_valid, y_valid), epochs=train_info.epoch,
                   batch_size=train_info.batch_size, callbacks=train_callback, verbose=1)
+        b_steps = (math.ceil(len(X_train) / train_info.batch_size)) * train_info.epoch
 
     test_callback = evaluation_callback(train_info)
     model.evaluate(test_dataset_X, test_dataset_y, callbacks=test_callback, batch_size=train_info.batch_size)
