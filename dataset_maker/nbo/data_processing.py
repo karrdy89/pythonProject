@@ -66,6 +66,7 @@ class MakeDatasetNBO:
         self._is_data_limit = False
         self._is_merge = False
         self._is_export = False
+        self._is_flushed = False
         self._call_count_set_split = 0
         self._call_count_set_dataset = 0
         self._labels_ratio = {}
@@ -202,7 +203,7 @@ class MakeDatasetNBO:
             self._call_count_set_split += 1
         if data is not None:
             self._split.append(data)
-        if self._is_fetch_data_end:
+        if self._is_fetch_data_end or self._is_flushed:
             if self._call_count_set_split == self._num_chunks:
                 self._is_merge = True
                 self._lock.release()
@@ -260,42 +261,110 @@ class MakeDatasetNBO:
     def _export(self):
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="making nbo dataset: export csv: start")
-        for data in self._dataset:
-            dt_len = len(data) - 2
-            if self._max_len < dt_len:
-                self._max_len = dt_len
+        if self._is_flushed:
+            self._is_flushed = False
+            if self._is_operation_end:
+                for data in self._dataset:
+                    dt_len = len(data) - 2
+                    if self._max_len < dt_len:
+                        self._max_len = dt_len
 
-        fields = ["key"]
-        for i in range(self._max_len):
-            fields.append("feature" + str(i))
-        fields.append("label")
-        for data in self._dataset:
-            data_len = len(data)
-            r_max_len = self._max_len + 2
-            if data_len < r_max_len:
-                label = data.pop(-1)
-                for i in range(r_max_len - data_len):
-                    data.append(None)
-                data.append(label)
-        try:
-            df = pd.DataFrame(self._dataset, columns=fields)
-            one_column = []
-            feature_df = df.iloc[:, 1:-1]
-            for k in list(feature_df.keys()):
-                one_column.append(feature_df[k])
-            combined = pd.concat(one_column, ignore_index=True).tolist()
-            self._vocabs.append(combined)
-            df.to_csv(self._path + "/" + str(self._file_count) + ".csv", sep=",", na_rep="NaN", index=False)
-        except Exception as exc:
-            self.fault_handle(msg="an error occur when export csv: " + exc.__str__())
-        else:
-            self._information = []
-            self._dataset = []
-            self._file_count += 1
-            self._is_export_end = True
-            self._logger.log.remote(level=logging.INFO, worker=self._worker,
-                                    msg="making nbo dataset: export csv: finish")
-            self.fetch_data()
+                fields = ["key"]
+                for i in range(self._max_len):
+                    fields.append("feature" + str(i))
+                fields.append("label")
+                for data in self._dataset:
+                    data_len = len(data)
+                    r_max_len = self._max_len + 2
+                    if data_len < r_max_len:
+                        label = data.pop(-1)
+                        for i in range(r_max_len - data_len):
+                            data.append(None)
+                        data.append(label)
+                try:
+                    mdf_flag = False
+                    df = pd.DataFrame(self._dataset, columns=fields)
+                    one_column = []
+                    feature_df = df.iloc[:, 1:-1]
+                    for k in list(feature_df.keys()):
+                        one_column.append(feature_df[k])
+                    if len(one_column) > 1:
+                        combined = pd.concat(one_column, ignore_index=True).tolist()
+                        self._vocabs.append(combined)
+                        df.to_csv(self._path + "/" + str(self._file_count) + ".csv", sep=",", na_rep="NaN", index=False)
+                    else:
+                        print("no concatenable data frame")
+                        mdf_flag = True
+                except Exception as exc:
+                    self.fault_handle(msg="an error occur when export csv: " + exc.__str__())
+                else:
+                    if mdf_flag:
+                        self._is_export_end = True
+                        self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                                msg="making nbo dataset: export csv: no concatenable data frame")
+                        self.fetch_data()
+                    else:
+                        self._information = []
+                        self._dataset = []
+                        self._file_count += 1
+                        self._is_export_end = True
+                        self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                                msg="making nbo dataset: export csv: finish")
+                        self.fetch_data()
+            else:
+                self._is_export_end = True
+                print("skipping export by flush")
+                self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                        msg="making nbo dataset: export csv: skipping export by flush")
+                self.fetch_data()
+        elif self._is_fetch_data_end:
+            for data in self._dataset:
+                dt_len = len(data) - 2
+                if self._max_len < dt_len:
+                    self._max_len = dt_len
+
+            fields = ["key"]
+            for i in range(self._max_len):
+                fields.append("feature" + str(i))
+            fields.append("label")
+            for data in self._dataset:
+                data_len = len(data)
+                r_max_len = self._max_len + 2
+                if data_len < r_max_len:
+                    label = data.pop(-1)
+                    for i in range(r_max_len - data_len):
+                        data.append(None)
+                    data.append(label)
+            try:
+                mdf_flag = False
+                df = pd.DataFrame(self._dataset, columns=fields)
+                one_column = []
+                feature_df = df.iloc[:, 1:-1]
+                for k in list(feature_df.keys()):
+                    one_column.append(feature_df[k])
+                if len(one_column) > 1:
+                    combined = pd.concat(one_column, ignore_index=True).tolist()
+                    self._vocabs.append(combined)
+                    df.to_csv(self._path + "/" + str(self._file_count) + ".csv", sep=",", na_rep="NaN", index=False)
+                else:
+                    print("no concatenable data frame")
+                    mdf_flag = True
+            except Exception as exc:
+                self.fault_handle(msg="an error occur when export csv: " + exc.__str__())
+            else:
+                if mdf_flag:
+                    self._is_export_end = True
+                    self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                            msg="making nbo dataset: export csv: no concatenable data frame")
+                    self.fetch_data()
+                else:
+                    self._information = []
+                    self._dataset = []
+                    self._file_count += 1
+                    self._is_export_end = True
+                    self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                            msg="making nbo dataset: export csv: finish")
+                    self.fetch_data()
 
     def _merge(self):
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
@@ -383,7 +452,8 @@ class MakeDatasetNBO:
                     self._process_pool.apply_async(split_chunk,
                                                    args=(chunk, i, self._key_index, self._x_index, self._act))
                     if self._num_chunks >= self._flush:
-                        self._is_fetch_data_end = True
+                        self._is_flushed = True
+                        # self._is_fetch_data_end = True
                         self.set_split(nc=True)
                         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                                 msg="making nbo dataset: fetch data: ended by flush")
