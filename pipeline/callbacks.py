@@ -66,7 +66,6 @@ class BaseCallback(keras.callbacks.Callback):
             else:
                 self.total = self.cur_steps + self.params["steps"] * self.t_epoch + self.params["steps"] * (
                             self.t_file_count - self.c_file_count) * self.t_epoch
-        print(self.total)
 
     def on_epoch_begin(self, epoch, logs=None) -> None:
         self.epoch_step = 0

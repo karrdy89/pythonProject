@@ -67,6 +67,7 @@ class MakeDatasetNBO:
         self._is_merge = False
         self._is_export = False
         self._is_flushed = False
+        self._last_skip = False
         self._call_count_set_split = 0
         self._call_count_set_dataset = 0
         self._labels_ratio = {}
@@ -259,11 +260,11 @@ class MakeDatasetNBO:
         self._shared_state.kill_actor.remote(self._name)
 
     def _export(self):
+        self._last_skip = False
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="making nbo dataset: export csv: start")
         if self._is_flushed:
-            self._is_flushed = False
-            if self._is_operation_end:
+            if self._is_operation_end or self._is_fetch_end:
                 for data in self._dataset:
                     dt_len = len(data) - 2
                     if self._max_len < dt_len:
@@ -313,6 +314,7 @@ class MakeDatasetNBO:
                         self.fetch_data()
             else:
                 self._is_export_end = True
+                self._last_skip = True
                 print("skipping export by flush")
                 self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                         msg="making nbo dataset: export csv: skipping export by flush")
@@ -422,6 +424,7 @@ class MakeDatasetNBO:
 
     def fetch_data(self):
         self._is_export = False
+        self._is_flushed = False
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="making nbo dataset: fetch data: start")
         if not self._is_fetch_end and not self._is_operation_end:
@@ -470,6 +473,8 @@ class MakeDatasetNBO:
             self._is_fetch_data_end = True
             self.set_split(nc=True)
         if (self._is_export_end and self._is_operation_end) or (self._is_export_end and self._is_fetch_end):
+            if self._last_skip:
+                self._export()
             self._done()
 
         elif self._is_fetch_end and self._total_read == 0:
