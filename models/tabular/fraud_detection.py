@@ -575,7 +575,7 @@ hp_grid_rl = [0.03, 0.025, 0.2]
 hp_grid_estimators = [1800, 1500, 1200]
 hp_grid_m_depth = [4, 5]
 hp_grid_spw = [10, 50, 100, 200, 250]
-hp_grid_gamma = [0.25, 0.3, 0.35]
+hp_grid_gamma = [0.35, 0.25, 0.3]
 hp_grid_threshold = [0.5, 0.55, 0.6, 0.65, 0.68, 0.7, 0.72, 0.75, 0.78, 0.8, 0.82, 0.85, 0.88, 0.9, 0.92, 0.95]
 
 
@@ -737,7 +737,7 @@ for i in range(hp_resample_count):
                                     meta = model_onnx.metadata_props.add()
                                     meta.key = "model_info"
                                     cfg = {"input_type": "float", "input_shape": [None, len(feature_list)],
-                                           "labels": {0: "normal", 1: "fraud"},
+                                           "labels": {0: "정상", 1: "전자금융피해"},
                                            "transformer": "fraud_detection.transform_data",
                                            "threshold": threshold,
                                            "pos_class": 1}
@@ -781,12 +781,15 @@ for i in range(hp_resample_count):
 # model_onnx = convert_sklearn(pipe, 'pipeline_xgb', [('input', FloatTensorType([None, len(feature_list)]))])
 #
 # # add metadata
-# meta = model_onnx.metadata_props.add()
 # meta.key = "model_info"
-# cfg = {"input_type": "float", "input_shape": [None, len(feature_list)], "labels": {0: "normal", 1: "fraud"}}
+# cfg = {"input_type": "float", "input_shape": [None, 46],
+#        "labels": {0: "정상", 1: "전자금융피해"},
+#        "transformer": "fraud_detection.transform_data",
+#        "threshold": 0.78,
+#        "pos_class": 1}
 # meta.value = str(cfg)
 #
-# saved_model_path = ROOT_DIR + "/saved_models/td_test/"
+# saved_model_path = ROOT_DIR + "/onnx_bt/"
 # if not os.path.exists(saved_model_path):
 #     os.makedirs(saved_model_path)
 # with open(saved_model_path + "fd_xgboost_ov.onnx", "wb") as f:

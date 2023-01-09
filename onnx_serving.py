@@ -114,11 +114,11 @@ class OnnxServing:
             if len(data) < self._input_shape[-1]:
                 result["CODE"] = "FAIL"
                 result["ERROR_MSG"] = "input shape is incorrect"
-                return result
+                return result, data
             elif len(data) == 0:
                 result["CODE"] = "FAIL"
                 result["ERROR_MSG"] = "input vector is empty"
-                return result
+                return result, data
             else:
                 data = data[:self._input_shape[-1]]
         try:
