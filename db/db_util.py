@@ -81,6 +81,7 @@ class DBUtil:
         self._MAX_WORKER: int = 5
         self._SESSION_POOL_MIN: int = 2
         self._SESSION_POOL_MAX: int = 30
+        self._DSN = "None"
         try:
             self.init(db_info=db_info)
         except Exception as exc:
@@ -102,13 +103,17 @@ class DBUtil:
             self._MAX_WORKER = int(config_parser.get(db_info, "MAX_WORKER"))
             self._SESSION_POOL_MIN = int(config_parser.get(db_info, "SESSION_POOL_MIN"))
             self._SESSION_POOL_MAX = int(config_parser.get(db_info, "SESSION_POOL_MAX"))
+            self._DSN = str(config_parser.get(db_info, "DSN"))
         except configparser.Error as exc:
             raise exc
         print(f"DB_ACCESS_INFO: USER: {self._USER}, SID: {self._SID}, IP: {self._IP}, PORT: {self._PORT}")
         if self.concurrency:
             from concurrent.futures import ThreadPoolExecutor
             self._executor = ThreadPoolExecutor(max_workers=self._MAX_WORKER)
-        self._dsn = oracledb.makedsn(host=self._IP, port=self._PORT, sid=self._SID)
+        if self._DSN == "None":
+            self._dsn = oracledb.makedsn(host=self._IP, port=self._PORT, sid=self._SID)
+        else:
+            self._dsn = self._DSN
         self._session_pool = oracledb.SessionPool(user=self._USER, password=self._PASSWORD, dsn=self._dsn,
                                                   min=self._SESSION_POOL_MIN, max=self._SESSION_POOL_MAX,
                                                   increment=1, encoding="UTF-8")
