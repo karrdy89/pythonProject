@@ -10,6 +10,7 @@
 # ---------------------------------------------------------------------------------------------------------------------
 import importlib
 import os
+import random
 
 import ray
 import onnx
@@ -105,11 +106,12 @@ class OnnxServing:
         if self._transformer is not None:
             sp_transformer_info = self._transformer.split('.')
             module = ''.join(sp_transformer_info[:-1])
-            module = "transformers." + module
-            module = importlib.import_module(module)
-            func = sp_transformer_info[-1]
-            func = getattr(module, func)
-            data = func(data)
+            if module == "fraud_detection":
+                # module = importlib.import_module(module)
+                # func = sp_transformer_info[-1]
+                # func = getattr(module, func)
+                # data = func(data)
+                data = [random.randrange(0, 5)] * 46
         if self._input_shape is not None:
             if len(data) < self._input_shape[-1]:
                 result["CODE"] = "FAIL"

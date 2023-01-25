@@ -23,6 +23,7 @@ from typing import Optional
 
 import docker
 import ray
+import numpy as np
 import grpc
 from tensorflow_serving.apis import model_service_pb2_grpc
 from tensorflow_serving.apis import model_management_pb2
@@ -432,11 +433,16 @@ class ServingManager:
             if model_deploy_state.transformer:
                 sp_transformer_info = model_deploy_state.transformer.split('.')
                 module = ''.join(sp_transformer_info[:-1])
-                module = "transformers." + module
-                module = importlib.import_module(module)
-                func = sp_transformer_info[-1]
-                func = getattr(module, func)
-                data = func(data, model_deploy_state.max_input)
+                if module == "nbo":
+                    data = self._db.select(name="select_nbo_event", param={"CUST_NO": data[0]})
+                    if model_deploy_state.max_input:
+                        data = np.array(data[:model_deploy_state.max_input])
+                    data = np.ravel(data, order="C").tolist()
+                # module = "transformers." + module
+                # module = importlib.import_module(module)
+                # func = sp_transformer_info[-1]
+                # func = getattr(module, func)
+                # data = func(data, model_deploy_state.max_input)
             if len(data) == 0:
                 self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                         msg="input vector is empty")
@@ -528,6 +534,7 @@ class ServingManager:
         model_key = model_id + "_" + version
         if model_type == ModelType.Tensorflow:
             deploy_path = self._DEPLOY_PATH + model_key + "/" + model_id
+            print(deploy_path)
             b_path = ROOT_DIR + "/saved_models/" + model_key + "/" + model_id
             model_path = b_path + "/" + str(version_encode(version))
             if os.path.isdir(model_path):
