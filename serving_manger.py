@@ -477,12 +477,16 @@ class ServingManager:
                             if module == "nbo":
                                 mapping = []
                                 for event_id in p_result:
-                                    mapping += self._db.select(name="select_event_name", param={"EVNT_ID": event_id})
+                                    if event_id == "UNK":
+                                        mapping.append("기타")
+                                        continue
+                                    else:
+                                        mapping.append(self._db.select(name="select_event_name", param={"EVNT_ID": event_id})[0][0])
                                 p_result = mapping
                         # result["PRBT"] = outputs["result_1"]
                         pb_result = outputs["result_1"]
                         f_res = []
-                        for i in range(p_result):
+                        for i in range(len(p_result)):
                             f_res.append({"NAME" : p_result[i], "PRBT": pb_result[i]})
                         result["RSLT"] = f_res
                         if self._LOG_TO_DB == 1:

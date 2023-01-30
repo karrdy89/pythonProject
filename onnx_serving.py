@@ -161,7 +161,7 @@ class OnnxServing:
         result["CODE"] = "SUCCESS"
         result["ERROR_MSG"] = ""
         f_res = []
-        for i in range(output_class):
+        for i in range(len(output_class)):
             f_res.append({"NAME": output_class[i], "PRBT": output_proba[i]})
         # result["RSLT"] = output_class
         # result["PRBT"] = output_proba

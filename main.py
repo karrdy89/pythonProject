@@ -88,13 +88,13 @@ class UvicornServer(uvicorn.Server):
 
 
 # test
-config = uvicorn.Config("routers:app",
-                        host="0.0.0.0",
-                        port=8080,
-                        ssl_keyfile=SSL_CERT_PATH + "/key.pem",
-                        ssl_certfile=SSL_CERT_PATH + "/cert.pem",
-                        ssl_keyfile_password="1234"
-                        )
+# config = uvicorn.Config("routers:app",
+#                         host="0.0.0.0",
+#                         port=8080,
+#                         ssl_keyfile=SSL_CERT_PATH + "/key.pem",
+#                         ssl_certfile=SSL_CERT_PATH + "/cert.pem",
+#                         ssl_keyfile_password="1234"
+#                         )
 #
 # config_op = uvicorn.Config("routers_op:app_op",
 #                            host="0.0.0.0",
@@ -105,28 +105,28 @@ config = uvicorn.Config("routers:app",
 #                            )
 
 # build
-# config = uvicorn.Config("routers:app",
-#                         host="0.0.0.0",
-#                         port=8080,
-#                         ssl_keyfile=SSL_CERT_PATH + "/newkey.pem",
-#                         ssl_certfile=SSL_CERT_PATH + "/cert.pem",
-#                         ssl_ca_certs=SSL_CERT_PATH + "/DigiCertCA.pem"
-#                         )
-#
-# config_op = uvicorn.Config("routers_op:app_op",
-#                            host="0.0.0.0",
-#                            port=8090,
-#                            ssl_keyfile=SSL_CERT_PATH + "/newkey.pem",
-#                            ssl_certfile=SSL_CERT_PATH + "/cert.pem",
-#                            ssl_ca_certs=SSL_CERT_PATH + "/DigiCertCA.pem"
-#                            )
+config = uvicorn.Config("routers:app",
+                        host="0.0.0.0",
+                        port=8080,
+                        ssl_keyfile=SSL_CERT_PATH + "/newkey.pem",
+                        ssl_certfile=SSL_CERT_PATH + "/cert.pem",
+                        ssl_ca_certs=SSL_CERT_PATH + "/DigiCertCA.pem"
+                        )
+
+config_op = uvicorn.Config("routers_op:app_op",
+                           host="0.0.0.0",
+                           port=8090,
+                           ssl_keyfile=SSL_CERT_PATH + "/newkey.pem",
+                           ssl_certfile=SSL_CERT_PATH + "/cert.pem",
+                           ssl_ca_certs=SSL_CERT_PATH + "/DigiCertCA.pem"
+                           )
 
 boot_logger.info("(Main Server) check database connection...")
 try:
     db = DBUtil(db_info="MANAGE_DB")
     db.connection_test()
-    # db = DBUtil(db_info="FDS_DB")
-    # db.connection_test()
+    db = DBUtil(db_info="FDS_DB")
+    db.connection_test()
 except Exception as exc:
     boot_logger.error("(Main Server) can not connect to database...: " + exc.__str__())
     sys.exit()
@@ -150,7 +150,7 @@ api_service = None
 api_service_op = None
 try:
     api_service = UvicornServer.options(name=Actors.SERVER, max_concurrency=1000).remote(config=config)
-    # api_service_op = UvicornServer.options(name=Actors.SERVER_OP, max_concurrency=100).remote(config=config_op)
+    api_service_op = UvicornServer.options(name=Actors.SERVER_OP, max_concurrency=100).remote(config=config_op)
 except Exception as exc:
     exc_str = ''.join(traceback.format_exception(None, exc, exc.__traceback__))
     init_processes.append(-1)
@@ -158,7 +158,7 @@ except Exception as exc:
 if -1 in init_processes:
     boot_logger.error("(Main Server) failed to init services")
     ray.kill(api_service)
-    # ray.kill(api_service_op)
+    ray.kill(api_service_op)
     ray.kill(serving_manager)
     ray.kill(logging_service)
     ray.kill(shared_state)
@@ -166,5 +166,5 @@ if -1 in init_processes:
 else:
     boot_logger.info("(Main Server) run API server...")
     api_service.run_server.remote()
-    # api_service_op.run_server.remote()
+    api_service_op.run_server.remote()
     boot_logger.info("(Main Server) server initiated successfully...")
