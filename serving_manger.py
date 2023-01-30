@@ -399,7 +399,7 @@ class ServingManager:
 
     async def predict(self, model_id: str, version: str, data: list) -> dict:
         model_deploy_state = self._deploy_states.get(model_id + "_" + version)
-        result = {"CODE": "FAIL", "ERROR_MSG": "N/A", "EVNT_ID": [], "PRBT": []}
+        result = {"CODE": "FAIL", "ERROR_MSG": "N/A", "RSLT": []}
         if (model_deploy_state is None) or (model_deploy_state.cycle_iterator is None):
             self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="model not deployed : "
                                                                                  + model_id + ":" + version)
@@ -469,8 +469,22 @@ class ServingManager:
                         result["CODE"] = "SUCCESS"
                         result["ERROR_MSG"] = ""
                         outputs = predict_result["outputs"]
-                        result["EVNT_ID"] = outputs["result"]
-                        result["PRBT"] = outputs["result_1"]
+                        p_result = outputs["result"]
+                        # result["RSLT"] = outputs["result"]
+                        if model_deploy_state.transformer:
+                            sp_transformer_info = model_deploy_state.transformer.split('.')
+                            module = ''.join(sp_transformer_info[:-1])
+                            if module == "nbo":
+                                mapping = []
+                                for event_id in p_result:
+                                    mapping += self._db.select(name="select_event_name", param={"EVNT_ID": event_id})
+                                p_result = mapping
+                        # result["PRBT"] = outputs["result_1"]
+                        pb_result = outputs["result_1"]
+                        f_res = []
+                        for i in range(p_result):
+                            f_res.append({"NAME" : p_result[i], "PRBT": pb_result[i]})
+                        result["RSLT"] = f_res
                         if self._LOG_TO_DB == 1:
                             MDL_ID = model_id
                             version_info = version.split('.')
@@ -478,7 +492,7 @@ class ServingManager:
                             N_VER = version_info[1]
                             SUMN_MSG = str(data.get("inputs")[0])
                             RSLT_MSG = {}
-                            RSLT_MSG["EVNT_ID"] = outputs["result"]
+                            RSLT_MSG["RSLT"] = outputs["result"]
                             RSLT_MSG["PRBT"] = outputs["result_1"]
                             RSLT_MSG = str(RSLT_MSG)
                             param = {"MDL_ID": MDL_ID, "MN_VER": MN_VER, "N_VER": N_VER,
@@ -509,7 +523,7 @@ class ServingManager:
                         N_VER = version_info[1]
                         SUMN_MSG = str(data)
                         RSLT_MSG = {}
-                        RSLT_MSG["EVNT_ID"] = predict_result.get("EVNT_ID")
+                        RSLT_MSG["RSLT"] = predict_result.get("RSLT")
                         RSLT_MSG["PRBT"] = predict_result.get("PRBT")
                         RSLT_MSG = str(RSLT_MSG)
                         param = {"MDL_ID": MDL_ID, "MN_VER": MN_VER, "N_VER": N_VER,

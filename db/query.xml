@@ -62,6 +62,15 @@
                 AND A.CUST_NO = #{CUST_NO} /* customer number */
         </select>
 
+        <select name="select_event_name">
+            SELECT
+                A.EVNT_NM
+            FROM
+                S_AIB.TBCHN2002M A
+            WHERE 1=1
+                AND EVNT_ID = #{EVNT_ID}
+        </select>
+
         <select name="select_nbo_event_test">
             SELECT
                 A.EVNT_ID

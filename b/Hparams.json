@@ -1,0 +1,16 @@
+{
+    "info": {
+        "threshold": 0.78,
+        "hp_grid_gamma": 0.25,
+        "hp_grid_spw": 100,
+        "hp_grid_m_depth": 5,
+        "hp_grid_estimators": 500,
+        "hp_grid_rl": 0.025,
+        "FP": 0,
+        "FN": 0,
+        "F1": 1.0,
+        "ROC_AUC": 1.0,
+        "F1_TEST": 1.0,
+        "ROC_AUC_TEST": 1.0
+    }
+}

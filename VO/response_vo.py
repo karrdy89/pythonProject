@@ -67,8 +67,7 @@ class PredictResponse(BaseResponse):
     """
     Define pydantic model to validate output response
     """
-    EVNT_ID: list
-    PRBT: list
+    RSLT: list
 
     class Config:
         extra = Extra.forbid

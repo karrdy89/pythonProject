@@ -102,7 +102,7 @@ class OnnxServing:
         self._session = rt.InferenceSession(self._model_path)
 
     def predict(self, data: list) -> tuple | dict:
-        result = {"CODE": "FAIL", "ERROR_MSG": "N/A", "EVNT_ID": [], "PRBT": []}
+        result = {"CODE": "FAIL", "ERROR_MSG": "N/A", "RSLT": []}
         if self._transformer is not None:
             sp_transformer_info = self._transformer.split('.')
             module = ''.join(sp_transformer_info[:-1])
@@ -160,6 +160,10 @@ class OnnxServing:
                 output_proba.append(pred_proba.get(vals))
         result["CODE"] = "SUCCESS"
         result["ERROR_MSG"] = ""
-        result["EVNT_ID"] = output_class
-        result["PRBT"] = output_proba
+        f_res = []
+        for i in range(output_class):
+            f_res.append({"NAME": output_class[i], "PRBT": output_proba[i]})
+        # result["RSLT"] = output_class
+        # result["PRBT"] = output_proba
+        result["RSLT"] = f_res
         return result, data
