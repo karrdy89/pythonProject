@@ -1,0 +1,144 @@
+<mapper name="BaseMapper">
+        <select name="select_nbo">
+            SELECT
+                /*+ INDEX_DESC(A IXTBCHN3001H03) */
+                A.CUST_NO
+                , A.ORGN_DTM
+                , A.CHNL_ID
+                , A.EVNT_ID
+            FROM
+                S_AIB.TBCHN3001H A
+            WHERE 1=1
+            AND CUST_NO IS NOT NULL
+            AND ORGN_DTM BETWEEN #{START} || '000000' AND #{END} || '999999'
+        </select>
+
+        <select name="select_deploy_state">
+            SELECT
+                A.MDL_ID
+                , A.MN_VER
+                , A.N_VER
+                , A.WDTB_SRVR_NCNT
+                , A.MDL_TY_CD
+                , (CASE WHEN A.WDTB_DESC_SEQNO = 1 THEN 'Y' ELSE 'N' END) WDTB_LAST_YN /* 최종배포버젼여부 */
+            FROM
+                (
+                SELECT
+                    A.MDL_ID /* 모델ID */
+                    , A.MN_VER /* 주버전 */
+                    , A.N_VER /* 부버전 */
+                    , A.MDL_NM /* 모델명 */
+                    , A.MDL_TY_CD
+                    , B.SEQNO /* 일련번호 */
+                    , A.MDL_LRNG_ST_CD /* 모델학습상태코드 */
+                    , NVL(B.WDTB_ST_CD, '00') WDTB_ST_CD /* 배포상태코드 */
+                    , B.WDTB_SRVR_NCNT /* 배포서버갯수 */
+                    , B.RSLT_MSG /* 결과메세지 */
+                    , B.REG_DTM /* 등록일시(배포일시)  */
+                    , DECODE(B.WDTB_ST_CD, '01', B.REG_DTM, NULL) WDTB_COMP_DTM /* 배포완료일시 */
+                    , ROW_NUMBER() OVER (PARTITION BY A.MDL_ID, A.MN_VER, A.N_VER ORDER BY A.MDL_ID, A.MN_VER DESC, A.N_VER DESC, B.SEQNO DESC) WDTB_DESC_SEQNO
+                FROM
+                    S_AIB.TBMOD1001M A /* 학습모델 */
+                    , S_AIB.TBMOD1003H B /* 모델배포 */
+                WHERE 1=1
+                    AND A.MDL_ID = B.MDL_ID(+)
+                    AND A.MN_VER = B.MN_VER(+)
+                    AND A.N_VER = B.N_VER(+)
+                    AND A.MDL_LRNG_ST_CD IN ('22') /* 모델학습상태코드(22:학습완료) */
+                ) A
+            WHERE 1=1
+                AND A.WDTB_DESC_SEQNO = 1
+                AND A.WDTB_ST_CD = '01'
+            ORDER BY
+                A.MDL_ID, A.MN_VER DESC, A.N_VER DESC, A.SEQNO DESC
+        </select>
+        <select name="select_nbo_event">
+            SELECT
+                /*+ INDEX_DESC(A IXTBCHN3001H03) */
+                A.EVNT_ID
+            FROM
+                S_AIB.TBCHN3001H A /* total contact history */
+            WHERE 1=1
+                AND A.CUST_NO = #{CUST_NO} /* customer number */
+        </select>
+
+        <select name="select_event_name">
+            SELECT
+                A.EVNT_NM
+            FROM
+                S_AIB.TBCHN2002M A
+            WHERE 1=1
+                AND EVNT_ID = #{EVNT_ID}
+        </select>
+
+        <select name="select_nbo_event_test">
+            SELECT
+                A.EVNT_ID
+            FROM
+                TEST A /* total contact history */
+            WHERE 1=1
+                AND A.CUST_NO = #{CUST_NO} /* customer number */
+            ORDER BY ORGN_DTM ASC
+        </select>
+
+        <select name="select_test">
+            SELECT CUST_NO, EVNT_ID
+            FROM TEST
+            WHERE 1=1
+            AND ORGN_DTM BETWEEN TO_DATE(#{START}, 'YYYYMMDD') AND TO_DATE(#{END}, 'YYYYMMDD')
+            ORDER BY CUST_NO ASC, ORGN_DTM ASC
+        </select>
+
+        <insert name="insert_test">
+                INSERT INTO TEST
+                 (CUST_NO,
+                 ORGN_DTM,
+                 EVNT_ID,
+                 EVNT_NM,
+                 SYS_EVNT_ID,
+                 SYS_EVNT_NM)
+                VALUES
+                 (#{CUSTNO},
+                 SYSDATE,
+                 #{EVNT_ID},
+                 #{EVNT_NM},
+                 #{SYS_EVNT_ID},
+                 #{SYS_EVNT_NM}
+                )
+        </insert>
+
+        <insert name="insert_pred_log">
+            INSERT INTO S_AIB.TBMOD1004H
+                (MDL_ID,
+                MN_VER,
+                N_VER,
+                SEQNO,
+                SUMN_MSG,
+                RSLT_MSG,
+                REG_ID,
+                REG_DTM,
+                REG_PGM_ID,
+                LST_UPD_ID,
+                LST_UPD_DTM,
+                LST_UPD_PGM_ID)
+            VALUES
+                (#{MDL_ID},
+                #{MN_VER},
+                #{N_VER},
+                (SELECT NVL(MAX(SEQNO),0)+1 FROM S_AIB.TBMOD1004H WHERE MDL_ID=#{MDL_ID} AND MN_VER=#{MN_VER} AND N_VER=#{N_VER}),
+                #{SUMN_MSG},
+                #{RSLT_MSG},
+                'SYSTEM',
+                TO_CHAR(SYSDATE, 'YYYYMMDDHH24MISS'),
+                'SYSTEM',
+                'SYSTEM',
+                TO_CHAR(SYSDATE, 'YYYYMMDDHH24MISS'),
+                'SYSTEM')
+        </insert>
+
+
+
+
+
+
+</mapper>
