@@ -210,7 +210,7 @@ class ServingManager:
         except Exception as exc:
             self._boot_logger.error(
                 "(" + self._worker + ") " + "can't read deploy state from db:" + exc.__str__())
-            # return -1
+            return -1
         else:
             for stored_deploy_state in stored_deploy_states:
                 model_id = stored_deploy_state[0]
@@ -547,7 +547,6 @@ class ServingManager:
         model_key = model_id + "_" + version
         if model_type == ModelType.Tensorflow:
             deploy_path = self._DEPLOY_PATH + model_key + "/" + model_id
-            print(deploy_path)
             b_path = ROOT_DIR + "/saved_models/" + model_key + "/" + model_id
             model_path = b_path + "/" + str(version_encode(version))
             if os.path.isdir(model_path):
