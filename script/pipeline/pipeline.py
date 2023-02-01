@@ -16,9 +16,9 @@ import traceback
 
 import ray
 
-from script.pipeline import TrainInfo, PipelineComponent, Version
-from script.statics import Actors, TrainStateCode
-from script.pipeline.exceptions import *
+from pipeline import TrainInfo, PipelineComponent, Version
+from statics import Actors, TrainStateCode, ROOT_DIR
+from pipeline.exceptions import *
 
 
 @ray.remote
@@ -67,7 +67,7 @@ class Pipeline:
         self._worker = type(self).__name__
         self._name: str = ''
         self._sequence_names: list[str] = []
-        self._pipeline_definition_path: str = os.path.dirname(os.path.abspath(__file__)) + "/pipelines.yaml"
+        self._pipeline_definition_path: str = ROOT_DIR + "/script/pipeline/pipelines.yaml"
         self._logger: ray.actor = ray.get_actor(Actors.LOGGER)
         self._shared_state: ray.actor = ray.get_actor(Actors.GLOBAL_STATE)
         self._pipeline_state: dict[str, str] = {}

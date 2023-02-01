@@ -17,11 +17,11 @@ from shutil import copytree, copyfile
 import ray
 import uvicorn
 
-from script.serving_manger import ServingManager
-from script.db import DBUtil
-from script.logger import Logger, BootLogger
-from script.shared_state import SharedState
-from script.statics import Actors, ROOT_DIR
+from serving_manger import ServingManager
+from db import DBUtil
+from logger import Logger, BootLogger
+from shared_state import SharedState
+from statics import Actors, ROOT_DIR
 
 boot_logger = BootLogger().logger
 boot_logger.info("(Main Server) init main server...")
@@ -29,8 +29,8 @@ boot_logger.info("(Main Server) init main server...")
 SSL_CERT_PATH = ''
 config_parser = configparser.ConfigParser()
 try:
-    config_parser.read("config/config.ini")
-    SSL_CERT_PATH = os.path.dirname(os.path.abspath(__file__)) + str(config_parser.get("DEFAULT", "SSL_CERT_PATH"))
+    config_parser.read(ROOT_DIR + "/config/config.ini")
+    SSL_CERT_PATH = ROOT_DIR + str(config_parser.get("DEFAULT", "SSL_CERT_PATH"))
 except configparser.Error as e:
     boot_logger.error("(Main Server) an error occur when set config...: " + str(e))
     sys.exit()
@@ -88,7 +88,7 @@ class UvicornServer(uvicorn.Server):
 
 
 # test
-# config = uvicorn.Config("script.routers:app",
+# config = uvicorn.Config("routers:app",
 #                         host="0.0.0.0",
 #                         port=8080,
 #                         ssl_keyfile=SSL_CERT_PATH + "/key.pem",

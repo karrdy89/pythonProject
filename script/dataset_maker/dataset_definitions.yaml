@@ -1,7 +1,7 @@
 dataset_definitions:
   - name: MDL0000001
     definition:
-        operator: script.dataset_maker.nbo.data_processing.MakeDatasetNBO
+        operator: dataset_maker.nbo.data_processing.MakeDatasetNBO
         query_name: "select_nbo"
         key_index: 0
         feature_index:
@@ -12,7 +12,7 @@ dataset_definitions:
           - "EVT0000021"
   - name: MDL0000003
     definition:
-        operator: script.dataset_maker.nbo.data_processing.MakeDatasetNBO
+        operator: dataset_maker.nbo.data_processing.MakeDatasetNBO
         query_name: "select_nbo"
         key_index: 0
         feature_index:

@@ -2,16 +2,16 @@ pipelines:
   - name: test
     sequence:
       - name: "load data"
-        task: script.data_loader.test.get_test_data
+        task: data_loader.test.get_test_data
       - name: "data preprocessing"
-        task: script.preprocess.test.process_test_data
+        task: preprocess.test.process_test_data
       - name: "train model"
-        task: script.train.test.train_test_model
+        task: train.test.train_test_model
   - name: MDL0000001
     sequence:
       - name: "train model"
-        task: script.train.NBO.train_NBO_model
+        task: train.NBO.train_NBO_model
   - name: MDL0000003
     sequence:
       - name: "train model"
-        task: script.train.NBO.train_NBO_model
+        task: train.NBO.train_NBO_model

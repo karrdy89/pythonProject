@@ -18,7 +18,7 @@ import configparser
 
 from tensorboard import program, default, assets
 
-from script.statics import Actors
+from statics import Actors
 
 
 class TensorBoardTool:

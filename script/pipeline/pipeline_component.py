@@ -8,7 +8,7 @@
 # Date  | Updator   | Remark
 #
 # ---------------------------------------------------------------------------------------------------------------------
-from script.pipeline import Artifact
+from pipeline import Artifact
 from typing import get_type_hints
 
 

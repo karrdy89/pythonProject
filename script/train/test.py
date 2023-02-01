@@ -1,6 +1,6 @@
-from script.pipeline import Input, Dataset, TrainInfo, PipelineComponent
-from script.pipeline import split_ratio
-from script.pipeline import base_callbacks, evaluation_callback
+from pipeline import Input, Dataset, TrainInfo, PipelineComponent
+from pipeline import split_ratio
+from pipeline import base_callbacks, evaluation_callback
 
 
 @PipelineComponent

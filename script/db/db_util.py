@@ -15,7 +15,8 @@ from typing import Optional, Any
 
 import oracledb
 
-from script.db.mapper import Mapper
+from db.mapper import Mapper
+from statics import ROOT_DIR
 
 
 class DBUtil:
@@ -94,7 +95,7 @@ class DBUtil:
         """
         config_parser = configparser.ConfigParser()
         try:
-            config_parser.read("config/config.ini")
+            config_parser.read(ROOT_DIR + "/config/config.ini")
             self._USER = str(config_parser.get(db_info, "USER"))
             self._PASSWORD = str(config_parser.get(db_info, "PASSWORD"))
             self._IP = str(config_parser.get(db_info, "IP"))

@@ -16,8 +16,8 @@ import onnx
 import onnxruntime as rt
 import numpy as np
 
-from script.statics import ROOT_DIR
-from script.utils import version_encode
+from statics import ROOT_DIR
+from utils import version_encode
 
 
 @ray.remote

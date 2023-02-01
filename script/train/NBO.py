@@ -12,12 +12,12 @@ import json
 import os
 import math
 
-from script.models.sequential.sasc.modules import LabelLayer
-from script.pipeline import Input, TrainInfo, PipelineComponent
-from script.pipeline import split_ratio
-from script.pipeline import base_callbacks, evaluation_callback
-from script.models.sequential.sasc import sasc
-from script.statics import ROOT_DIR
+from models.sequential.sasc.modules import LabelLayer
+from pipeline import Input, TrainInfo, PipelineComponent
+from pipeline import split_ratio
+from pipeline import base_callbacks, evaluation_callback
+from models.sequential.sasc import sasc
+from statics import ROOT_DIR
 
 
 @PipelineComponent

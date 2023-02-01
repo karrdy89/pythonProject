@@ -14,7 +14,7 @@ import os
 import uuid
 import functools
 import logging
-from script import logger
+import logger
 from dataclasses import dataclass, field
 from concurrent.futures import ThreadPoolExecutor
 from itertools import cycle
@@ -27,13 +27,13 @@ from docker.errors import ContainerError, ImageNotFound, APIError, DockerExcepti
 from docker.models.containers import Container
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-from script.utils import Http
-from script.utils import version_encode
-from script.logger import BootLogger
-from script.statics import Actors, ModelType, ROOT_DIR
-from script.db import DBUtil
-from script.onnx_serving import OnnxServing
-from script.utils import decode_tf_input_meta
+from utils import Http
+from utils import version_encode
+from logger import BootLogger
+from statics import Actors, ModelType, ROOT_DIR
+from db import DBUtil
+from onnx_serving import OnnxServing
+from utils import decode_tf_input_meta
 
 
 @ray.remote
@@ -169,7 +169,7 @@ class ServingManager:
         self._boot_logger.info("(" + self._worker + ") " + "set statics from config...")
         config_parser = configparser.ConfigParser()
         try:
-            config_parser.read("config/config.ini")
+            config_parser.read(ROOT_DIR + "/config/config.ini")
             self._HTTP_PORT_START = int(config_parser.get("DEPLOY", "HTTP_PORT_START"))
             self._GRPC_PORT_START = int(config_parser.get("DEPLOY", "GRPC_PORT_START"))
             self._GC_CHECK_INTERVAL = int(config_parser.get("DEPLOY", "GC_CHECK_INTERVAL"))

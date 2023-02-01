@@ -15,7 +15,8 @@ import ray
 import logging
 import configparser
 from logging.handlers import TimedRotatingFileHandler
-from script.db.db_util import DBUtil
+from db.db_util import DBUtil
+from statics import ROOT_DIR
 
 @ray.remote
 class Logger:
@@ -62,7 +63,7 @@ class Logger:
         self._boot_logger.info("(" + self._worker + ") " + "set statics from config...")
         config_parser = configparser.ConfigParser()
         try:
-            config_parser.read("config/config.ini")
+            config_parser.read(ROOT_DIR + "/config/config.ini")
             self._MAX_BACKUP_COUNT = int(config_parser.get("LOGGING", "MAX_BACKUP_COUNT"))
             self._MAX_BYTES = int(config_parser.get("LOGGING", "MAX_BYTES"))
         except configparser.Error as e:

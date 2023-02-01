@@ -21,10 +21,10 @@ import ray
 from ray import actor
 from apscheduler.schedulers.background import BackgroundScheduler
 
-from script.pipeline import TrainResult
-from script.logger import BootLogger
-from script.statics import Actors, TrainStateCode
-from script.tensorboard_service import TensorBoardTool
+from pipeline import TrainResult
+from logger import BootLogger
+from statics import Actors, TrainStateCode, ROOT_DIR
+from tensorboard_service import TensorBoardTool
 
 
 @ray.remote
@@ -105,7 +105,7 @@ class SharedState:
         self._boot_logger.info("(" + self._worker + ") " + "set statics from config...")
         config_parser = configparser.ConfigParser()
         try:
-            config_parser.read("config/config.ini")
+            config_parser.read(ROOT_DIR + "/config/config.ini")
             self._PIPELINE_MAX = int(config_parser.get("PIPELINE", "PIPELINE_MAX"))
             self._DATASET_CONCURRENCY_MAX = int(config_parser.get("DATASET_MAKER", "MAX_CONCURRENCY"))
             self._URL_UPDATE_STATE_LRN = str(config_parser.get("MANAGE_SERVER", "URL_UPDATE_STATE_LRN"))

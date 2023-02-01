@@ -11,10 +11,10 @@
 import yaml
 import importlib
 
-from script.VO.request_vo import MakeDataset
-from script.dataset_maker.arg_types import BasicTableType
-from script.dataset_maker.exceptions import *
-from script.statics import ROOT_DIR
+from VO.request_vo import MakeDataset
+from dataset_maker.arg_types import BasicTableType
+from dataset_maker.exceptions import *
+from statics import ROOT_DIR
 
 
 def construct_operator(args: MakeDataset) -> BasicTableType:

@@ -1,6 +1,6 @@
-from script.models.sequential.sasc.modules import *
+from models.sequential.sasc.modules import *
 from tensorflow.keras import layers
-from script.utils.common import encode_tf_input_meta
+from utils.common import encode_tf_input_meta
 
 
 def get_model(vocab_size: int, vocabulary, max_len: int, num_labels: int, embedding_dim: int = 64,

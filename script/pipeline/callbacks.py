@@ -11,8 +11,8 @@
 import ray
 from tensorflow import keras
 
-from script.pipeline import TrainInfo
-from script.statics import Actors
+from pipeline import TrainInfo
+from statics import Actors
 
 
 class BaseCallback(keras.callbacks.Callback):

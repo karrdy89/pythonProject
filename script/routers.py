@@ -20,14 +20,14 @@ from fastapi_utils.inferring_router import InferringRouter
 from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
 from starlette.middleware.cors import CORSMiddleware
 
-import script.VO.request_vo as req_vo
-import script.VO.response_vo as res_vo
-from script.dataset_maker.constructor import construct_operator
-from script.pipeline import Pipeline
-from script.pipeline import SequenceNotExistError
-from script.utils import version_encode
-from script.pipeline import TrainInfo
-from script.statics import Actors, TrainStateCode, ROOT_DIR
+import VO.request_vo as req_vo
+import VO.response_vo as res_vo
+from dataset_maker.constructor import construct_operator
+from pipeline import Pipeline
+from pipeline import SequenceNotExistError
+from utils import version_encode
+from pipeline import TrainInfo
+from statics import Actors, TrainStateCode, ROOT_DIR
 
 project_path = ROOT_DIR
 app = FastAPI()

@@ -15,10 +15,10 @@ import pandas as pd
 import ray
 from ray.util.multiprocessing import Pool
 
-from script.db import DBUtil
-from script.statics import Actors, ROOT_DIR, TrainStateCode
-from script.dataset_maker.nbo.utils import split_chunk, make_dataset
-from script.dataset_maker.arg_types import BasicTableType
+from db import DBUtil
+from statics import Actors, ROOT_DIR, TrainStateCode
+from dataset_maker.nbo.utils import split_chunk, make_dataset
+from dataset_maker.arg_types import BasicTableType
 
 
 @ray.remote
@@ -114,7 +114,7 @@ class MakeDatasetNBO:
             return -1
         config_parser = configparser.ConfigParser()
         try:
-            config_parser.read("config/config.ini")
+            config_parser.read(ROOT_DIR + "/config/config.ini")
             mem_limit_percentage = int(config_parser.get("DATASET_MAKER", "MEM_LIMIT_PERCENTAGE"))
             mem_limit_percentage = mem_limit_percentage / 100
             concurrency_percentage = int(config_parser.get("DATASET_MAKER", "CONCURRENCY_PERCENTAGE_CPU"))
