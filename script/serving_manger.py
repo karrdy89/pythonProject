@@ -465,6 +465,7 @@ class ServingManager:
                         result["ERROR_MSG"] = ""
                         outputs = predict_result["outputs"]
                         p_result = outputs["result"]
+                        c_result = []
                         # result["RSLT"] = outputs["result"]
                         if model_deploy_state.transformer:
                             sp_transformer_info = model_deploy_state.transformer.split('.')
@@ -472,6 +473,7 @@ class ServingManager:
                             if module == "nbo":
                                 mapping = []
                                 for event_id in p_result:
+                                    c_result.append(event_id)
                                     if event_id == "UNK":
                                         mapping.append("기타")
                                         continue
@@ -482,7 +484,7 @@ class ServingManager:
                         pb_result = outputs["result_1"]
                         f_res = []
                         for i in range(len(p_result)):
-                            f_res.append({"NAME" : p_result[i], "PRBT": pb_result[i]})
+                            f_res.append({"NAME": p_result[i], "PRBT": pb_result[i], "CODE": c_result})
                         result["RSLT"] = f_res
                         if self._LOG_TO_DB == 1:
                             MDL_ID = model_id

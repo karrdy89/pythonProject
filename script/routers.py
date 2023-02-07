@@ -185,9 +185,16 @@ class AIbeemRouter:
             return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="training process not exist")
         res = await actor.kill_process.remote()
         if res == 0:
-            self._logger.log.remote(level=logging.INFO, worker=self._worker,
-                                    msg="stop_train: success : " + pipeline_name)
-            return res_vo.BaseResponse(CODE="SUCCESS", ERROR_MSG="")
+            try:
+                self._shared_state.kill_actor.remote(pipeline_name)
+            except Exception as exc:
+                self._logger.log.remote(level=logging.ERROR, worker=self._worker,
+                                        msg="stop_train: fail: failed to kill actor: "+ exc.__str__() + pipeline_name)
+                return res_vo.BaseResponse(CODE="FAIL", ERROR_MSG="training process not exist")
+            else:
+                self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                        msg="stop_train: success : " + pipeline_name)
+                return res_vo.BaseResponse(CODE="SUCCESS", ERROR_MSG="")
         else:
             self._logger.log.remote(level=logging.WARN, worker=self._worker,
                                     msg="stop_train: fail: model not exist: " + pipeline_name)
@@ -300,7 +307,7 @@ class AIbeemRouter:
                                 msg="get request: get_dataset_url")
         dataset_name = request_body.MDL_ID
         version = request_body.MN_VER
-        path = statics.ROOT_DIR + "/dataset/" + dataset_name + "/" + version + "/" + dataset_name + "_" + version + ".zip"
+        path = ROOT_DIR + "/dataset/" + dataset_name + "/" + version + "/" + dataset_name + "_" + version + ".zip"
         if not os.path.exists(path):
             return res_vo.PathResponse(CODE="FAIL", ERROR_MSG="dataset not exist", PATH="")
         uid = str(uuid.uuid4())

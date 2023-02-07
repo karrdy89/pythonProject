@@ -97,7 +97,7 @@ class UvicornServer(uvicorn.Server):
 #                         )
 
 # build
-config = uvicorn.Config("script.routers:app",
+config = uvicorn.Config("routers:app",
                         host="0.0.0.0",
                         port=8080,
                         ssl_keyfile=SSL_CERT_PATH + "/newkey.pem",
@@ -105,7 +105,7 @@ config = uvicorn.Config("script.routers:app",
                         ssl_ca_certs=SSL_CERT_PATH + "/DigiCertCA.pem"
                         )
 
-# config_op = uvicorn.Config("script.routers_op:app_op",
+# config_op = uvicorn.Config("routers_op:app_op",
 #                            host="0.0.0.0",
 #                            port=8090,
 #                            ssl_keyfile=SSL_CERT_PATH + "/newkey.pem",

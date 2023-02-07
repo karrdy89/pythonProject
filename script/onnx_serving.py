@@ -18,6 +18,7 @@ import numpy as np
 
 from statics import ROOT_DIR
 from utils import version_encode
+from db import DBUtil
 
 
 @ray.remote
@@ -63,8 +64,10 @@ class OnnxServing:
         self._pos_class: int | None = None
         self._labels: dict | None = None
         self._session = None
+        self._db = None
 
     def init(self, model_id: str, version: str) -> tuple:
+        self._db = DBUtil(db_info="MANAGE_DB")
         encoded_version = version_encode(version)
         model_key = model_id + "_" + version
         self._model_path = ROOT_DIR + "/saved_models/" + model_key + "/" + model_id + "/" + str(encoded_version)
@@ -110,7 +113,7 @@ class OnnxServing:
                 # func = sp_transformer_info[-1]
                 # func = getattr(module, func)
                 # data = func(data)
-                data = [random.randrange(0, 5)] * 46
+                data = [random.randrange(0, 5)] * 44
         if self._input_shape is not None:
             if len(data) < self._input_shape[-1]:
                 result["CODE"] = "FAIL"
@@ -161,7 +164,11 @@ class OnnxServing:
         result["ERROR_MSG"] = ""
         f_res = []
         for i in range(len(output_class)):
-            f_res.append({"NAME": output_class[i], "PRBT": output_proba[i]})
+            if output_class[i] == "정상":
+                code = "00"
+            else:
+                code = "10"
+            f_res.append({"NAME": output_class[i], "PRBT": output_proba[i], "CODE": code})
         # result["RSLT"] = output_class
         # result["PRBT"] = output_proba
         result["RSLT"] = f_res

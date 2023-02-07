@@ -1,11 +1,11 @@
 {
     "info": {
-        "threshold": 0.78,
-        "hp_grid_gamma": 0.25,
-        "hp_grid_spw": 100,
-        "hp_grid_m_depth": 5,
-        "hp_grid_estimators": 500,
-        "hp_grid_rl": 0.025,
+        "threshold": 0.55,
+        "hp_grid_gamma": 0.35,
+        "hp_grid_spw": 10,
+        "hp_grid_m_depth": 4,
+        "hp_grid_estimators": 800,
+        "hp_grid_rl": 0.03,
         "FP": 0,
         "FN": 0,
         "F1": 1.0,

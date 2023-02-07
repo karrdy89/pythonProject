@@ -686,19 +686,29 @@ train_dataset_path = ROOT_DIR + "/dataset/fd_test2/all_dataset_trimmed_train_ref
 train_df = pd.read_csv(train_dataset_path)
 train_df_labels = train_df[["label"]]
 train_df_t = train_df.drop(["SEQ", "label", "ETC"], axis=1)
-feature_list = train_df_t.keys().tolist()
-X_train = np.array(train_df_t.values.tolist())
-y_train = np.array(train_df_labels.values.tolist()).ravel()
-original_data_idx = len(X_train)
-num_neg = len(train_df[train_df["label"] == 1])
-num_pos = len(X_train[:-num_neg])
+# feature_list = train_df_t.keys().tolist()
+# X_train = np.array(train_df_t.values.tolist())
+# y_train = np.array(train_df_labels.values.tolist()).ravel()
+# original_data_idx = len(X_train)
+# num_neg = len(train_df[train_df["label"] == 1])
+# num_pos = len(X_train[:-num_neg])
 
 test_dataset_path = ROOT_DIR + "/dataset/fd_test2/all_dataset_trimmed_test_refine_tabular.csv"
 test_df = pd.read_csv(test_dataset_path)
 test_df_labels = test_df[["label"]]
 test_df_t = test_df.drop(["SEQ", "label"], axis=1)
+feature_list = test_df_t.keys().tolist()
 X_test = np.array(test_df_t.values.tolist())
 y_test = np.array(test_df_labels.values.tolist()).ravel()
+
+train_df_t = train_df_t[feature_list]
+print(feature_list)
+print(train_df_t)
+X_train = np.array(train_df_t.values.tolist())
+y_train = np.array(train_df_labels.values.tolist()).ravel()
+original_data_idx = len(X_train)
+num_neg = len(train_df[train_df["label"] == 1])
+num_pos = len(X_train[:-num_neg])
 
 # hp_resample_count = 10
 # hp_grid_rl = [0.03, 0.02, 0.16, 0.013, 0.01]
@@ -714,8 +724,8 @@ hp_grid_estimators = [500, 800, 1000, 1200, 1500, 1800]
 hp_grid_m_depth = [4, 5]
 hp_grid_spw = [10, 50, 100, 200, 250]
 hp_grid_gamma = [0.35, 0.25, 0.3]
-hp_grid_threshold = [0.5, 0.55, 0.6, 0.65, 0.68, 0.7, 0.72, 0.75, 0.78, 0.8, 0.82, 0.85, 0.88, 0.9, 0.92, 0.95, 0.98]
-
+# hp_grid_threshold = [0.5, 0.55, 0.6, 0.65, 0.68, 0.7, 0.72, 0.75, 0.78, 0.8, 0.82, 0.85, 0.88, 0.9, 0.92, 0.95]
+hp_grid_threshold = [0.5, 0.55, 0.6, 0.65, 0.68, 0.7, 0.72, 0.75, 0.78, 0.8]
 
 log = {}
 for i in range(hp_resample_count):
