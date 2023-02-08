@@ -2,7 +2,11 @@
 # count each pre-defined event
 # make input
 import random
+import pandas as pd
 
+MAPPING_LIST = {"EVT0000100": "EVT0000012",
+                "EVT0000101": "EVT0000013",
+                "EVT0000102": "EVT0000014"}
 EVENT_LIST = ["EVT0000011",
               "EVT0000012",
               "EVT0000013",
@@ -47,10 +51,10 @@ EVENT_LIST = ["EVT0000011",
               "EVT0000052",
               "EVT0000053",
               "EVT0000053"]
-START_EVENT = ["EVT0000005", "EVT0000006", "EVT0000007", "EVT0000008", "EVT0000009", "EVT0000010"]
+START_EVENT = ["EVT0000005", "EVT0000006", "EVT0000009", "EVT0000010"]  # if login many times? -> search from back wihtout main
 END_EVENT = ["EVT0000001", "EVT0000002", "EVT0000003", "EVT0000004"]
 # event_list = []
-# start_events = ["CCMLO0101", "CCWLO0101", "CCMMS0101SL01", "CCWMS0101SL01", "CCWSA0101", "CCMSA0101"]
+# start_events = ["CCMLO0101", "CCWLO0101", "CCWSA0101", "CCMSA0101"]
 # end_event = ["CCMLN0101PC01", "CCWLN0101PC01", "CCWRD0201PC01", "CCMRD0201PC01"]
 # 1. feature CCMLN0201CH01 (0.125)
 # 2. feature CCMLN0102SL02 (0.086)
@@ -98,6 +102,59 @@ END_EVENT = ["EVT0000001", "EVT0000002", "EVT0000003", "EVT0000004"]
 # 44. feature CCMMA0101SE01 (0.002)
 
 
+def trim_end_event(data: list) -> list | None:
+    event_data = data.reverse()
+    for end_event in END_EVENT:
+        if end_event in event_data:
+            event_data = event_data[event_data.index(end_event):]
+            event_data = event_data.reverse()
+            return event_data
+    return None
+
+def trim_start_event(data: list) -> list | None:
+    for start_event in START_EVENT:
+        if start_event in data:
+            return data[data.index(start_event)]
+    return None
+
 def transform_data(db, data: str = None):
-    data = db.select(name="select_nbo_event", param={"CUST_NO": data[0]})
-    return [random.randrange(0, 5)]*46
+    f_event_data = None
+    e_event_data = None
+    s_time = None
+    e_time = None
+    time_diff = 0
+    lst_s_event_data = []
+    for days_ago in range(3):
+        if days_ago == 0:
+            data = db.select(name="select_nbo_event", param={"CUST_NO": data[0]})
+            df = pd.DataFrame(data)
+        else:
+            data = db.select(name="select_nbo_event", param={"CUST_NO": data[0], "DAYS_AGO": days_ago})
+            df = pd.DataFrame(data)
+        if data is not None and e_event_data is None:
+            event_data = trim_end_event(df.iloc[:, 1].tolist())
+            if event_data is not None:
+                e_event_data = event_data
+                event_data = trim_start_event(event_data)
+                if event_data is not None:
+                    f_event_data = event_data
+                    break
+        elif data is not None and e_event_data is not None:
+            event_data = trim_start_event(df.iloc[:, 1].tolist())
+            if event_data is not None:
+                lst_s_event_data += event_data
+                f_event_data = lst_s_event_data + event_data
+                break
+            else:
+                lst_s_event_data += data[0]
+
+    if f_event_data is not None:
+        input_vec = []
+        for event in EVENT_LIST:
+            if event == "time_diff":
+                input_vec.append(time_diff)
+            else:
+                input_vec.append(f_event_data.count(event))
+        return input_vec
+    else:
+        return None

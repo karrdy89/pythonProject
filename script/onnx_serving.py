@@ -166,9 +166,9 @@ class OnnxServing:
         for i in range(len(output_class)):
             if output_class[i] == "정상":
                 code = "00"
-            else:
+            elif output_class[i] == "전자금융피해":
                 code = "10"
-            f_res.append({"NAME": output_class[i], "PRBT": output_proba[i], "CODE": code})
+            f_res.append({"CODE": code, "NAME": output_class[i], "PRBT": output_proba[i]})
         # result["RSLT"] = output_class
         # result["PRBT"] = output_proba
         result["RSLT"] = f_res

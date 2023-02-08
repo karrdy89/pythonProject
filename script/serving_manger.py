@@ -484,7 +484,7 @@ class ServingManager:
                         pb_result = outputs["result_1"]
                         f_res = []
                         for i in range(len(p_result)):
-                            f_res.append({"NAME": p_result[i], "PRBT": pb_result[i], "CODE": c_result})
+                            f_res.append({"NAME": p_result[i], "PRBT": pb_result[i], "CODE": c_result[i]})
                         result["RSLT"] = f_res
                         if self._LOG_TO_DB == 1:
                             MDL_ID = model_id
@@ -524,8 +524,14 @@ class ServingManager:
                         N_VER = version_info[1]
                         SUMN_MSG = str(data)
                         RSLT_MSG = {}
-                        RSLT_MSG["RSLT"] = predict_result.get("RSLT")
-                        RSLT_MSG["PRBT"] = predict_result.get("PRBT")
+                        p_result = predict_result.get("RSLT")
+                        RSLT = []
+                        PRBT = []
+                        for res in p_result:
+                            RSLT.append(res["NAME"])
+                            PRBT.append(res["PRBT"])
+                        RSLT_MSG["RSLT"] = RSLT
+                        RSLT_MSG["PRBT"] = PRBT
                         RSLT_MSG = str(RSLT_MSG)
                         param = {"MDL_ID": MDL_ID, "MN_VER": MN_VER, "N_VER": N_VER,
                                  "SUMN_MSG": SUMN_MSG, "RSLT_MSG": RSLT_MSG}
