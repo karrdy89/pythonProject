@@ -16,7 +16,7 @@ def get_model(vocab_size: int, vocabulary, max_len: int, num_labels: int, embedd
                                                                              mask_token=mask_token)
     encoded_inputs = encoding_layer(inputs)
     positional_embedding_layer = tf.keras.layers.Embedding(max_len, embedding_dim,
-                                                           name='positional_embeddings', mask_zero=False,
+                                                           name='positional_embeddings', mask_zero=True,
                                                            embeddings_regularizer=tf.keras.regularizers.l2(l2_reg))
     item_embedding_layer = tf.keras.layers.Embedding(vocab_size, embedding_dim,
                                                      name='item_embeddings', mask_zero=True,
