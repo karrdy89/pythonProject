@@ -89,6 +89,15 @@
             ORDER BY CUST_NO ASC, ORGN_DTM ASC
         </select>
 
+        <select name="select_fds_event_test">
+            SELECT EVNT_ID, ORGN_DTM
+            FROM TEST
+            WHERE 1=1
+            AND CUST_NO = #{CUST_NO}
+            AND ORGN_DTM BETWEEN TO_DATE((TO_CHAR(SYSDATE-2, 'YYYYMMDD') || '000000'), 'YYYYMMDDHH24MISS') AND TO_DATE((TO_CHAR(SYSDATE, 'YYYYMMDD') || '235959'), 'YYYYMMDDHH24MISS')
+            ORDER BY ORGN_DTM ASC
+        </select>
+
         <insert name="insert_test">
                 INSERT INTO TEST
                  (CUST_NO,
@@ -98,7 +107,7 @@
                  SYS_EVNT_ID,
                  SYS_EVNT_NM)
                 VALUES
-                 (#{CUSTNO},
+                 (#{CUST_NO},
                  SYSDATE,
                  #{EVNT_ID},
                  #{EVNT_NM},

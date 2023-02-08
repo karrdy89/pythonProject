@@ -19,6 +19,7 @@ import numpy as np
 from statics import ROOT_DIR
 from utils import version_encode
 from db import DBUtil
+from transformers.fraud_detection import transform_data
 
 
 @ray.remote
@@ -113,15 +114,15 @@ class OnnxServing:
                 # func = sp_transformer_info[-1]
                 # func = getattr(module, func)
                 # data = func(data)
-                data = [random.randrange(0, 5)] * 44
+                data = transform_data(self._db, data)
         if self._input_shape is not None:
             if len(data) < self._input_shape[-1]:
                 result["CODE"] = "FAIL"
                 result["ERROR_MSG"] = "input shape is incorrect"
                 return result, data
             elif len(data) == 0:
-                result["CODE"] = "FAIL"
-                result["ERROR_MSG"] = "input vector is empty"
+                result["CODE"] = "SUCCESS"
+                result["ERROR_MSG"] = ""
                 return result, data
             else:
                 data = data[:self._input_shape[-1]]

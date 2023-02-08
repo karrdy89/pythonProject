@@ -1,6 +1,6 @@
 import numpy as np
 
-from script.db.db_util import DBUtil
+from db import DBUtil
 
 
 def transform_data(data: list, max_len: int | None = None):
