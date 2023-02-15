@@ -17,7 +17,7 @@ from ray.util.multiprocessing import Pool
 
 from db import DBUtil
 from statics import Actors, ROOT_DIR, TrainStateCode
-from dataset_maker.nbo.utils_b import split_chunk, make_dataset
+from dataset_maker.nbo.utils import split_chunk, make_dataset
 from dataset_maker.arg_types import BasicTableType
 
 
@@ -32,14 +32,18 @@ class MakeDatasetNBO:
         self._num_chunks: int = 0
         self._file_count: int = 1
         self._len_limit: int = 50
+        self._split: list = []
         self._label_data_total = {}
-        self._label_data_total_c = {}
         self._max_len = 0
         self._dataset: list = []
         self._vocabs: list = []
         self._name = ''
+        self._is_f_end = False
         self._is_fetch_end = False
+        self._is_export_end = False
+        self._is_operation_end = False
         self._total_processed_data = 0
+
         self._logger: ray.actor = None
         self._shared_state: ray.actor = None
         self._mem_limit: int = 104857600
@@ -56,14 +60,19 @@ class MakeDatasetNBO:
         self._act: ray.actor = None
         self._user_id: str = ''
         self._lock = Lock()
+        self._flush = 100
         self._total_read = 0
-        self._is_early_stop = False
-        self._is_mem_limit_fetch_end = False
-        self._is_left_over_done = False
-        self._left_over = {}
-        self._mem_flush_left_over = None
+        self._is_fetch_data_end = False
+        self._is_data_limit = False
+        self._is_merge = False
+        self._is_export = False
+        self._is_flushed = False
+        self._last_skip = False
+        self._left_over = None
+        self._call_count_set_split = 0
         self._call_count_set_dataset = 0
         self._labels_ratio = {}
+        self._cur_labels_num = {}
 
     def init(self, args: BasicTableType):
         self._name = args.actor_name
@@ -72,7 +81,7 @@ class MakeDatasetNBO:
         self._labels = args.labels + ["UNK"]
         for label in self._labels:
             self._label_data_total[label] = 0
-            self._label_data_total_c[label] = 0
+            self._cur_labels_num[label] = 0
         self._version = args.version
         self._key_index = args.key_index
         self._x_index = args.feature_index
@@ -88,6 +97,9 @@ class MakeDatasetNBO:
                     self._labels_ratio[label] = data_per_label + diff
                 else:
                     self._labels_ratio[label] = data_per_label
+        digit = (int(math.log10(self._num_data_limit)) + 1)
+        self._flush = int(math.e ** digit * int(str(self._num_data_limit)[:1]))
+        self._flush = 99999999
         try:
             self._logger = ray.get_actor(Actors.LOGGER)
             self._shared_state = ray.get_actor(Actors.GLOBAL_STATE)
@@ -95,9 +107,9 @@ class MakeDatasetNBO:
             print("an error occur when set actors", exc)
             return -1
         try:
-            self._db = DBUtil(db_info="FDS_DB")
+            self._db = DBUtil(db_info="MANAGE_DB")
             self._db.set_select_chunk(name=self._query, param={"START": args.start_dtm, "END": args.end_dtm},
-                                      array_size=50000, prefetch_row=50000)
+                                      array_size=10000, prefetch_row=10000)
         except Exception as exc:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                     msg="an error occur when set DBUtil: " + exc.__str__())
@@ -132,95 +144,76 @@ class MakeDatasetNBO:
             return -1
         return 0
 
-    def get_committable(self, classes: dict):
-        committable = {}
-        for label in self._labels:
-            committable[label] = 0
-        self._lock.acquire()
-        for label in self._labels:
-            diff = self._labels_ratio[label] - self._label_data_total_c[label]
-            if diff > 0:
-                if classes[label] >= diff:
-                    committable[label] = diff
-                    self._label_data_total_c[label] += diff
-                else:
-                    committable[label] = classes[label]
-                    self._label_data_total_c[label] += classes[label]
+    def is_committable(self, labels_num: dict) -> list:
+        if self._is_operation_end:
+            return []
+        appendable_labels = []
+        if self._labels_ratio:
+            self._lock.acquire()
+            for labels, limit in self._labels_ratio.items():
+                af_num = self._cur_labels_num[labels] + labels_num[labels]
+                if af_num <= limit:
+                    self._cur_labels_num[labels] = af_num
+                    appendable_labels.append(labels)
+            if not appendable_labels:
+                self._is_operation_end = True
         self._lock.release()
-        return committable
+        return appendable_labels
 
-    def set_dataset(self, data: dict = None, information: dict = None, nc: bool = False):
+    def set_dataset(self, data: dict = None, information: dict = None, f_end: bool = False):
         self._lock.acquire()
-        if not nc:
-            self._call_count_set_dataset += 1
-        if information is not None:
-            for label, num in information.items():
-                if data is not None:
+        if self._is_export or self._is_f_end:
+            self._lock.release()
+            return 0
+        self._is_f_end = f_end
+        self._call_count_set_dataset += 1
+
+        for label, num in information["classes"].items():
+            if self._label_data_total[label] < self._labels_ratio[label]:
+                ovf = self._label_data_total[label] + num - self._labels_ratio[label]
+                if ovf > 0:
+                    diff = self._labels_ratio[label] - self._label_data_total[label]
+                    self._label_data_total[label] += len(data[label][:diff])
+                    self._dataset += data[label][:diff]
+                else:
                     self._label_data_total[label] += len(data[label])
                     self._dataset += data[label]
-        for label in self._labels:
-            if self._label_data_total[label] < self._labels_ratio[label]:
-                self._is_early_stop = False
-                break
-        else:
-            self._is_early_stop = True
-        self._lock.release()
-        if self._is_early_stop:
-            if self._call_count_set_dataset == self._num_chunks:
-                self._logger.log.remote(level=logging.INFO, worker=self._worker,
-                                        msg="making nbo dataset: early stopping....")
-                if self._is_early_stop:
-                    self._export()
-                    return 0
-        if self._is_mem_limit_fetch_end or self._is_fetch_end:
-            if self._call_count_set_dataset == self._num_chunks:
-                if not self._is_left_over_done:
-                    self._logger.log.remote(level=logging.INFO, worker=self._worker,
-                                            msg="making nbo dataset: process left over....")
-                    self._process_left_over()
-                else:
-                    self._export()
-        return 0
 
-    def set_split(self, data: list):
-        self._process_pool.apply_async(make_dataset, args=(data, self._labels, self._len_limit,
-                                                           self._is_early_stop, self._act))
-        return 0
+        if f_end:
+            self._split = []
+            self._is_merge = False
+            self._is_export = True
+            self._lock.release()
+            self._export()
+            return 0
 
-    def set_left_over(self, data: dict):
-        self._lock.acquire()
-        self._left_over.update(data)
+        if self._call_count_set_dataset == len(self._split):
+            self._split = []
+            self._is_merge = False
+            self._is_export = True
+            self._lock.release()
+            self._export()
+            return 0
         self._lock.release()
         return 0
 
-    def _process_left_over(self):
-        if self._left_over:
-            chunk_idx_list = list(self._left_over.keys())
-            chunk_idx_list.sort()
-            b_cust_id = None
-            left_over_data = []
-            if self._mem_flush_left_over is not None:
-                if self._left_over[0][0] == self._mem_flush_left_over[0]:
-                    self._left_over[0] = self._mem_flush_left_over + self._left_over[0][1:]
-                else:
-                    left_over_data.append(self._mem_flush_left_over)
-            for chunk_idx in chunk_idx_list:
-                for chunk in self._left_over[chunk_idx]:
-                    if chunk[0] == b_cust_id:
-                        left_over_data[-1] = left_over_data[-1] + chunk[1:]
-                    else:
-                        left_over_data.append(chunk)
-                    b_cust_id = chunk[0]
-            if self._is_mem_limit_fetch_end:
-                self._mem_flush_left_over = left_over_data.pop(-1)
-            self._call_count_set_dataset = 0
-            self._num_chunks = 1
-            self._is_left_over_done = True
-            self._process_pool.apply_async(make_dataset, args=(left_over_data, self._labels, self._len_limit,
-                                                               self._is_early_stop, self._act))
-        else:
-            self._is_left_over_done = True
-            self.set_dataset(nc=True)
+    def set_split(self, data=None, nc=False):
+        self._lock.acquire(block=True, timeout=5)
+        if self._is_merge:
+            self._lock.release()
+            return 0
+        if not nc:
+            self._call_count_set_split += 1
+        if data is not None:
+            self._split.append(data)
+        if self._is_fetch_data_end or self._is_flushed:
+            if self._call_count_set_split == self._num_chunks:
+                self._is_merge = True
+                self._lock.release()
+                self._merge()
+                return 0
+        self._lock.release()
+        return 0
 
     def _done(self):
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
@@ -269,56 +262,144 @@ class MakeDatasetNBO:
         self._shared_state.kill_actor.remote(self._name)
 
     def _export(self):
+        self._last_skip = False
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="making nbo dataset: export csv: start")
-        self._is_left_over_done = False
-        for data in self._dataset:
-            dt_len = len(data) - 2
-            if self._max_len < dt_len:
-                self._max_len = dt_len
+        if self._is_flushed:
+            if self._is_operation_end or self._is_fetch_end:
+                for data in self._dataset:
+                    dt_len = len(data) - 2
+                    if self._max_len < dt_len:
+                        self._max_len = dt_len
 
-        fields = ["key"]
-        for i in range(self._max_len):
-            fields.append("feature" + str(i))
-        fields.append("label")
-        for data in self._dataset:
-            data_len = len(data)
-            r_max_len = self._max_len + 2
-            if data_len < r_max_len:
-                label = data.pop(-1)
-                for i in range(r_max_len - data_len):
-                    data.append(None)
-                data.append(label)
-        try:
-            mdf_flag = False
-            df = pd.DataFrame(self._dataset, columns=fields)
-            self._dataset = []
-            one_column = []
-            feature_df = df.iloc[:, 1:-1]
-            for k in list(feature_df.keys()):
-                one_column.append(feature_df[k])
-            if len(one_column) > 1:
-                combined = pd.concat(one_column, ignore_index=True).tolist()
-                self._vocabs.append(combined)
-                df.to_csv(self._path + "/" + str(self._file_count) + ".csv", sep=",", na_rep="NaN", index=False)
+                fields = ["key"]
+                for i in range(self._max_len):
+                    fields.append("feature" + str(i))
+                fields.append("label")
+                for data in self._dataset:
+                    data_len = len(data)
+                    r_max_len = self._max_len + 2
+                    if data_len < r_max_len:
+                        label = data.pop(-1)
+                        for i in range(r_max_len - data_len):
+                            data.append(None)
+                        data.append(label)
+                try:
+                    mdf_flag = False
+                    df = pd.DataFrame(self._dataset, columns=fields)
+                    one_column = []
+                    feature_df = df.iloc[:, 1:-1]
+                    for k in list(feature_df.keys()):
+                        one_column.append(feature_df[k])
+                    if len(one_column) > 1:
+                        combined = pd.concat(one_column, ignore_index=True).tolist()
+                        self._vocabs.append(combined)
+                        df.to_csv(self._path + "/" + str(self._file_count) + ".csv", sep=",", na_rep="NaN", index=False)
+                    else:
+                        print("no concatenable data frame")
+                        mdf_flag = True
+                except Exception as exc:
+                    self.fault_handle(msg="an error occur when export csv: " + exc.__str__())
+                else:
+                    if mdf_flag:
+                        self._is_export_end = True
+                        self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                                msg="making nbo dataset: export csv: no concatenable data frame")
+                        self.fetch_data()
+                    else:
+                        self._information = []
+                        self._dataset = []
+                        self._file_count += 1
+                        self._is_export_end = True
+                        self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                                msg="making nbo dataset: export csv: finish")
+                        self.fetch_data()
             else:
-                mdf_flag = True
-        except Exception as exc:
-            self.fault_handle(msg="an error occur when export csv: " + exc.__str__())
-        else:
-            if mdf_flag:
-                self._logger.log.remote(level=logging.ERROR, worker=self._worker,
-                                        msg="making nbo dataset: export csv: no concatenable data frame")
-                self.fault_handle(msg="an error occur when export csv: " + "no concatenable data frame")
-            if self._is_early_stop or self._is_fetch_end:
+                self._is_export_end = True
+                self._last_skip = True
+                print("skipping export by flush")
                 self._logger.log.remote(level=logging.INFO, worker=self._worker,
-                                        msg="making nbo dataset: export csv: finish")
-                self._done()
-            elif self._is_mem_limit_fetch_end:
-                self._file_count += 1
-                self._logger.log.remote(level=logging.INFO, worker=self._worker,
-                                        msg="making nbo dataset: export csv: finish")
+                                        msg="making nbo dataset: export csv: skipping export by flush")
                 self.fetch_data()
+        elif self._is_fetch_data_end:
+            for data in self._dataset:
+                dt_len = len(data) - 2
+                if self._max_len < dt_len:
+                    self._max_len = dt_len
+
+            fields = ["key"]
+            for i in range(self._max_len):
+                fields.append("feature" + str(i))
+            fields.append("label")
+            for data in self._dataset:
+                data_len = len(data)
+                r_max_len = self._max_len + 2
+                if data_len < r_max_len:
+                    label = data.pop(-1)
+                    for i in range(r_max_len - data_len):
+                        data.append(None)
+                    data.append(label)
+            try:
+                mdf_flag = False
+                df = pd.DataFrame(self._dataset, columns=fields)
+                one_column = []
+                feature_df = df.iloc[:, 1:-1]
+                for k in list(feature_df.keys()):
+                    one_column.append(feature_df[k])
+                if len(one_column) > 1:
+                    combined = pd.concat(one_column, ignore_index=True).tolist()
+                    self._vocabs.append(combined)
+                    df.to_csv(self._path + "/" + str(self._file_count) + ".csv", sep=",", na_rep="NaN", index=False)
+                else:
+                    print("no concatenable data frame")
+                    mdf_flag = True
+            except Exception as exc:
+                self.fault_handle(msg="an error occur when export csv: " + exc.__str__())
+            else:
+                if mdf_flag:
+                    self._is_export_end = True
+                    self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                            msg="making nbo dataset: export csv: no concatenable data frame")
+                    self.fetch_data()
+                else:
+                    self._information = []
+                    self._dataset = []
+                    self._file_count += 1
+                    self._is_export_end = True
+                    self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                            msg="making nbo dataset: export csv: finish")
+                    self.fetch_data()
+
+    def _merge(self):
+        self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                msg="making nbo dataset: merge: start")
+        self._call_count_set_dataset = 0
+        # left_over = None
+        split_len = len(self._split)
+        for i in range(split_len):
+            if self._is_operation_end:
+                self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                        msg="making nbo dataset: merge: end by early stop")
+                return 0
+            cur_chunk = None
+            for chunk in self._split:
+                if chunk[-1] == i:
+                    cur_chunk = chunk[:-1]
+            if self._left_over is not None:
+                left_over_cust_id = self._left_over[0]
+                if cur_chunk[0][0] == left_over_cust_id:
+                    cur_chunk[0][1] = self._left_over[1] + cur_chunk[0][1]
+                else:
+                    cur_chunk.insert(0, self._left_over)
+            if i < split_len - 1:
+                self._left_over = cur_chunk.pop(-1)
+            len_chunk = len(cur_chunk)
+            self._num_data += len_chunk
+            self._process_pool.apply_async(make_dataset, args=(cur_chunk, self._labels, self._len_limit,
+                                                               self._labels_ratio, self._is_operation_end, self._act))
+        self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                msg="making nbo dataset: merge: end")
+        return 0
 
     def fault_handle(self, msg):
         self._process_pool.close()
@@ -344,18 +425,20 @@ class MakeDatasetNBO:
             return 0
 
     def fetch_data(self):
+        self._is_export = False
+        self._is_flushed = False
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="making nbo dataset: fetch data: start")
-        if not self._is_fetch_end and not self._is_early_stop:
-            self._call_count_set_dataset = 0
+        if not self._is_fetch_end and not self._is_operation_end:
+            self._call_count_set_split = 0
             self._cur_buffer_size = 0
             self._num_chunks = 0
-            self._is_mem_limit_fetch_end = False
+            self._is_fetch_data_end = False
             self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                     msg="making nbo dataset: fetch data: read from db")
             i = 0
             for chunk in self._db.select_chunk():
-                if self._is_early_stop:
+                if self._is_operation_end:
                     return 0
                 self._total_read += len(chunk)
                 print("read: ", self._total_read)
@@ -367,20 +450,35 @@ class MakeDatasetNBO:
                     self._chunk_size = sys.getsizeof(chunk) + sys.getsizeof(True)
                     if self._chunk_size >= self._mem_limit:
                         self.fault_handle("the chunk size of data exceed memory limit")
-                        break
+                        return -1
                 self._cur_buffer_size += self._chunk_size
                 self._num_chunks = i + 1
                 if self._cur_buffer_size + self._chunk_size < self._mem_limit:
                     self._process_pool.apply_async(split_chunk,
                                                    args=(chunk, i, self._key_index, self._x_index, self._act))
+                    if self._num_chunks >= self._flush:
+                        self._is_flushed = True
+                        # self._is_fetch_data_end = True
+                        self.set_split(nc=True)
+                        self._logger.log.remote(level=logging.INFO, worker=self._worker,
+                                                msg="making nbo dataset: fetch data: ended by flush")
+                        return 1
                 else:
-                    self._is_mem_limit_fetch_end = True
                     self._process_pool.apply_async(split_chunk,
                                                    args=(chunk, i, self._key_index, self._x_index, self._act))
+                    self._is_fetch_data_end = True
+                    self.set_split(nc=True)
                     self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                             msg="making nbo dataset: fetch data: ended by limitation of memory")
-                    break
+                    return 1
                 i += 1
+            self._is_fetch_data_end = True
+            self.set_split(nc=True)
+        if (self._is_export_end and self._is_operation_end) or (self._is_export_end and self._is_fetch_end):
+            if self._last_skip:
+                self._export()
+            self._done()
+
         elif self._is_fetch_end and self._total_read == 0:
             self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                     msg="making nbo dataset: fetch data: empty table")

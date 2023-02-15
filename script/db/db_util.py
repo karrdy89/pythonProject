@@ -153,6 +153,7 @@ class DBUtil:
         Execute select with given query
         :return: object
         """
+        print(query)
         with self._session_pool.acquire() as conn:
             conn.autocommit = True
             cursor = conn.cursor()

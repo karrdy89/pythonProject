@@ -115,6 +115,7 @@ class OnnxServing:
                 # func = getattr(module, func)
                 # data = func(data)
                 data = transform_data(self._db, data)
+                data = [random.randrange(0, 5)] * 44
         if self._input_shape is not None:
             if len(data) < self._input_shape[-1]:
                 result["CODE"] = "FAIL"

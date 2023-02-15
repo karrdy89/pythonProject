@@ -36,8 +36,7 @@ def get_model(vocab_size: int, vocabulary, max_len: int, num_labels: int, embedd
         seq_attention = point_wise_feed_forward(seq_attention, dropout_rate=dropout_rate, conv_dims=conv_dims)
         seq_attention *= mask
     x = layer_normalization(seq_attention)
-    x = layers.GlobalAveragePooling1D()(x)
-    x = layers.Dense(64, activation="relu")(x)
+    x = layers.GlobalAveragePooling1D()(x    x = layers.Dense(64, activation="relu")(x)
     x = layers.Dropout(0.1)(x)
     x = layers.Dense(16, activation="relu")(x)
     x = layers.Dropout(0.1)(x)

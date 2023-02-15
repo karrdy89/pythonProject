@@ -96,7 +96,7 @@ END_EVENT = ["EVT0000001", "EVT0000002", "EVT0000003", "EVT0000004"]
 
 
 def transform_data(db, data: list) -> list:
-    data = db.select(name="select_fds_event_test", param={"CUST_NO": data[0]})
+    data = db.select(name="select_fds_event", param={"CUST_NO": data[0]})
     if len(data) == 0:
         return []
     df = pd.DataFrame(data)

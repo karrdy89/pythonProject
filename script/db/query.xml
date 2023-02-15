@@ -98,6 +98,17 @@
             ORDER BY ORGN_DTM ASC
         </select>
 
+        <select name="select_fds_event">
+            SELECT
+                /*+ INDEX_DESC(A IXTBCHN3001H03) */
+                A.EVNT_ID,
+                A.ORGN_DTM
+            FROM S_AIB.TBCHN3001H A
+            WHERE 1=1
+            AND CUST_NO = #{CUST_NO}
+            AND ORGN_DTM BETWEEN TO_CHAR(SYSDATE-2, 'YYYYMMDD') || '000000000' AND TO_CHAR(SYSDATE, 'YYYYMMDD') || '999999999'
+        </select>
+
         <insert name="insert_test">
                 INSERT INTO TEST
                  (CUST_NO,
