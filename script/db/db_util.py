@@ -17,6 +17,7 @@ import oracledb
 
 from db.mapper import Mapper
 from statics import ROOT_DIR
+from cryptography.fernet import Fernet
 
 
 class DBUtil:
@@ -83,6 +84,7 @@ class DBUtil:
         self._SESSION_POOL_MIN: int = 2
         self._SESSION_POOL_MAX: int = 30
         self._DSN = "None"
+        oracledb.init_oracle_client()
         try:
             self.init(db_info=db_info)
         except Exception as exc:
@@ -98,6 +100,13 @@ class DBUtil:
             config_parser.read(ROOT_DIR + "/config/config.ini")
             self._USER = str(config_parser.get(db_info, "USER"))
             self._PASSWORD = str(config_parser.get(db_info, "PASSWORD"))
+            key_path = ROOT_DIR + "/script/db/refKey.txt"
+            f = open(key_path, "rb")
+            key = f.read()
+            f.close()
+            self._PASSWORD = bytes(self._PASSWORD, 'utf-8')
+            dec_key = Fernet(key)
+            self._PASSWORD = (dec_key.decrypt(self._PASSWORD)).decode("utf-8")
             self._IP = str(config_parser.get(db_info, "IP"))
             self._PORT = int(config_parser.get(db_info, "PORT"))
             self._SID = str(config_parser.get(db_info, "SID"))
@@ -286,3 +295,18 @@ class DBUtil:
         elif type(v) == str:
             v = v.replace("'", '"')
             return "'" + v + "'"
+
+
+# from cryptography.fernet import Fernet
+# import os
+# from script.statics import ROOT_DIR
+# key_path = ROOT_DIR + "/script/db/refKey.txt"
+# f = open(key_path, "rb")
+# key = f.read()
+# refKey = Fernet(key)
+# mypwdbyt = bytes("Rcrtacaddw1!", 'utf-8') # convert into byte
+# encryptedPWD = refKey.encrypt(mypwdbyt)
+# print(encryptedPWD)
+# f = open("./encryptedPWD.txt", "wb")
+# f.write(encryptedPWD)
+# f.close()

@@ -115,15 +115,15 @@ class OnnxServing:
                 # func = getattr(module, func)
                 # data = func(data)
                 data = transform_data(self._db, data)
-                data = [random.randrange(0, 5)] * 44
         if self._input_shape is not None:
-            if len(data) < self._input_shape[-1]:
-                result["CODE"] = "FAIL"
-                result["ERROR_MSG"] = "input shape is incorrect"
-                return result, data
-            elif len(data) == 0:
+            if len(data) == 0:
                 result["CODE"] = "SUCCESS"
                 result["ERROR_MSG"] = ""
+                result["RSLT"].append({"CODE": "00", "NAME": "정상", "PRBT": 0.999})
+                return result, data
+            elif len(data) < self._input_shape[-1]:
+                result["CODE"] = "FAIL"
+                result["ERROR_MSG"] = "input shape is incorrect"
                 return result, data
             else:
                 data = data[:self._input_shape[-1]]

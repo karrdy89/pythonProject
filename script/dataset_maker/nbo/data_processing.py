@@ -17,7 +17,7 @@ from ray.util.multiprocessing import Pool
 
 from db import DBUtil
 from statics import Actors, ROOT_DIR, TrainStateCode
-from dataset_maker.nbo.utils_b import split_chunk, make_dataset
+from dataset_maker.nbo.utils import split_chunk, make_dataset
 from dataset_maker.arg_types import BasicTableType
 
 
@@ -95,7 +95,7 @@ class MakeDatasetNBO:
             print("an error occur when set actors", exc)
             return -1
         try:
-            self._db = DBUtil(db_info="FDS_DB")
+            self._db = DBUtil(db_info="MANAGE_DB")
             self._db.set_select_chunk(name=self._query, param={"START": args.start_dtm, "END": args.end_dtm},
                                       array_size=50000, prefetch_row=50000)
         except Exception as exc:
