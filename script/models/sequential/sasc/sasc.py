@@ -3,9 +3,9 @@ from tensorflow.keras import layers
 from utils.common import encode_tf_input_meta
 
 
-def get_model(vocab_size: int, vocabulary, max_len: int, num_labels: int, embedding_dim: int = 64,
-              dropout_rate: float = 0.3, num_blocks: int = 2, attention_num_heads: int = 8, l2_reg: float = 1e-6,
-              epsilon: float = 1e-8, learning_rate: float = 0.0013, mask_token: str = ''):
+def get_model(vocab_size: int, vocabulary, max_len: int, num_labels: int, embedding_dim: int = 32,
+              dropout_rate: float = 0.2, num_blocks: int = 1, attention_num_heads: int = 4, l2_reg: float = 1e-6,
+              epsilon: float = 1e-8, learning_rate: float = 0.012, mask_token: str = ''):
     attention_dim = embedding_dim
     conv_dims = [embedding_dim, embedding_dim]
 
@@ -36,9 +36,10 @@ def get_model(vocab_size: int, vocabulary, max_len: int, num_labels: int, embedd
         seq_attention = point_wise_feed_forward(seq_attention, dropout_rate=dropout_rate, conv_dims=conv_dims)
         seq_attention *= mask
     x = layer_normalization(seq_attention)
-    x = layers.GlobalAveragePooling1D()(x    x = layers.Dense(64, activation="relu")(x)
-    x = layers.Dropout(0.1)(x)
+    x = layers.GlobalAveragePooling1D()(x)
     x = layers.Dense(16, activation="relu")(x)
+    x = layers.Dropout(0.1)(x)
+    x = layers.Dense(8, activation="relu")(x)
     x = layers.Dropout(0.1)(x)
     outputs = layers.Dense(num_labels, activation="softmax")(x)
     model = tf.keras.Model(inputs=[inputs], outputs=outputs)

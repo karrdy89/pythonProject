@@ -458,14 +458,16 @@ class ServingManager:
                     elif predict_result == -1:
                         self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                                 msg="connection error : " + model_id + ":" + version)
-                        await self.fail_back(model_id, version, server_name)
-                        result = await self.predict(model_id, version, data.get("inputs")[0])
+                        # await self.fail_back(model_id, version, server_name)
+                        # result = await self.predict(model_id, version, data.get("inputs")[0])
                     else:
                         result["CODE"] = "SUCCESS"
                         result["ERROR_MSG"] = ""
                         outputs = predict_result["outputs"]
                         p_result = outputs["result"]
                         c_result = []
+                        # check thread hold, reset result
+
                         # result["RSLT"] = outputs["result"]
                         if model_deploy_state.transformer:
                             sp_transformer_info = model_deploy_state.transformer.split('.')
@@ -514,8 +516,8 @@ class ServingManager:
                     self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                             msg="can't make inference : " + exc.__str__() + model_id + ":" + version +
                                                 "data: "+str(data))
-                    await self.fail_back(model_id, version, server_name)
-                    result = await self.predict(model_id, version, data)
+                    # await self.fail_back(model_id, version, server_name)
+                    # result = await self.predict(model_id, version, data)
                 else:
                     if self._LOG_TO_DB == 1:
                         MDL_ID = model_id

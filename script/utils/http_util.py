@@ -51,7 +51,7 @@ class Http:
                     return None
         except aiohttp.ClientConnectionError as e:
             logger = ray.get_actor("logging_service")
-            logger.log.remote(level=logging.ERROR, worker=type(self).__name__,
+            logger.log.remote(level=logging.WARN, worker=type(self).__name__,
                               msg="http connection error :" + str(e))
             return -1
 
@@ -68,7 +68,7 @@ class Http:
                     return None
         except aiohttp.ClientConnectionError as e:
             logger = ray.get_actor("logging_service")
-            logger.log.remote(level=logging.ERROR, worker=type(self).__name__,
+            logger.log.remote(level=logging.WARN, worker=type(self).__name__,
                               msg="http connection error :" + str(e))
             return -1
 
@@ -84,6 +84,6 @@ class Http:
                     return None
         except aiohttp.ClientConnectionError as e:
             logger = ray.get_actor("logging_service")
-            logger.log.remote(level=logging.ERROR, worker=type(self).__name__,
+            logger.log.remote(level=logging.WARN, worker=type(self).__name__,
                               msg="http connection error :" + str(e))
             return -1

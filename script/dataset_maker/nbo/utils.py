@@ -47,8 +47,10 @@ def make_dataset(datas: list, labels: list[str], len_limit: int, is_operation_en
         for data in datas:
             cust_id = data[0]
             features = data[1:]
+
             # unk_sample_count = 0
             for idx, feature in enumerate(features):
+
                 if feature in labels:
                     if idx > 2:
                         if idx >= len_limit:
@@ -57,17 +59,32 @@ def make_dataset(datas: list, labels: list[str], len_limit: int, is_operation_en
                             label_dataset[feature].append([cust_id] + features[0:idx] + [feature])
                         classes["UNK"] += 1
                         classes[feature] += 1
-                else:
-                    if idx > 4:
+            unk_sample_count = 0
+            for idx, r_feature in enumerate(reversed(features)):
+                if unk_sample_count > 5:
+                    continue
+                if random.random() > 0.3:
+                    continue
+                if r_feature not in labels:
+                    r_idx = len(features) - idx
+                    if r_idx > 3:
+                        if r_idx >= len_limit:
+                            label_dataset["UNK"].append([cust_id] + features[r_idx - len_limit:r_idx] + ["UNK"])
+                        else:
+                            label_dataset["UNK"].append([cust_id] + features[0:r_idx] + ["UNK"])
+                        unk_sample_count += 1
+                # else:
+                #     if idx > 4:
+                        # count backward
                         # if unk_sample_count > 5:
                         #     continue
                         # if random.random() > 0.3:
                         #     continue
-                        if idx >= len_limit:
-                            label_dataset["UNK"].append([cust_id] + features[idx-len_limit:idx] + ["UNK"])
-                        else:
-                            label_dataset["UNK"].append([cust_id] + features[0:idx] + ["UNK"])
-                        classes["UNK"] += 1
+                        # if idx >= len_limit:
+                        #     label_dataset["UNK"].append([cust_id] + features[idx-len_limit:idx] + ["UNK"])
+                        # else:
+                        #     label_dataset["UNK"].append([cust_id] + features[0:idx] + ["UNK"])
+                        # classes["UNK"] += 1
                         # unk_sample_count += 1
         committable = ray.get(act.get_committable.remote(classes=classes))
         for label, num in committable.items():

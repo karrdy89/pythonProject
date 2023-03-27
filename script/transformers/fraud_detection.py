@@ -100,6 +100,7 @@ def transform_data(db, data: list) -> list:
     if len(data) == 0:
         return []
     df = pd.DataFrame(data)
+    df.iloc[:, 1] = pd.to_datetime(df.iloc[:, 1], format='%Y%m%d%H%M%S')
     start_idx_list = df.index[df.iloc[:, 0].isin(START_EVENT)].tolist()
     end_idx_list = df.index[df.iloc[:, 0].isin(END_EVENT)].tolist()
     if not start_idx_list or not end_idx_list:
