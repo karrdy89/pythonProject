@@ -55,7 +55,7 @@ class Logger:
         self.logger: Logger = logging.getLogger("global")
         self._boot_logger: Logger = BootLogger().logger
         self._log_base_path: str = str(Path(__file__).parent.parent) + "/logs/"
-        self._MAX_BACKUP_COUNT: int = 100
+        self._MAX_BACKUP_COUNT: int = 365
         self._MAX_BYTES: int = 104857600
 
     def init(self) -> int:
@@ -73,12 +73,12 @@ class Logger:
         formatter = logging.Formatter("[%(levelname)s] : %(asctime)s : %(message)s", "%Y-%m-%d %H:%M:%S")
         error_handler = TimedRotatingFileHandler(
             self._log_base_path + "{:%Y-%m-%d %H:%M:%S}_error.log".format(datetime.now()),
-            when='D', backupCount=3650)
+            when='midnight', interval=1, backupCount=self._MAX_BACKUP_COUNT)
         error_handler.setFormatter(formatter)
         error_handler.setLevel(logging.ERROR)
         info_handler = TimedRotatingFileHandler(
             self._log_base_path + "{:%Y-%m-%d %H:%M:%S}_info.log".format(datetime.now()),
-            when='D', backupCount=3650)
+            when='midnight', interval=1, backupCount=self._MAX_BACKUP_COUNT)
         info_handler.setFormatter(formatter)
         info_handler.setLevel(logging.INFO)
         console_handler = logging.StreamHandler()
@@ -129,7 +129,7 @@ class BootLogger:
         formatter = logging.Formatter("[%(levelname)s] : %(asctime)s : %(message)s", "%Y-%m-%d %H:%M:%S")
         log_handler = TimedRotatingFileHandler(
             self._log_base_path + "{:%Y-%m-%d %H:%M:%S}_boot.log".format(datetime.now()),
-            when='D', backupCount=3650)
+            when='midnight', interval=1, backupCount=10)
         log_handler.setFormatter(formatter)
         log_handler.setLevel(logging.INFO)
         self.logger.addHandler(log_handler)
