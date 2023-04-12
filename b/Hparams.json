@@ -1,9 +1,9 @@
 {
     "info": {
-        "threshold": 0.55,
-        "hp_grid_gamma": 0.35,
+        "threshold": 0.6,
+        "hp_grid_gamma": 0.25,
         "hp_grid_spw": 10,
-        "hp_grid_m_depth": 4,
+        "hp_grid_m_depth": 5,
         "hp_grid_estimators": 800,
         "hp_grid_rl": 0.03,
         "FP": 0,

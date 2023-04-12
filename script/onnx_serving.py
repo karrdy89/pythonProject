@@ -10,6 +10,7 @@
 # ---------------------------------------------------------------------------------------------------------------------
 import os
 import random
+import configparser
 
 import ray
 import onnx
@@ -57,6 +58,7 @@ class OnnxServing:
     def __init__(self):
         self._worker: str = type(self).__name__
         self._model_path: str = ""
+        self._model_id: str = ""
         self._metadata: dict | None = None
         self._input_type: str | None = None
         self._input_shape: list | None = None
@@ -69,6 +71,14 @@ class OnnxServing:
 
     def init(self, model_id: str, version: str) -> tuple:
         self._db = DBUtil(db_info="MANAGE_DB")
+        self._model_id = model_id
+        config_parser = configparser.ConfigParser()
+        config_parser.read(ROOT_DIR + "/script/transformers/model_option.ini")
+        try:
+            self._threshold = float(config_parser.get("THRESHOLD", model_id))
+        except Exception as e:
+            self._threshold = None
+
         encoded_version = version_encode(version)
         model_key = model_id + "_" + version
         self._model_path = ROOT_DIR + "/saved_models/" + model_key + "/" + model_id + "/" + str(encoded_version)
@@ -98,7 +108,8 @@ class OnnxServing:
             self._input_type = self._metadata.get("input_type")
             self._input_shape = self._metadata.get("input_shape")
             self._transformer = self._metadata.get("transformer")
-            self._threshold = self._metadata.get("threshold")
+            if self._threshold is None:
+                self._threshold = self._metadata.get("threshold")
             self._pos_class = self._metadata.get("pos_class")
         except Exception as exc:
             print(self._worker + ": " + exc.__str__())
@@ -117,9 +128,13 @@ class OnnxServing:
                 data = transform_data(self._db, data)
         if self._input_shape is not None:
             if len(data) == 0:
-                result["CODE"] = "SUCCESS"
-                result["ERROR_MSG"] = ""
-                result["RSLT"].append({"CODE": "00", "NAME": "정상", "PRBT": 0.999})
+                if self._model_id == "MDL0000002":
+                    result["CODE"] = "SUCCESS"
+                    result["ERROR_MSG"] = ""
+                    result["RSLT"].append({"CODE": "00", "NAME": "정상", "PRBT": 0.999})
+                else:
+                    result["CODE"] = "SUCCESS"
+                    result["ERROR_MSG"] = ""
                 return result, data
             elif len(data) < self._input_shape[-1]:
                 result["CODE"] = "FAIL"
@@ -165,12 +180,16 @@ class OnnxServing:
         result["CODE"] = "SUCCESS"
         result["ERROR_MSG"] = ""
         f_res = []
-        for i in range(len(output_class)):
-            if output_class[i] == "정상":
-                code = "00"
-            elif output_class[i] == "전자금융피해":
-                code = "10"
-            f_res.append({"CODE": code, "NAME": output_class[i], "PRBT": output_proba[i]})
+        if self._model_id == "MDL0000002":
+            for i in range(len(output_class)):
+                if output_class[i] == "정상":
+                    code = "00"
+                elif output_class[i] == "전자금융피해":
+                    code = "10"
+                f_res.append({"CODE": code, "NAME": output_class[i], "PRBT": output_proba[i]})
+        else:
+            for i in range(len(output_class)):
+                f_res.append({"NAME": pred[i], "PRBT": pred_proba[i]})
         # result["RSLT"] = output_class
         # result["PRBT"] = output_proba
         result["RSLT"] = f_res

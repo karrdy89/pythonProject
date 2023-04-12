@@ -210,7 +210,7 @@ class ServingManager:
         except Exception as exc:
             self._boot_logger.error(
                 "(" + self._worker + ") " + "can't read deploy state from db:" + exc.__str__())
-            # return -1
+            return -1
         else:
             for stored_deploy_state in stored_deploy_states:
                 model_id = stored_deploy_state[0]
@@ -220,8 +220,17 @@ class ServingManager:
                 deploy_num = stored_deploy_state[3]
                 version = mn_ver + "." + n_ver
                 encoded_version = version_encode(version)
+
+                config_parser = configparser.ConfigParser()
+                config_parser.read(ROOT_DIR + "/script/transformers/model_option.ini")
+                try:
+                    threshold = float(config_parser.get("THRESHOLD", model_id))
+                except Exception as e:
+                    threshold = None
                 model_deploy_state = ModelDeployState(model=(model_id, encoded_version),
-                                                      state=StateCode.AVAILABLE, model_type=model_type)
+                                                      state=StateCode.AVAILABLE, model_type=model_type,
+                                                      threshold=threshold)
+
                 result = await self.deploy_server(model_id, version, deploy_num, model_deploy_state, model_type)
                 if result.get("CODE") == "FAIL":
                     self._boot_logger.error(
@@ -278,8 +287,17 @@ class ServingManager:
             if deploy_num <= 0:
                 result = {"CODE": "SUCCESS", "ERROR_MSG": "", "MSG": "nothing to change"}
             else:
+                config_parser = configparser.ConfigParser()
+                config_parser.read(ROOT_DIR + "/script/transformers/model_option.ini")
+                try:
+                    threshold = float(config_parser.get("THRESHOLD", model_id))
+                except Exception as e:
+                    threshold = None
                 model_deploy_state = ModelDeployState(model=(model_id, encoded_version),
-                                                      state=StateCode.AVAILABLE, model_type=model_type)
+                                                      state=StateCode.AVAILABLE, model_type=model_type,
+                                                      threshold=threshold)
+                # model_deploy_state = ModelDeployState(model=(model_id, encoded_version),
+                #                                       state=StateCode.AVAILABLE, model_type=model_type)
                 try:
                     result = await self.deploy_server(model_id, version, deploy_num, model_deploy_state, model_type)
                     print(result)
@@ -465,10 +483,20 @@ class ServingManager:
                         result["ERROR_MSG"] = ""
                         outputs = predict_result["outputs"]
                         p_result = outputs["result"]
+                        pb_result = outputs["result_1"]
                         c_result = []
-                        # check thread hold, reset result
 
-                        # result["RSLT"] = outputs["result"]
+                        if model_deploy_state.threshold is not None and model_id == "MDL0000001":
+                            if p_result[0] != "UNK" and pb_result[0] < model_deploy_state.threshold:
+                                remain_pb = (1 - model_deploy_state.threshold) / len(p_result)
+                                p_result.remove("UNK")
+                                p_result.insert(0, "UNK")
+                                for i in range(len(p_result)):
+                                    if i == 0:
+                                        pb_result[i] = model_deploy_state.threshold
+                                    else:
+                                        pb_result[i] = remain_pb
+
                         if model_deploy_state.transformer:
                             sp_transformer_info = model_deploy_state.transformer.split('.')
                             module = ''.join(sp_transformer_info[:-1])
@@ -480,10 +508,10 @@ class ServingManager:
                                         mapping.append("기타")
                                         continue
                                     else:
-                                        mapping.append(self._db.select(name="select_event_name", param={"EVNT_ID": event_id})[0][0])
+                                        mapping.append(self._db.select(name="select_event_name",
+                                                                       param={"EVNT_ID": event_id})[0][0])
                                 p_result = mapping
                         # result["PRBT"] = outputs["result_1"]
-                        pb_result = outputs["result_1"]
                         f_res = []
                         for i in range(len(p_result)):
                             f_res.append({"NAME": p_result[i], "PRBT": pb_result[i], "CODE": c_result[i]})
@@ -1042,6 +1070,7 @@ class ModelDeployState:
     model_type: int
     max_input: int = None
     transformer: str = None
+    threshold: float = None
     cycle_iterator = None
     servers: dict = field(default_factory=dict)
 

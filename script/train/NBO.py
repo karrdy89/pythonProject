@@ -75,7 +75,7 @@ def train_NBO_model(train_info: Input[TrainInfo]):
             class_weight[k] = (1 / v) * (class_total / 2.0) * lowest_class_weight
         else:
             class_weight[k] = (1 / v) * (class_total / 2.0)
-    print(class_weight)
+    # print(class_weight)
 
     labels = list(set(labels))
 
@@ -181,43 +181,43 @@ def train_NBO_model(train_info: Input[TrainInfo]):
     model = tf.keras.Model(model.input, labeled_output)
     model.save(train_info.save_path)
 
-    # predict
-    threshold = 0.65
-    pred = []
-    truth = []
-    proba = []
-    for idx in range(len(X_test)):
-        print(idx, len(X_test))
-        label, prob = model.predict(tf.constant([X_test[idx]]))
-        label = label.tolist()
-        prob = prob.tolist()
-        if label[0] != b"UNK":
-            if prob[0] <= threshold:
-                p_res = b"UNK"
-            else:
-                p_res = label[0]
-        else:
-            p_res = b"UNK"
-        pred.append(p_res)
-        proba.append(prob[0])
-        truth.append(labels[y_test[idx]])
-
-    import pandas as pd
-    df = pd.DataFrame((zip(truth, pred, proba)), columns=['truth', 'pred', 'proba'])
-
-    label_acc = {}
-    df = df.astype({'truth': 'string'})
-    df['pred'] = df['pred'].str.decode("utf-8")
-    df = df.astype({'pred': 'string'})
-    df.to_csv("./pred.csv")
-    print(df.dtypes)
-    for label in labels:
-        label_df = df.loc[df['truth'] == label]
-        total = len(label_df)
-        correct = len(label_df.query('truth == pred'))
-        label_acc[label] = correct/total
-    print(label_acc)
-    print("acc_total", len(df.query('truth == pred'))/len(df))
-    print(df.loc[df['pred'] == "UNK"])
-    print(len(df.loc[df['pred'] == "UNK"]), len(df))
-    # get acc per class
+    #
+    # # predict
+    # threshold = 0.65
+    # pred = []
+    # truth = []
+    # proba = []
+    # for idx in range(len(X_test)):
+    #     print(idx, len(X_test))
+    #     label, prob = model.predict(tf.constant([X_test[idx]]))
+    #     label = label.tolist()
+    #     prob = prob.tolist()
+    #     if label[0] != b"UNK":
+    #         if prob[0] <= threshold:
+    #             p_res = b"UNK"
+    #         else:
+    #             p_res = label[0]
+    #     else:
+    #         p_res = b"UNK"
+    #     pred.append(p_res)
+    #     proba.append(prob[0])
+    #     truth.append(labels[y_test[idx]])
+    #
+    # import pandas as pd
+    # df = pd.DataFrame((zip(truth, pred, proba)), columns=['truth', 'pred', 'proba'])
+    #
+    # label_acc = {}
+    # df = df.astype({'truth': 'string'})
+    # df['pred'] = df['pred'].str.decode("utf-8")
+    # df = df.astype({'pred': 'string'})
+    # df.to_csv("./pred.csv")
+    # print(df.dtypes)
+    # for label in labels:
+    #     label_df = df.loc[df['truth'] == label]
+    #     total = len(label_df)
+    #     correct = len(label_df.query('truth == pred'))
+    #     label_acc[label] = correct/total
+    # print(label_acc)
+    # print("acc_total", len(df.query('truth == pred'))/len(df))
+    # print(df.loc[df['pred'] == "UNK"])
+    # print(len(df.loc[df['pred'] == "UNK"]), len(df))
