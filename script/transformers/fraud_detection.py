@@ -99,9 +99,12 @@ def transform_data(db, data: list) -> list:
     if len(data) == 0:
         return []
     df = pd.DataFrame(data)
+    df = df.loc[::-1].reset_index(drop=True)
     df.iloc[:, 1] = pd.to_datetime(df.iloc[:, 1], format='%Y%m%d%H%M%S')
 
     end_idx_list = df.index[df.iloc[:, 0].isin(END_EVENT)].tolist()
+    if not end_idx_list:
+        return []
 
     s_dtm = df.iloc[0, 1].strftime('%Y%m%d')
     t_dtm = df.iloc[[end_idx_list[-1]], 1].dt.strftime('%Y%m%d').iloc[0]
@@ -120,17 +123,19 @@ def transform_data(db, data: list) -> list:
             return []
 
     if start_idx_list:
-        df = df[start_idx_list[0]:end_idx_list[-1] + 1]
-        event_list = df.iloc[:, 0].tolist()
-        time_diff = (df.iloc[:, 1].iloc[-1] - df.iloc[:, 1].iloc[0]).total_seconds()
-        event_list.append(time_diff)
-        counted_item = []
-        for event in EVENT_LIST:
-            if event != "time_diff":
-                counted_item.append(event)
-            else:
-                counted_item.append(time_diff)
-        return counted_item
+        try:
+            df = df[start_idx_list[0]:end_idx_list[-1] + 1]
+            event_list = df.iloc[:, 0].tolist()
+            time_diff = (df.iloc[:, 1].iloc[-1] - df.iloc[:, 1].iloc[0]).total_seconds()
+            counted_item = []
+            for event in EVENT_LIST:
+                if event != "time_diff":
+                    counted_item.append(event_list.count(event))
+                else:
+                    counted_item.append(time_diff)
+            return counted_item
+        except:
+            return []
     else:
         return []
 

@@ -488,8 +488,8 @@ class ServingManager:
 
                         if model_deploy_state.threshold is not None and model_id == "MDL0000001":
                             if p_result[0] != "UNK" and pb_result[0] < model_deploy_state.threshold:
-                                remain_pb = (1 - model_deploy_state.threshold) / len(p_result)
                                 p_result.remove("UNK")
+                                remain_pb = (1 - model_deploy_state.threshold) / len(p_result)
                                 p_result.insert(0, "UNK")
                                 for i in range(len(p_result)):
                                     if i == 0:
