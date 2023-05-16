@@ -25,6 +25,7 @@ import ray
 import numpy as np
 from docker.errors import ContainerError, ImageNotFound, APIError, DockerException
 from docker.models.containers import Container
+from docker.types import LogConfig
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from utils import Http
@@ -210,7 +211,7 @@ class ServingManager:
         except Exception as exc:
             self._boot_logger.error(
                 "(" + self._worker + ") " + "can't read deploy state from db:" + exc.__str__())
-            return -1
+            #return -1
         else:
             for stored_deploy_state in stored_deploy_states:
                 model_id = stored_deploy_state[0]
@@ -296,8 +297,6 @@ class ServingManager:
                 model_deploy_state = ModelDeployState(model=(model_id, encoded_version),
                                                       state=StateCode.AVAILABLE, model_type=model_type,
                                                       threshold=threshold)
-                # model_deploy_state = ModelDeployState(model=(model_id, encoded_version),
-                #                                       state=StateCode.AVAILABLE, model_type=model_type)
                 try:
                     result = await self.deploy_server(model_id, version, deploy_num, model_deploy_state, model_type)
                     print(result)
@@ -451,11 +450,6 @@ class ServingManager:
                     if model_deploy_state.max_input:
                         data = np.array(data[:model_deploy_state.max_input])
                     data = np.ravel(data, order="C").tolist()
-                # module = "transformers." + module
-                # module = importlib.import_module(module)
-                # func = sp_transformer_info[-1]
-                # func = getattr(module, func)
-                # data = func(data, model_deploy_state.max_input)
             if len(data) == 0:
                 self._logger.log.remote(level=logging.WARN, worker=self._worker,
                                         msg="input vector is empty")
@@ -476,8 +470,6 @@ class ServingManager:
                     elif predict_result == -1:
                         self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                                 msg="connection error : " + model_id + ":" + version)
-                        # await self.fail_back(model_id, version, server_name)
-                        # result = await self.predict(model_id, version, data.get("inputs")[0])
                     else:
                         result["CODE"] = "SUCCESS"
                         result["ERROR_MSG"] = ""
@@ -511,7 +503,6 @@ class ServingManager:
                                         mapping.append(self._db.select(name="select_event_name",
                                                                        param={"EVNT_ID": event_id})[0][0])
                                 p_result = mapping
-                        # result["PRBT"] = outputs["result_1"]
                         f_res = []
                         for i in range(len(p_result)):
                             f_res.append({"NAME": p_result[i], "PRBT": pb_result[i], "CODE": c_result[i]})
@@ -523,8 +514,8 @@ class ServingManager:
                             N_VER = version_info[1]
                             SUMN_MSG = str(data.get("inputs")[0])
                             RSLT_MSG = {}
-                            RSLT_MSG["RSLT"] = outputs["result"]
-                            RSLT_MSG["PRBT"] = outputs["result_1"]
+                            RSLT_MSG["RSLT"] = predict_result["outputs"]["result"]
+                            RSLT_MSG["PRBT"] = predict_result["outputs"]["result_1"]
                             RSLT_MSG = str(RSLT_MSG)
                             param = {"MDL_ID": MDL_ID, "MN_VER": MN_VER, "N_VER": N_VER,
                                      "SUMN_MSG": SUMN_MSG, "RSLT_MSG": RSLT_MSG}
@@ -746,10 +737,15 @@ class ServingManager:
     def run_container(self, model_id: str, container_name: str, http_port: int, grpc_port: int, deploy_path: str) \
             -> Container | None:
         try:
+            lc = LogConfig(type=LogConfig.types.JSON, config={
+                'max-size': '10m',
+                'max-file': "1"
+            })
             container = self._client.containers.run(image=self._CONTAINER_IMAGE, detach=True, name=container_name,
                                                     ports={'8501/tcp': http_port, '8500/tcp': grpc_port},
                                                     volumes=[deploy_path + ":/models/" + model_id],
-                                                    environment=["MODEL_NAME=" + model_id]
+                                                    environment=["MODEL_NAME=" + model_id],
+                                                    log_config=lc
                                                     )
             return container
         except ContainerError:
@@ -837,111 +833,6 @@ class ServingManager:
     def release_port_grpc(self, port: int) -> None:
         self._grpc_port_use.remove(port)
         self._grpc_port.append(port)
-
-    # def reset_version_config(self, host: str, name: str, base_path: str,
-    #                          model_platform: str, model_version_policy: list):
-    #     channel = grpc.insecure_channel(host)
-    #     stub = model_service_pb2_grpc.ModelServiceStub(channel)
-    #     request = model_management_pb2.ReloadConfigRequest()
-    #     model_server_config = model_server_config_pb2.ModelServerConfig()
-    #
-    #     config_list = model_server_config_pb2.ModelConfigList()
-    #     config = config_list.config.add()
-    #     config.name = name
-    #     config.base_path = base_path
-    #     config.model_platform = model_platform
-    #     for i in model_version_policy:
-    #         version = version_encode(i)
-    #         config.model_version_policy.specific.versions.append(version)
-    #     model_server_config.model_config_list.CopyFrom(config_list)
-    #     request.config.CopyFrom(model_server_config)
-    #     try:
-    #         response = stub.HandleReloadConfigRequest(request, 20)
-    #     except grpc.RpcError as rpc_error:
-    #         if rpc_error.code() == grpc.StateCode.CANCELLED:
-    #             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
-    #                                     msg="grpc cancelled : " + name)
-    #         elif rpc_error.code() == grpc.StateCode.UNAVAILABLE:
-    #             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
-    #                                     msg="grpc unavailable : " + name)
-    #         else:
-    #             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
-    #                                     msg="grpc unknown error : " + name)
-    #         return -1
-    #     else:
-    #         if response.status.error_code == 0:
-    #             self._logger.log.remote(level=logging.INFO, worker=self._worker,
-    #                                     msg="reset version config success : " + name)
-    #             return 0
-    #         else:
-    #             self._logger.log.remote(level=logging.INFO, worker=self._worker,
-    #                                     msg="reset version failed : " + response.status.error_message)
-    #             return -1
-    #
-    # async def add_version(self, model_id: str, version: str):
-    #     model_deploy_state = self._deploy_states.get(model_id + "_" + version)
-    #     if model_deploy_state is None:
-    #         return -1
-    #
-    #     if model_deploy_state.state == StateCode.AVAILABLE:
-    #         result = self.copy_to_deploy(model_id, version_encode(version))
-    #         if result == -1:
-    #             return -1
-    #         for container_name, serving_container in model_deploy_state.containers.items():
-    #             result = self.reset_version_config(
-    #                 host=serving_container.grpc_url[0] + ":" + str(serving_container.grpc_url[1]),
-    #                 name=serving_container.name,
-    #                 base_path="/models/" + model_id, model_platform="tensorflow",
-    #                 model_version_policy=[version_encode(version)])
-    #             if result != 0:
-    #                 self._logger.log.remote(level=logging.ERROR, worker=self._worker,
-    #                                         msg="an error occur when reset config :" + model_id)
-    #         return 0
-    #     else:
-    #         self._logger.log.remote(level=logging.WARN, worker=self._worker,
-    #                                 msg="the model is not usable currently : " + model_id)
-    #         return -1
-    #
-    # def copy_to_deploy(self, model_id: str, version: int) -> int:
-    #     model_path = self._project_path + "/saved_models/" + model_id + "/" + str(version)
-    #     decoded_version = version_decode(version)
-    #     deploy_key = model_id + "_" + decoded_version
-    #     deploy_path = self._project_path + "/deploy/" + deploy_key + "/" + model_id + "/" + str(version)
-    #     try:
-    #         copytree(model_path, deploy_path)
-    #     except FileExistsError:
-    #         self._logger.log.remote(level=logging.WARN, worker=self._worker,
-    #                                 msg="model file already exist in deploy dir, attempt to overwrite" + model_id + ":" + decoded_version)
-    #         result = self.delete_deployed_model(model_id, version)
-    #         if result == 0:
-    #             self.copy_to_deploy(model_id, version)
-    #     except FileNotFoundError:
-    #         self._logger.log.remote(level=logging.ERROR, worker=self._worker,
-    #                                 msg="model not exist" + model_id + ":" + decoded_version)
-    #         return -1
-    #     except shutil.Error as err:
-    #         src, dist, msg = err
-    #         self._logger.log.remote(level=logging.ERROR, worker=self._worker,
-    #                                 msg="an error occur when copy model file. "
-    #                                     "src:" + src + " target: " + dist + " | error: " + msg)
-    #         return -2
-    #     else:
-    #         return 0
-    #
-    # def delete_deployed_model(self, model_id: str, version: int) -> int:
-    #     decoded_version = version_decode(version)
-    #     deploy_key = model_id + "_" + decoded_version
-    #     deploy_path = self._project_path + "/deploy/" + deploy_key
-    #     try:
-    #         rmtree(deploy_path, ignore_errors=False)
-    #     except shutil.Error as err:
-    #         src, dist, msg = err
-    #         self._logger.log.remote(level=logging.ERROR, worker=self._worker,
-    #                                 msg="an error occur when delete deployed model file. "
-    #                                     "src:" + src + " target: " + dist + " | error: " + msg)
-    #         return -1
-    #     else:
-    #         return 0
 
     async def _set_cycle(self, model_id: str, version: str) -> int:
         cycle_list = []

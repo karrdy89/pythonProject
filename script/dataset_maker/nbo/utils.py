@@ -1,5 +1,4 @@
 import ray
-import pandas as pd
 import random
 
 
@@ -47,21 +46,17 @@ def make_dataset(datas: list, labels: list[str], len_limit: int, is_operation_en
         for data in datas:
             cust_id = data[0]
             features = data[1:]
-
-            # unk_sample_count = 0
             for idx, feature in enumerate(features):
-
                 if feature in labels:
                     if idx > 2:
                         if idx >= len_limit:
                             label_dataset[feature].append([cust_id] + features[idx-len_limit:idx] + [feature])
                         else:
                             label_dataset[feature].append([cust_id] + features[0:idx] + [feature])
-                        classes["UNK"] += 1
                         classes[feature] += 1
             unk_sample_count = 0
             for idx, r_feature in enumerate(reversed(features)):
-                if unk_sample_count > 5:
+                if unk_sample_count >= 1:
                     continue
                 if random.random() > 0.3:
                     continue
@@ -72,20 +67,8 @@ def make_dataset(datas: list, labels: list[str], len_limit: int, is_operation_en
                             label_dataset["UNK"].append([cust_id] + features[r_idx - len_limit:r_idx] + ["UNK"])
                         else:
                             label_dataset["UNK"].append([cust_id] + features[0:r_idx] + ["UNK"])
+                        classes["UNK"] += 1
                         unk_sample_count += 1
-                # else:
-                #     if idx > 4:
-                        # count backward
-                        # if unk_sample_count > 5:
-                        #     continue
-                        # if random.random() > 0.3:
-                        #     continue
-                        # if idx >= len_limit:
-                        #     label_dataset["UNK"].append([cust_id] + features[idx-len_limit:idx] + ["UNK"])
-                        # else:
-                        #     label_dataset["UNK"].append([cust_id] + features[0:idx] + ["UNK"])
-                        # classes["UNK"] += 1
-                        # unk_sample_count += 1
         committable = ray.get(act.get_committable.remote(classes=classes))
         for label, num in committable.items():
             if num > 0:

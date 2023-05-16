@@ -1,4 +1,6 @@
 import configparser
+from datetime import datetime
+from datetime import timedelta
 import sys
 import os
 import json
@@ -16,7 +18,7 @@ from ray.util.multiprocessing import Pool
 
 from db import DBUtil
 from statics import Actors, ROOT_DIR, TrainStateCode
-from dataset_maker.nbo.utils import split_chunk, make_dataset
+from dataset_maker.nbo.utils_m2 import split_chunk
 from dataset_maker.arg_types import BasicTableType
 
 
@@ -47,6 +49,8 @@ class MakeDatasetNBO:
         self._query: str | None = None
         self._key_index: int = 0
         self._x_index: list[int] | None = None
+        self._condition = None
+        self._condition_index = None
         self._version: str = '0'
         self._dataset_name: str = "NBO"
         self._path: str = ''
@@ -78,6 +82,7 @@ class MakeDatasetNBO:
         self._num_data_limit = args.num_data_limit
         self._query = args.query_name
         self._user_id = args.user_id
+        self._condition_index = 1
         if self._num_data_limit is not None:
             total_label_num = len(self._labels)
             data_per_label = int(self._num_data_limit/total_label_num)
@@ -95,7 +100,10 @@ class MakeDatasetNBO:
             return -1
         try:
             self._db = DBUtil(db_info="FDS_DB")
-            self._db.set_select_chunk(name=self._query, param={"START": args.start_dtm, "END": args.end_dtm},
+            start_date_m3 = datetime.strptime(args.end_dtm, "%Y%m%d")
+            self._condition = start_date_m3
+            start_date = (start_date_m3 - timedelta(days=90)).strftime("%Y%m%d")
+            self._db.set_select_chunk(name=self._query, param={"START": start_date, "END": args.end_dtm},
                                       array_size=50000, prefetch_row=50000)
         except Exception as exc:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
@@ -132,13 +140,14 @@ class MakeDatasetNBO:
         return 0
 
     def get_committable(self, classes: dict):
+        self._lock.acquire()
         committable = {}
         for label in self._labels:
             committable[label] = 0
-        self._lock.acquire()
         for label in self._labels:
             diff = self._labels_ratio[label] - self._label_data_total_c[label]
             if diff > 0:
+                is_filled = False
                 if classes[label] >= diff:
                     committable[label] = diff
                     self._label_data_total_c[label] += diff
@@ -181,11 +190,6 @@ class MakeDatasetNBO:
                     self._export()
         return 0
 
-    def set_split(self, data: list):
-        self._process_pool.apply_async(make_dataset, args=(data, self._labels, self._len_limit,
-                                                           self._is_early_stop, self._act))
-        return 0
-
     def set_left_over(self, data: dict):
         self._lock.acquire()
         self._left_over.update(data)
@@ -215,8 +219,10 @@ class MakeDatasetNBO:
             self._call_count_set_dataset = 0
             self._num_chunks = 1
             self._is_left_over_done = True
-            self._process_pool.apply_async(make_dataset, args=(left_over_data, self._labels, self._len_limit,
-                                                               self._is_early_stop, self._act))
+            self._process_pool.apply_async(split_chunk,
+                                           args=(left_over_data, 0, self._key_index, self._x_index,
+                                                 self._condition_index, self._condition,
+                                                 self._labels, self._len_limit, False, self._act))
         else:
             self._is_left_over_done = True
             self.set_dataset(nc=True)
@@ -371,11 +377,15 @@ class MakeDatasetNBO:
                 self._num_chunks = i + 1
                 if self._cur_buffer_size + self._chunk_size < self._mem_limit:
                     self._process_pool.apply_async(split_chunk,
-                                                   args=(chunk, i, self._key_index, self._x_index, self._act))
+                                                   args=(chunk, i, self._key_index, self._x_index,
+                                                         self._condition_index, self._condition,
+                                                         self._labels, self._len_limit, False, self._act))
                 else:
                     self._is_mem_limit_fetch_end = True
                     self._process_pool.apply_async(split_chunk,
-                                                   args=(chunk, i, self._key_index, self._x_index, self._act))
+                                                   args=(chunk, i, self._key_index, self._x_index,
+                                                         self._condition_index, self._condition,
+                                                         self._labels, self._len_limit, False, self._act))
                     self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                             msg="making nbo dataset: fetch data: ended by limitation of memory")
                     break

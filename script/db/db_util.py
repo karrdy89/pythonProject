@@ -295,18 +295,3 @@ class DBUtil:
         elif type(v) == str:
             v = v.replace("'", '"')
             return "'" + v + "'"
-
-
-# from cryptography.fernet import Fernet
-# import os
-# from script.statics import ROOT_DIR
-# key_path = ROOT_DIR + "/script/db/refKey.txt"
-# f = open(key_path, "rb")
-# key = f.read()
-# refKey = Fernet(key)
-# mypwdbyt = bytes("Rcrtacaddw1!", 'utf-8') # convert into byte
-# encryptedPWD = refKey.encrypt(mypwdbyt)
-# print(encryptedPWD)
-# f = open("./encryptedPWD.txt", "wb")
-# f.write(encryptedPWD)
-# f.close()

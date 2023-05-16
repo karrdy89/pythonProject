@@ -1,16 +1,28 @@
 <mapper name="BaseMapper">
         <select name="select_nbo">
             SELECT
-                /*+ INDEX_DESC(A IXTBCHN3001H03) */
+                /*+ INDEX_ASC(A IXTBCHN3001H03) */
                 A.CUST_NO
                 , A.ORGN_DTM
-                , A.CHNL_ID
                 , A.EVNT_ID
             FROM
                 S_AIB.TBCHN3001H A
             WHERE 1=1
             AND CUST_NO IS NOT NULL
             AND ORGN_DTM BETWEEN #{START} || '000000' AND #{END} || '999999'
+        </select>
+
+        <select name="select_nbo_test">
+            SELECT
+                A.CUST_NO
+                , A.ORGN_DTM
+                , A.EVNT_ID
+            FROM
+                TBCHN3001H A
+            WHERE 1=1
+            AND CUST_NO IS NOT NULL
+            AND ORGN_DTM BETWEEN #{START} || '000000' AND #{END} || '999999'
+            ORDER BY CUST_NO, ORGN_DTM ASC
         </select>
 
         <select name="select_deploy_state">
@@ -52,6 +64,7 @@
             ORDER BY
                 A.MDL_ID, A.MN_VER DESC, A.N_VER DESC, A.SEQNO DESC
         </select>
+
         <select name="select_nbo_event">
             SELECT
                 /*+ INDEX_DESC(A IXTBCHN3001H03) */
@@ -71,33 +84,6 @@
                 AND EVNT_ID = #{EVNT_ID}
         </select>
 
-        <select name="select_nbo_event_test">
-            SELECT
-                A.EVNT_ID
-            FROM
-                TEST A /* total contact history */
-            WHERE 1=1
-                AND A.CUST_NO = #{CUST_NO} /* customer number */
-            ORDER BY ORGN_DTM ASC
-        </select>
-
-        <select name="select_test">
-            SELECT CUST_NO, EVNT_ID
-            FROM TEST
-            WHERE 1=1
-            AND ORGN_DTM BETWEEN TO_DATE(#{START}, 'YYYYMMDD') AND TO_DATE(#{END}, 'YYYYMMDD')
-            ORDER BY CUST_NO ASC, ORGN_DTM ASC
-        </select>
-
-        <select name="select_fds_event_test">
-            SELECT EVNT_ID, ORGN_DTM
-            FROM TEST
-            WHERE 1=1
-            AND CUST_NO = #{CUST_NO}
-            AND ORGN_DTM BETWEEN TO_DATE((TO_CHAR(SYSDATE-2, 'YYYYMMDD') || '000000'), 'YYYYMMDDHH24MISS') AND TO_DATE((TO_CHAR(SYSDATE, 'YYYYMMDD') || '235959'), 'YYYYMMDDHH24MISS')
-            ORDER BY ORGN_DTM ASC
-        </select>
-
         <select name="select_fds_event">
             SELECT
                 /*+ INDEX_DESC(A IXTBCHN3001H03) */
@@ -109,23 +95,15 @@
             AND ORGN_DTM BETWEEN TO_CHAR(SYSDATE-2, 'YYYYMMDD') || '000000000' AND TO_CHAR(SYSDATE, 'YYYYMMDD') || '999999999'
         </select>
 
-        <insert name="insert_test">
-                INSERT INTO TEST
-                 (CUST_NO,
-                 ORGN_DTM,
-                 EVNT_ID,
-                 EVNT_NM,
-                 SYS_EVNT_ID,
-                 SYS_EVNT_NM)
-                VALUES
-                 (#{CUST_NO},
-                 SYSDATE,
-                 #{EVNT_ID},
-                 #{EVNT_NM},
-                 #{SYS_EVNT_ID},
-                 #{SYS_EVNT_NM}
-                )
-        </insert>
+        <select name="select_pred_log">
+            SELECT
+                SUMN_MSG,
+                RSLT_MSG
+            FROM
+            WHERE
+                MN_VER=#{MN_VER}
+                AND N_VER=#{N_VER}
+        </select>
 
         <insert name="insert_pred_log">
             INSERT INTO S_AIB.TBMOD1004H
@@ -155,10 +133,6 @@
                 TO_CHAR(SYSDATE, 'YYYYMMDDHH24MISS'),
                 'SYSTEM')
         </insert>
-
-
-
-
 
 
 </mapper>

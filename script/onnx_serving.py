@@ -74,7 +74,7 @@ class OnnxServing:
         config_parser = configparser.ConfigParser()
         config_parser.read(ROOT_DIR + "/script/transformers/model_option.ini")
         try:
-            self._threshold = float(config_parser.get("THRESHOLD", model_id))
+            self._threshold = float(config_parser.get("THRESHOLD", self._model_id))
         except Exception as e:
             self._threshold = None
 

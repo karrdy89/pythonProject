@@ -60,8 +60,6 @@ except Exception as exc:
 
 boot_logger.info("(Main Server) init ray...")
 os.environ["RAY_LOG_TO_STDERR"] = "0"
-os.environ["RAY_ROTATION_MAX_BYTES"] = "104857600"
-os.environ["RAY_ROTATION_BACKUP_COUNT"] = "5"
 ray.init(dashboard_host="127.0.0.1", dashboard_port=8265)
 
 
