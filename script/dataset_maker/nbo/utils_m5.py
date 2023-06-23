@@ -52,38 +52,40 @@ def split_chunk(chunk: list[tuple], chunk_index: int, key_index: int, x_index: l
         for idx, data in enumerate(chunk):
             cur_key = data[key_index]
             if before_key is None or before_key == cur_key:
-                label = data[x_index[0]]
-                if label in label_list:
-                    matched_chunks = chunk[start_idx:idx+1]
-                    matched_len = len(matched_chunks)
-                    if matched_len > 4:
-                        matched_valid_time = datetime.strptime(matched_chunks[0][condition_index][:8], "%Y%m%d")
-                        matched_valid_time = matched_valid_time - timedelta(days=90)
-                        if matched_len > len_limit:
-                            matched_chunks = chunk[idx - len_limit:idx+1]
-                        for matched_data in matched_chunks:
-                            if datetime.strptime(matched_data[condition_index][:8], "%Y%m%d") >= matched_valid_time:
-                                temp_feature.append(matched_data[x_index[0]])
-                        label_dataset[label].append([data[key_index]] + temp_feature)
-                        classes[label] = classes[label] + 1
-                        temp_feature = []
+                if condition <= datetime.strptime(data[condition_index][:8], "%Y%m%d"):
+                    label = data[x_index[0]]
+                    if label in label_list:
+                        matched_chunks = chunk[start_idx:idx+1]
+                        matched_len = len(matched_chunks)
+                        if matched_len > 1:
+                            matched_valid_time = datetime.strptime(matched_chunks[0][condition_index][:8], "%Y%m%d")
+                            matched_valid_time = matched_valid_time - timedelta(days=90)
+                            if matched_len > len_limit:
+                                matched_chunks = chunk[idx - len_limit:idx+1]
+                            for matched_data in matched_chunks:
+                                if datetime.strptime(matched_data[condition_index][:8], "%Y%m%d") >= matched_valid_time:
+                                    temp_feature.append(matched_data[x_index[0]])
+                            label_dataset[label].append([data[key_index]] + temp_feature)
+                            classes[label] = classes[label] + 1
+                            temp_feature = []
             else:
-                sep_chunk = chunk[start_idx:idx]
-                tmp_unk = []
-                if len(sep_chunk) > 1:
-                    valid_time = datetime.strptime(sep_chunk[0][condition_index][:8], "%Y%m%d")
-                    valid_time = valid_time - timedelta(days=90)
-                    for i1_idx, i1_data in enumerate(reversed(sep_chunk)):
-                        event = i1_data[x_index[0]]
-                        data_time = datetime.strptime(i1_data[condition_index][:8], "%Y%m%d")
-                        if event not in label_list and data_time >= valid_time and i1_idx < len_limit:
-                            tmp_unk.append(event)
-                        else:
+                for i1_idx, i1_data in enumerate(reversed(chunk[start_idx:idx])):
+                    label = i1_data[x_index[0]]
+                    if label not in label_list:
+                        matched_chunks = chunk[start_idx:idx-i1_idx]
+                        matched_len = len(matched_chunks)
+                        if matched_len > 1:
+                            matched_valid_time = datetime.strptime(matched_chunks[0][condition_index][:8], "%Y%m%d")
+                            matched_valid_time = matched_valid_time - timedelta(days=90)
+                            if matched_len > len_limit:
+                                matched_chunks = matched_chunks[matched_len - len_limit:]
+                            for matched_data in matched_chunks:
+                                if datetime.strptime(matched_data[condition_index][:8], "%Y%m%d") >= matched_valid_time:
+                                    temp_feature.append(matched_data[x_index[0]])
+                            label_dataset["UNK"].append([data[key_index]] + temp_feature + ["UNK"])
+                            classes["UNK"] = classes["UNK"] + 1
+                            temp_feature = []
                             break
-                    if len(tmp_unk) > 1:
-                        label_dataset["UNK"].append([data[key_index]] + list(reversed(tmp_unk)) + ["UNK"])
-                        classes["UNK"] = classes["UNK"] + 1
-                temp_feature = []
                 start_idx = idx
             before_key = cur_key
 

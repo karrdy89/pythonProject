@@ -14,4 +14,4 @@ pipelines:
   - name: MDL0000003
     sequence:
       - name: "train model"
-        task: train.NBO.train_NBO_model
+        task: train.NBO_m2.train_NBO_model

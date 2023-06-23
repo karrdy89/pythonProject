@@ -149,13 +149,31 @@ class DBUtil:
         :return:  concurrent.futures.Future | Any
             if self.concurrency is true, then it will return future. if not return execute result
         """
-        query = self._mapper.get(name)
-        if param is not None:
-            query = self._parameter_mapping(query, param)
-        if self.concurrency:
-            return self._executor.submit(self._execute_select, query)
+        try:
+            self.connection_test()
+        except:
+            try:
+                self._session_pool = oracledb.SessionPool(user=self._USER, password=self._PASSWORD, dsn=self._dsn,
+                                                          min=self._SESSION_POOL_MIN, max=self._SESSION_POOL_MAX,
+                                                          increment=1, encoding="UTF-8")
+            except Exception as exc:
+                print(exc.__str__())
+            else:
+                query = self._mapper.get(name)
+                if param is not None:
+                    query = self._parameter_mapping(query, param)
+                if self.concurrency:
+                    return self._executor.submit(self._execute_select, query)
+                else:
+                    return self._execute_select(query)
         else:
-            return self._execute_select(query)
+            query = self._mapper.get(name)
+            if param is not None:
+                query = self._parameter_mapping(query, param)
+            if self.concurrency:
+                return self._executor.submit(self._execute_select, query)
+            else:
+                return self._execute_select(query)
 
     def _execute_select(self, query: str):
         """
@@ -184,17 +202,39 @@ class DBUtil:
         :param array_size: int
             Set prefetch array size
         """
-        self._chunk_conn = self._session_pool.acquire()
-        self._chunk_cursor = self._chunk_conn.cursor()
-        if prefetch_row is not None:
-            self._chunk_cursor.prefetchrows = prefetch_row
-        if array_size is not None:
-            self._chunk_cursor.arraysize = array_size
-        query = self._mapper.get(name)
-        if param is not None:
-            query = self._parameter_mapping(query, param)
-        print(query)
-        self._chunk_cursor.execute(query)
+        try:
+            self.connection_test()
+        except:
+            try:
+                self._session_pool = oracledb.SessionPool(user=self._USER, password=self._PASSWORD, dsn=self._dsn,
+                                                          min=self._SESSION_POOL_MIN, max=self._SESSION_POOL_MAX,
+                                                          increment=1, encoding="UTF-8")
+            except Exception as exc:
+                print(exc.__str__())
+            else:
+                self._chunk_conn = self._session_pool.acquire()
+                self._chunk_cursor = self._chunk_conn.cursor()
+                if prefetch_row is not None:
+                    self._chunk_cursor.prefetchrows = prefetch_row
+                if array_size is not None:
+                    self._chunk_cursor.arraysize = array_size
+                query = self._mapper.get(name)
+                if param is not None:
+                    query = self._parameter_mapping(query, param)
+                print(query)
+                self._chunk_cursor.execute(query)
+        else:
+            self._chunk_conn = self._session_pool.acquire()
+            self._chunk_cursor = self._chunk_conn.cursor()
+            if prefetch_row is not None:
+                self._chunk_cursor.prefetchrows = prefetch_row
+            if array_size is not None:
+                self._chunk_cursor.arraysize = array_size
+            query = self._mapper.get(name)
+            if param is not None:
+                query = self._parameter_mapping(query, param)
+            print(query)
+            self._chunk_cursor.execute(query)
 
     def select_chunk(self) -> list:
         """
@@ -229,13 +269,31 @@ class DBUtil:
             return result
 
     def insert(self, name: str, param: Optional[dict] = None) -> concurrent.futures.Future | Any:
-        query = self._mapper.get(name)
-        if param is not None:
-            query = self._parameter_mapping(query, param)
-        if self.concurrency:
-            return self._executor.submit(self._execute_insert, query)
+        try:
+            self.connection_test()
+        except:
+            try:
+                self._session_pool = oracledb.SessionPool(user=self._USER, password=self._PASSWORD, dsn=self._dsn,
+                                                          min=self._SESSION_POOL_MIN, max=self._SESSION_POOL_MAX,
+                                                          increment=1, encoding="UTF-8")
+            except Exception as exc:
+                print(exc.__str__())
+            else:
+                query = self._mapper.get(name)
+                if param is not None:
+                    query = self._parameter_mapping(query, param)
+                if self.concurrency:
+                    return self._executor.submit(self._execute_insert, query)
+                else:
+                    return self._execute_insert(query)
         else:
-            return self._execute_insert(query)
+            query = self._mapper.get(name)
+            if param is not None:
+                query = self._parameter_mapping(query, param)
+            if self.concurrency:
+                return self._executor.submit(self._execute_insert, query)
+            else:
+                return self._execute_insert(query)
 
     def _execute_insert(self, query: str):
         print(query)

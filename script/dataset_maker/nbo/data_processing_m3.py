@@ -18,7 +18,7 @@ from ray.util.multiprocessing import Pool
 
 from db import DBUtil
 from statics import Actors, ROOT_DIR, TrainStateCode
-from dataset_maker.nbo.utils_m2 import split_chunk
+from dataset_maker.nbo.utils_m3 import split_chunk
 from dataset_maker.arg_types import BasicTableType
 
 
@@ -67,14 +67,15 @@ class MakeDatasetNBO:
         self._mem_flush_left_over = None
         self._call_count_set_dataset = 0
         self._labels_ratio = {}
-        self._is_init = False
-        self._start_dtm = None
-        self._end_dtm = None
 
     def init(self, args: BasicTableType):
         self._name = args.actor_name
         self._dataset_name = args.dataset_name
         self._act = args.actor_handle
+        self._labels = args.labels + ["UNK"]
+        for label in self._labels:
+            self._label_data_total[label] = 0
+            self._label_data_total_c[label] = 0
         self._version = args.version
         self._key_index = args.key_index
         self._x_index = args.feature_index
@@ -82,7 +83,15 @@ class MakeDatasetNBO:
         self._query = args.query_name
         self._user_id = args.user_id
         self._condition_index = 1
-        self._labels = args.labels
+        if self._num_data_limit is not None:
+            total_label_num = len(self._labels)
+            data_per_label = int(self._num_data_limit/total_label_num)
+            diff = self._num_data_limit - data_per_label * total_label_num
+            for label in self._labels:
+                if label == "UNK":
+                    self._labels_ratio[label] = data_per_label + diff
+                else:
+                    self._labels_ratio[label] = data_per_label
         try:
             self._logger = ray.get_actor(Actors.LOGGER)
             self._shared_state = ray.get_actor(Actors.GLOBAL_STATE)
@@ -94,8 +103,8 @@ class MakeDatasetNBO:
             start_date_m3 = datetime.strptime(args.start_dtm, "%Y%m%d")
             self._condition = start_date_m3
             start_date = (start_date_m3 - timedelta(days=90)).strftime("%Y%m%d")
-            self._start_dtm = start_date
-            self._end_dtm = args.end_dtm
+            self._db.set_select_chunk(name=self._query, param={"START": start_date, "END": args.end_dtm},
+                                      array_size=50000, prefetch_row=50000)
         except Exception as exc:
             self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                     msg="an error occur when set DBUtil: " + exc.__str__())
@@ -260,7 +269,7 @@ class MakeDatasetNBO:
 
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="making nbo dataset: done: finished | total read: " + str(self._total_read)
-                                    + " | total processed: " + str(self._total_processed_data))
+                                + " | total processed: " + str(self._total_processed_data))
         self._shared_state.set_make_dataset_result.remote(self._name, self._user_id, TrainStateCode.MAKING_DATASET_DONE)
         self._shared_state.kill_actor.remote(self._name)
 
@@ -340,33 +349,6 @@ class MakeDatasetNBO:
             return 0
 
     def fetch_data(self):
-        if not self._is_init:
-            self._logger.log.remote(level=logging.INFO, worker=self._worker, msg="set attributes...")
-
-            num_client = self._db.select(name="select_count_cust",
-                                         param={"START": self._start_dtm, "END": self._end_dtm})[0][0]
-            boost_factor = 1
-            num_labels = []
-            for label in self._labels:
-                num_label = self._db.select(name="select_count_event",
-                                            param={"START": self._start_dtm, "END": self._end_dtm, "EVNT_ID": label})[0][0]
-                num_labels.append(num_label)
-            max_num_labels = max(num_labels)
-            for label in self._labels:
-                self._labels_ratio[label] = int(self._num_data_limit * boost_factor * max_num_labels / num_client)
-
-            num_unk = self._num_data_limit - sum(self._labels_ratio.values())
-            self._labels = self._labels + ["UNK"]
-            self._labels_ratio["UNK"] = num_unk
-            print(self._labels_ratio)
-            for label in self._labels:
-                self._label_data_total[label] = 0
-                self._label_data_total_c[label] = 0
-
-            self._db.set_select_chunk(name=self._query, param={"START": self._start_dtm, "END": self._end_dtm},
-                                      array_size=50000, prefetch_row=50000)
-            self._is_init = True
-
         self._logger.log.remote(level=logging.INFO, worker=self._worker,
                                 msg="making nbo dataset: fetch data: start")
         if not self._is_fetch_end and not self._is_early_stop:

@@ -134,11 +134,11 @@ class OnnxServing:
                 else:
                     result["CODE"] = "SUCCESS"
                     result["ERROR_MSG"] = ""
-                return result, data
+                return result, data, []
             elif len(data) < self._input_shape[-1]:
                 result["CODE"] = "FAIL"
                 result["ERROR_MSG"] = "input shape is incorrect"
-                return result, data
+                return result, data, []
             else:
                 data = data[:self._input_shape[-1]]
         try:
@@ -149,7 +149,7 @@ class OnnxServing:
         except Exception as exc:
             result["CODE"] = "FAIL"
             result["ERROR_MSG"] = "an error occur when get inference from onnx session : " + exc.__str__()
-            return result
+            return result, [], []
         pred = pred_onx[0]
         pred_proba = pred_onx[-1][0]
         output_class = []
@@ -192,4 +192,9 @@ class OnnxServing:
         # result["RSLT"] = output_class
         # result["PRBT"] = output_proba
         result["RSLT"] = f_res
-        return result, data
+
+        r_res = []
+        for i in range(len(output_class)):
+            r_res.append({"NAME": pred[i], "PRBT": pred_proba[i]})
+
+        return result, data, r_res

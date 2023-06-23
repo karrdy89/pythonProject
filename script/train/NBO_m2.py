@@ -16,7 +16,7 @@ from models.sequential.sasc.modules import LabelLayer
 from pipeline import Input, TrainInfo, PipelineComponent
 from pipeline import split_ratio
 from pipeline import base_callbacks, evaluation_callback
-from models.sequential.sasc import sasc
+from models.sequential.sasc import sasc_m2
 from statics import ROOT_DIR
 
 
@@ -75,7 +75,6 @@ def train_NBO_model(train_info: Input[TrainInfo]):
             class_weight[k] = (1 / v) * (class_total / 2.0) * lowest_class_weight
         else:
             class_weight[k] = (1 / v) * (class_total / 2.0)
-    # print(class_weight)
 
     labels = list(set(labels))
 
@@ -85,8 +84,8 @@ def train_NBO_model(train_info: Input[TrainInfo]):
 
     vocab_size = len(le.get_vocabulary()) + 1
     num_labels = len(labels)
-    model = sasc.get_model(vocab_size=vocab_size, vocabulary=vocabs, max_len=max_len, num_labels=num_labels,
-                           mask_token=mask_token)
+    model = sasc_m2.get_model(vocab_size=vocab_size, vocabulary=vocabs, max_len=max_len, num_labels=num_labels,
+                              mask_token=mask_token)
 
     b_steps = 0
     b_monitor = None
@@ -133,7 +132,7 @@ def train_NBO_model(train_info: Input[TrainInfo]):
 
             train_callback = base_callbacks(train_info, b_steps=b_steps,
                                             t_epoch=train_info.epoch, c_epoch=c_epoch, t_steps=t_steps,
-                                            t_file_count=len(datafiles), c_file_count=current_file_num+1)
+                                            t_file_count=len(datafiles), c_file_count=current_file_num + 1)
             hist = model.fit(dataset_per_file[filename]["X_train"], dataset_per_file[filename]["y_train"],
                              validation_data=(dataset_per_file[filename]["X_valid"],
                                               dataset_per_file[filename]["y_valid"]),

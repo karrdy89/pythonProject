@@ -12,17 +12,43 @@
             AND ORGN_DTM BETWEEN #{START} || '000000' AND #{END} || '999999'
         </select>
 
-        <select name="select_nbo_test">
+        <select name="select_nbo_m2">
             SELECT
+                /*+ INDEX_ASC(A IXTBCHN3001H03) */
                 A.CUST_NO
                 , A.ORGN_DTM
                 , A.EVNT_ID
             FROM
-                TBCHN3001H A
+                S_AIB.TBCHN3001H A
+            WHERE 1=1
+            AND CUST_NO IS NOT NULL
+            AND CHNL_ID != 'CH301'
+            AND ORGN_DTM BETWEEN #{START} || '000000' AND #{END} || '999999'
+        </select>
+
+        <select name="select_count_cust">
+            SELECT
+                /*+ INDEX_ASC(A IXTBCHN3001H03) */
+                COUNT(DISTINCT(A.CUST_NO))
+            FROM
+                S_AIB.TBCHN3001H A
             WHERE 1=1
             AND CUST_NO IS NOT NULL
             AND ORGN_DTM BETWEEN #{START} || '000000' AND #{END} || '999999'
-            ORDER BY CUST_NO, ORGN_DTM ASC
+            AND CHNL_ID != 'CH301'
+        </select>
+
+        <select name="select_count_event">
+            SELECT
+                /*+ INDEX_ASC(A IXTBCHN3001H03) */
+                COUNT(A.EVNT_ID)
+            FROM
+                S_AIB.TBCHN3001H A
+            WHERE 1=1
+            AND CUST_NO IS NOT NULL
+            AND ORGN_DTM BETWEEN #{START} || '000000' AND #{END} || '999999'
+            AND CHNL_ID != 'CH301'
+            AND EVNT_ID = #{EVNT_ID}
         </select>
 
         <select name="select_deploy_state">
@@ -67,12 +93,25 @@
 
         <select name="select_nbo_event">
             SELECT
-                /*+ INDEX_DESC(A IXTBCHN3001H03) */
+                /*+ INDEX_ASC(A IXTBCHN3001H03) */
                 A.EVNT_ID
             FROM
                 S_AIB.TBCHN3001H A /* total contact history */
             WHERE 1=1
                 AND A.CUST_NO = #{CUST_NO} /* customer number */
+                AND CHNL_ID != 'CH301'
+        </select>
+
+        <select name="select_nbo_event_m2">
+            SELECT
+                /*+ INDEX_ASC(A IXTBCHN3001H03) */
+                A.EVNT_ID
+            FROM
+                S_AIB.TBCHN3001H A /* total contact history */
+            WHERE 1=1
+                AND A.CUST_NO = #{CUST_NO} /* customer number */
+                AND ORGN_DTM >= TO_CHAR(SYSDATE-90,'YYYYMMDD')
+                AND CHNL_ID != 'CH301'
         </select>
 
         <select name="select_event_name">

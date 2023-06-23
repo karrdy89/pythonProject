@@ -211,7 +211,7 @@ class ServingManager:
         except Exception as exc:
             self._boot_logger.error(
                 "(" + self._worker + ") " + "can't read deploy state from db:" + exc.__str__())
-            #return -1
+            return -1
         else:
             for stored_deploy_state in stored_deploy_states:
                 model_id = stored_deploy_state[0]
@@ -411,6 +411,7 @@ class ServingManager:
 
     async def predict(self, model_id: str, version: str, data: list) -> dict:
         model_deploy_state = self._deploy_states.get(model_id + "_" + version)
+        REQ_DATA = data[0]
         result = {"CODE": "FAIL", "ERROR_MSG": "N/A", "RSLT": []}
         if (model_deploy_state is None) or (model_deploy_state.cycle_iterator is None):
             self._logger.log.remote(level=logging.WARN, worker=self._worker, msg="model not deployed : "
@@ -478,16 +479,19 @@ class ServingManager:
                         pb_result = outputs["result_1"]
                         c_result = []
 
-                        if model_deploy_state.threshold is not None and model_id == "MDL0000001":
-                            if p_result[0] != "UNK" and pb_result[0] < model_deploy_state.threshold:
-                                p_result.remove("UNK")
-                                remain_pb = (1 - model_deploy_state.threshold) / len(p_result)
-                                p_result.insert(0, "UNK")
-                                for i in range(len(p_result)):
-                                    if i == 0:
-                                        pb_result[i] = model_deploy_state.threshold
-                                    else:
-                                        pb_result[i] = remain_pb
+                        if model_deploy_state.threshold:
+                            sp_transformer_info = model_deploy_state.transformer.split('.')
+                            module = ''.join(sp_transformer_info[:-1])
+                            if module == "nbo":
+                                if p_result[0] != "UNK" and pb_result[0] < model_deploy_state.threshold:
+                                    p_result.remove("UNK")
+                                    remain_pb = (1 - model_deploy_state.threshold) / len(p_result)
+                                    p_result.insert(0, "UNK")
+                                    for i in range(len(p_result)):
+                                        if i == 0:
+                                            pb_result[i] = model_deploy_state.threshold
+                                        else:
+                                            pb_result[i] = remain_pb
 
                         if model_deploy_state.transformer:
                             sp_transformer_info = model_deploy_state.transformer.split('.')
@@ -512,13 +516,15 @@ class ServingManager:
                             version_info = version.split('.')
                             MN_VER = version_info[0]
                             N_VER = version_info[1]
-                            SUMN_MSG = str(data.get("inputs")[0])
+                            SUMN_MSG = {}
+                            SUMN_MSG["INPUT"] = data.get("inputs")[0]
+                            SUMN_MSG["REQ_DATA"] = REQ_DATA
                             RSLT_MSG = {}
                             RSLT_MSG["RSLT"] = predict_result["outputs"]["result"]
                             RSLT_MSG["PRBT"] = predict_result["outputs"]["result_1"]
                             RSLT_MSG = str(RSLT_MSG)
                             param = {"MDL_ID": MDL_ID, "MN_VER": MN_VER, "N_VER": N_VER,
-                                     "SUMN_MSG": SUMN_MSG, "RSLT_MSG": RSLT_MSG}
+                                     "SUMN_MSG": str(SUMN_MSG), "RSLT_MSG": RSLT_MSG}
                             self._logger.log_to_db.remote("insert_pred_log", param)
                     server.ref_count -= 1
                     return result
@@ -530,7 +536,7 @@ class ServingManager:
             if state == StateCode.AVAILABLE:
                 server.ref_count += 1
                 try:
-                    predict_result, data = await predict_ep.predict.remote(data=data)
+                    predict_result, data, r_result = await predict_ep.predict.remote(data=data)
                 except Exception as exc:
                     self._logger.log.remote(level=logging.ERROR, worker=self._worker,
                                             msg="can't make inference : " + exc.__str__() + model_id + ":" + version +
@@ -543,19 +549,22 @@ class ServingManager:
                         version_info = version.split('.')
                         MN_VER = version_info[0]
                         N_VER = version_info[1]
-                        SUMN_MSG = str(data)
+                        SUMN_MSG = {}
+                        SUMN_MSG["INPUT"] = data
+                        SUMN_MSG["REQ_DATA"] = REQ_DATA
+                        # SUMN_MSG = str(data)
                         RSLT_MSG = {}
-                        p_result = predict_result.get("RSLT")
+                        # p_result = predict_result.get("RSLT")
                         RSLT = []
                         PRBT = []
-                        for res in p_result:
+                        for res in r_result:
                             RSLT.append(res["NAME"])
                             PRBT.append(res["PRBT"])
                         RSLT_MSG["RSLT"] = RSLT
                         RSLT_MSG["PRBT"] = PRBT
                         RSLT_MSG = str(RSLT_MSG)
                         param = {"MDL_ID": MDL_ID, "MN_VER": MN_VER, "N_VER": N_VER,
-                                 "SUMN_MSG": SUMN_MSG, "RSLT_MSG": RSLT_MSG}
+                                 "SUMN_MSG": str(SUMN_MSG), "RSLT_MSG": RSLT_MSG}
                         self._logger.log_to_db.remote("insert_pred_log", param)
                     result = predict_result
                     server.ref_count -= 1
